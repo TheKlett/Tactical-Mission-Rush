@@ -30,7 +30,7 @@ function plantSpot(W, G, pos, label, onDone) {
     act: () => {
       if (!P.mission.includes('charge')) return; it.planted = true; P.mission.splice(P.mission.indexOf('charge'), 1); P.missionSel = 0;
       const c = W.addItem('charge', V.add(pos, [0, -.05, 0]), 0); c.alive = true; c.planted = true; W.items.splice(W.items.indexOf(c), 1); W.dyn.push(c); G.dlights.push({ pos, col: [1, .1, .1], i: .6, range: 2, life: 1e9 });
-      AUD.beep(1600, .08, .3, pos); setTimeout(() => AUD.beep(2000, .08, .3, pos), 200); G.notify('CHARGE ARMED — ' + label, 'good'); onDone && onDone();
+      AUD.beep(1600, .08, .3, pos); G.after(() => AUD.beep(2000, .08, .3, pos), 200); G.notify('CHARGE ARMED — ' + label, 'good'); onDone && onDone();
     },
   };
   W.interact.push(it); return it;
@@ -151,7 +151,7 @@ const M1 = {
     const gp = W.generator(25, -72, 0); W.gens = [{ pos: gp }];
     W.box(25, W.th(25, -72) + 1.5, -69.5, 4, .15, 4.5, 0x5a5a52, MAT.CORR, { surf: 'metal' }); for (const [a, b] of [[-1.9, -2.1], [1.9, -2.1], [-1.9, 2.1], [1.9, 2.1]]) W.box(25 + a, W.th(25, -72) + .75, -69.5 + b, .1, 1.5, .1, 0x555555, MAT.METAL);
     W.generatorPanel(27.6, W.th(27.6, -70) + 1.2, -70.4, 3);
-    W.interact.push({ r: 1.8, pos: [27.4, W.th(27.6, -70) + 1.2, -70.4], hold: 2.6, anim: 'hotwire', label: () => G.powerOn ? '[E] CUT GENERATOR POWER (HOLD)' : '', enabled: () => G.powerOn, act: () => { G.setPower(false); G.complete('power'); setTimeout(() => { const n = G.npcs.find(x => !x.dead && x.state === 'calm' && x.role !== 'commander'); if (n) { G.speak(n, "Power's down! Someone check the generator!", true); n.setSuspicious([25, 0, -72], false); n.setState('investigate'); n.suspPt = [25, 0, -72]; n.goTo([25, 0, -73], true); } }, 3000); } });
+    W.interact.push({ r: 1.8, pos: [27.4, W.th(27.6, -70) + 1.2, -70.4], hold: 2.6, anim: 'hotwire', label: () => G.powerOn ? '[E] CUT GENERATOR POWER (HOLD)' : '', enabled: () => G.powerOn, act: () => { G.setPower(false); G.complete('power'); G.after(() => { const n = G.npcs.find(x => !x.dead && x.state === 'calm' && x.role !== 'commander'); if (n) { G.speak(n, "Power's down! Someone check the generator!", true); n.setSuspicious([25, 0, -72], false); n.setState('investigate'); n.suspPt = [25, 0, -72]; n.goTo([25, 0, -73], true); } }, 3000); } });
     const fl = [[-82, -8], [-60, -50], [-12, -48], [70, -40], [90, 10], [30, 62], [-30, 70], [-70, 25], [0, 0], [40, -10]];
     for (const [x, z] of fl) W.floodlight(x, z, Math.atan2(x, z), 6.5);
     /* ---- perimeter fence (with gaps) ---- */
@@ -240,7 +240,7 @@ const M1 = {
     G.marker = !G.obj('kill').done ? [10, 2, -30] : [166, 2, -126];
     if (G.exHeli && V.dist2(P.pos, G.exHeli.pos) < 14 && G.obj('kill').done) { }
   },
-  onKill(G, n) { if (n.id === 'commander') { G.complete('kill'); setTimeout(() => G.notify('TARGET DOWN — MOVE TO EXFIL LZ (EAST)', 'good'), 1500); G.exHeli && (G.exHeli.rotor = .45); } },
+  onKill(G, n) { if (n.id === 'commander') { G.complete('kill'); G.after(() => G.notify('TARGET DOWN — MOVE TO EXFIL LZ (EAST)', 'good'), 1500); G.exHeli && (G.exHeli.rotor = .45); } },
   onPickup(G, item) { if (item === 'ledger') G.complete('ledger'); },
   canExtract(G) { return G.obj('kill').done; },
 };

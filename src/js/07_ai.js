@@ -11,6 +11,12 @@ const NPCW = {
   pistol: { dmg: 13, rpm: 220, mag: 12, acc: .45, range: 30, snd: 'npcPistol', gr: [0, -.04, 0], gl: [-.02, -.05, .01], burst: [2, 3] },
 };
 const NAMES = {
+  female: ['Elena', 'Sofia', 'Clara', 'Isabel', 'Margot', 'Vera', 'Anna', 'Lucia', 'Natalie', 'Camille', 'Irina', 'Maya', 'Helena', 'Julia', 'Rosa', 'Nadia'],
+  security: ['Mason', 'Grant', 'Doyle', 'Reyes', 'Fischer', 'Klein', 'Hart', 'Moreau', 'Stone', 'Vance', 'Byrne', 'Quinn'],
+  civ: ['Lord Ashby', 'Mr. Delacroix', 'Mr. Hale', 'Sir Whitmore', 'Mr. Okafor', 'Mr. Lindqvist', 'Mr. Bellini', 'Mr. Tanaka', 'Mr. Rousseau', 'Mr. Kessling', 'Mr. Varga', 'Mr. Albright'],
+  staff: ['Pierre', 'Tomas', 'Henri', 'Luca', 'Ben', 'Marcel', 'Oskar', 'Jules'],
+  bank: ['Mr. Patel', 'Mr. Cole', 'Mr. Novak', 'Mr. Brooks', 'Mr. Ruiz', 'Mr. Weber', 'Mr. Chen', 'Mr. Adams'],
+  robber: ['Fox', 'Wolf', 'Crow', 'Dog', 'Snake', 'Bear', 'Hawk', 'Rat', 'Moth', 'Jackal'],
   cartel: ['Marco', 'Diego', 'Luis', 'Raúl', 'Chuy', 'Beto', 'Tito', 'Nacho', 'Pablo', 'Rico', 'Hector', 'Memo', 'Javi', 'Toño', 'Cruz', 'Lalo', 'Rafa', 'Pepe', 'Gordo', 'Flaco', 'Mateo', 'Santos'],
   pmc: ['Kessler', 'Brandt', 'Novak', 'Hayes', 'Riggs', 'Volkov', 'Mercer', 'Dawson', 'Kovac', 'Sloane', 'Pryce', 'Crane', 'Holt', 'Wade', 'Becker', 'Lund', 'Fisk', 'Ortega'],
   militia: ['Dmitri', 'Arkady', 'Yuri', 'Pavel', 'Oleg', 'Grisha', 'Lev', 'Bogdan', 'Ivan', 'Kostya', 'Misha', 'Roman', 'Sasha', 'Timur', 'Vadim', 'Egor', 'Fyodor', 'Stas'],
@@ -39,11 +45,13 @@ const vpick = (k, n) => pick(LINES[k]).replace('{n}', n || '');
 class NPC {
   constructor(def, rng) {
     this.def = def; this.id = def.id || ('npc' + Math.random().toString(36).slice(2, 7)); this.faction = def.faction || 'cartel';
-    this.name = def.name || pick(NAMES[this.faction]); this.role = def.role || 'guard';
-    const wt = def.weapon || (this.faction === 'cartel' ? pick(['ak', 'ak', 'shotgun', 'smg', 'pistol']) : this.faction === 'pmc' ? pick(['rifle', 'rifle', 'rifleL', 'smg']) : pick(['ak', 'rifle', 'ak', 'shotgun']));
+    this.role = def.role || 'guard'; this.civ = def.civ !== undefined ? def.civ : !!(FACTIONS[this.faction] && FACTIONS[this.faction].civ);
+    const DW = { cartel: ['ak', 'ak', 'shotgun', 'smg', 'pistol'], pmc: ['rifle', 'rifle', 'rifleL', 'smg'], militia: ['ak', 'rifle', 'ak', 'shotgun'], security: ['pistol', 'smg', 'pistol'], robber: ['ak', 'shotgun', 'smg', 'rifle', 'pistol'] };
+    const wt = def.weapon || (this.civ ? 'none' : pick(DW[this.faction] || DW.cartel));
     this.wt = wt; this.W = NPCW[wt];
     const app = appearanceFor(this.faction, rng, def.app || {}); app.weapon = wt === 'none' ? null : wt; app.prop = def.prop || null;
-    this.app = app; this.rig = new Rig(buildCharacter(app)); this.hasProp = !!app.prop;
+    const nl = NAMES[this.faction] || NAMES.cartel; this.name = def.name || (app.female && NAMES.female ? pick(NAMES.female) : pick(nl));
+    this.app = app; this.rig = new Rig(buildCharacter(app)); this.rig.sc = app.height || 1; this.hasProp = !!app.prop;
     this.pos = [def.pos[0], 0, def.pos[1]]; this.yaw = def.yaw || 0; this.vel = [0, 0, 0];
     this.hp = def.hp || 100; this.armor = app.vest ? .3 : 0; if (app.head === 'helmet') this.helmet = true;
     this.state = 'calm'; this.susp = 0; this.suspPt = null; this.stT = 0; this.lastKnown = null; this.lastSeen = -99; this.canSee = false;
@@ -70,7 +78,7 @@ class NPC {
     const night = G.env.night || 0;
     let maxD = lerp(46, 28, night) * (alertLvl ? 1.35 : 1); if (P.state === 'vehicle') maxD *= 1.4;
     this.canSee = false; let rate = 0;
-    if (d < maxD && P.state !== 'plane' && P.state !== 'fall' && P.state !== 'chute' || (P.state === 'chute' && d < maxD * 1.4)) {
+    if (d < maxD && P.state !== 'plane' && P.state !== 'fall' && P.state !== 'chute' && P.state !== 'truckride' && P.state !== 'boatride' && P.state !== 'heliride' || (P.state === 'chute' && d < maxD * 1.4)) {
       const to = V.sc(V.sub(pc, e), 1 / d); const look = this.yaw + this.headYaw; const f = [-Math.sin(look), 0, -Math.cos(look)];
       const flat = Math.hypot(to[0], to[2]) || 1; const cosA = (to[0] * f[0] + to[2] * f[2]) / flat; const ang = Math.acos(clamp(cosA, -1, 1));
       const half = alertLvl ? 1.25 : this.anim === 'sit' || this.anim === 'work' ? .8 : 1.05;
@@ -85,6 +93,7 @@ class NPC {
             const periph = ang > .6 ? .45 : 1;
             rate = 2.4 * distF * (.15 + .85 * vis) * stance * motion * periph * (1 - fol) * (alertLvl ? 2.2 : 1) * G.diffMul;
             if (P.state === 'vehicle') rate *= 1.6; if (d < 3.5) rate += 3; if (P.lastShot > G.time - .5) rate += 1.5;
+            rate *= G.socialFactor(this, d); if (P.hostage && P.hostage.n !== this) rate += 4;
           }
         }
       }
@@ -94,26 +103,27 @@ class NPC {
       if (this.susp > .32 || this.state === 'combat') { this.suspPt = V.copy(P.pos); }
       if (this.state === 'combat' || this.susp >= 1) { this.lastKnown = V.copy(P.pos); this.lastSeen = G.time; }
     } else if (this.state === 'calm' || this.state === 'suspicious') this.susp = Math.max(0, this.susp - dt * .12);
-    if (this.susp >= 1 && this.state !== 'combat') this.enterCombat(true);
-    else if (this.susp > .32 && this.state === 'calm') this.setSuspicious(V.copy(P.pos), true);
+    if (this.susp >= 1 && this.state !== 'combat') { if (this.civ) { if (this.state !== 'panic' && this.state !== 'cower') this.panic(P.pos, true); } else if (G.socialWarn(this)) { } else this.enterCombat(true); }
+    else if (this.susp > .32 && this.state === 'calm' && !this.civ) this.setSuspicious(V.copy(P.pos), true);
     // bodies
     if (this.state !== 'combat') for (const o of G.npcs) {
       if (!o.dead || o.discovered || o === this || o.deathT < 1) continue; const bp = [o.pos[0], o.pos[1] + .3, o.pos[2]]; const dd = V.dist(bp, e); if (dd > 24) continue;
       const to = V.norm(V.sub(bp, e)); const f = this.fwd; if (to[0] * f[0] + to[2] * f[2] < .25 && dd > 3) continue;
       if (!G.W.los(e, bp)) continue;
-      o.discovered = true; this.say('body'); G.stats.bodies++; G.notify('BODY DISCOVERED', 'warn');
-      setTimeout(() => { if (!this.dead) G.globalSearch(o.pos, this, 'body'); }, 1800);
+      o.discovered = true; G.stats.bodies++; G.notify('BODY DISCOVERED', 'warn'); if (this.civ) { this.scream(); this.panic(o.pos, true); break; } this.say('body');
+      G.after(() => { if (!this.dead) G.globalSearch(o.pos, this, 'body'); }, 1800);
       this.setState('investigate'); this.suspPt = V.copy(o.pos); this.goTo(o.pos, true); break;
     }
     // missing partner
     if (this.group && this.state === 'calm' && !this.missingChecked) {
       const mates = G.npcs.filter(n => n !== this && n.group === this.group);
       const gone = mates.find(n => n.dead && G.time - n.deathAt > 18 && !n.discovered);
-      if (gone && this.task().t === 'talk') { this.missingChecked = true; this.say('missing', gone.name); setTimeout(() => { if (!this.dead && this.state === 'calm') { this.setSuspicious(V.copy(gone.pos), false); this.suspPt = V.copy(gone.pos); this.setState('investigate'); this.goTo(gone.pos, false); } }, 2500); }
+      if (gone && this.task().t === 'talk') { this.missingChecked = true; this.say('missing', gone.name); G.after(() => { if (!this.dead && this.state === 'calm') { this.setSuspicious(V.copy(gone.pos), false); this.suspPt = V.copy(gone.pos); this.setState('investigate'); this.goTo(gone.pos, false); } }, 2500); }
     }
   }
   hear(pos, kind, strength) {
-    if (this.dead || this.tdT >= 0) return;
+    if (this.dead || this.tdT >= 0 || this.state === 'hostage') return;
+    if (this.civ) { if (kind === 'shot' || kind === 'explosion' || (kind === 'glass' && strength > .5)) this.panic(pos, false); return; }
     if (this.state === 'combat') { if (kind === 'shot' || kind === 'shot_s') { if (!this.canSee && G.time - this.lastSeen > 2) this.lastKnown = V.copy(pos); } return; }
     if (kind === 'shot' || kind === 'explosion') {
       if (this.state !== 'search') this.say('shot');
@@ -135,17 +145,19 @@ class NPC {
   setState(s) { this.state = s; this.stT = 0; if (s === 'combat' || s === 'search') this.weaponMode = s === 'combat' ? 'aim' : 'low'; if (s !== 'calm') { this.seat = null; } }
   setSuspicious(pt, voice) { if (this.state === 'calm') { this.setState('suspicious'); if (voice) this.say('susp'); } this.suspPt = pt; this.path = null; }
   enterCombat(spotted) {
+    if (this.civ) { this.panic(P.pos, true); return; }
     const was = this.state; this.setState('combat'); this.susp = 1; this.lastKnown = V.copy(P.pos); this.lastSeen = G.time; this.alerted = true;
     if (spotted) { this.say('spot'); G.stats.detected = true; G.onSpotted(this); }
     G.alertNearby(this, 32);
   }
-  goTo(p, run) { if (this.def.static) { this.path = null; return; } G.pathBudget = (G.pathBudget || 0) + 1; this.moveTarget = [p[0], p[2] ?? p[1]]; this.run = run; this.path = G.W.findPath(this.pos[0], this.pos[2], this.moveTarget[0], this.moveTarget[1]); this.pi = 0; this.repath = 2 + Math.random(); }
+  goTo(p, run) { if (this.def.static) { this.path = null; return; } if (this.def.direct || (this.curDirect && this.state === 'calm')) { this.moveTarget = [p[0], p[2] ?? p[1]]; this.run = run; this.path = [[this.moveTarget[0], this.moveTarget[1]]]; this.pi = 0; this.repath = 2; return; } G.pathBudget = (G.pathBudget || 0) + 1; this.moveTarget = [p[0], p[2] ?? p[1]]; this.run = run; this.path = G.W.findPath(this.pos[0], this.pos[2], this.moveTarget[0], this.moveTarget[1]); this.pi = 0; this.repath = 2 + Math.random(); }
   arrived(r = .5) { return !this.path || this.pi >= this.path.length; }
   /* ---------------- update ---------------- */
   update(dt) {
     this.sayCd -= dt; this.hitFlash = Math.max(0, this.hitFlash - dt * 4); this.flinch = Math.max(0, this.flinch - dt * 3); this.stT += dt;
     if (this.dead) { this.deathT += dt; return; }
     if (this.tdT >= 0) { this.tdT += dt; return; }
+    if (this.state === 'hostage') { this.anim = this.hostAnim || 'held'; return; }
     const distP = V.dist(this.pos, P.pos); this.distP = distP;
     this.percT -= dt; if (this.percT <= 0) { const iv = distP < 40 ? .1 : distP < 90 ? .25 : .6; this.perceive(iv); this.percT = iv; }
     let moveSpeed = 0; let wantYaw = null; let anim = 'idle';
@@ -168,6 +180,7 @@ class NPC {
       } else { moveSpeed = 2.2; anim = 'walk'; }
       if (this.stT > 45 && G.alarm < 2) { this.say('calmdown'); this.susp = 0; this.alerted = true; this.backToRoutine(); }
     } else if (S === 'combat') { const r = this.combat(dt); moveSpeed = r.speed; wantYaw = r.yaw; anim = r.anim; }
+    else if (S === 'panic' || S === 'cower' || S === 'warn' || S === 'released') { const r = this.updateSpecial(dt); moveSpeed = r.speed; wantYaw = r.yaw; anim = r.anim; }
     else if (S === 'flee') {
       if (!this.arrived()) { moveSpeed = 4; anim = 'run'; } else { anim = 'crouch'; if (this.canSee) { this.setState('combat'); } }
     }
@@ -206,7 +219,7 @@ class NPC {
     const T = this.task(); const res = { speed: 0, yaw: null, anim: 'idle' };
     if (!T) return res;
     if (T.t === 'patrol') {
-      if (this.taskPhase === 'go') { this.pIdx = this.pIdx || 0; const p = T.pts[this.pIdx % T.pts.length]; this.goTo([p[0], 0, p[1]], false); this.taskPhase = 'walk'; }
+      if (this.taskPhase === 'go') { this.pIdx = this.pIdx || 0; const p = T.pts[this.pIdx % T.pts.length]; this.curDirect = !!T.direct; this.goTo([p[0], 0, p[1]], false); this.taskPhase = 'walk'; }
       if (this.taskPhase === 'walk') { if (this.arrived()) { this.taskPhase = 'wait'; this.rt = 0; } else { res.speed = T.speed || 1.45; res.anim = 'walk'; } }
       if (this.taskPhase === 'wait') { this.rt += dt; res.anim = T.look ? 'look' : 'idle'; if (this.rt > (T.wait ?? 2)) { this.pIdx++; this.taskPhase = 'go'; if (this.pIdx % T.pts.length === 0 && this.routine.length > 1) { this.ri++; this.pIdx = 0; } } }
       return res;
@@ -214,7 +227,7 @@ class NPC {
     // stationary tasks: go to spot first
     let spot = T.pos, yaw = T.yaw ?? 0;
     if (T.anchor) { const a = G.anchor(T.anchor, this); if (a) { spot = [a.pos[0], a.pos[2]]; yaw = a.yaw; } }
-    if (this.taskPhase === 'go') { this.goTo([spot[0], 0, spot[1]], false); this.taskPhase = 'walk'; }
+    if (this.taskPhase === 'go') { this.curDirect = !!T.direct; this.goTo([spot[0], 0, spot[1]], false); this.taskPhase = 'walk'; }
     if (this.taskPhase === 'walk') {
       const d = Math.hypot(spot[0] - this.pos[0], spot[1] - this.pos[2]);
       if (this.arrived() || d < .35) { this.taskPhase = 'do'; this.rt = 0; } else { res.speed = 1.45; res.anim = 'walk'; return res; }
@@ -222,7 +235,7 @@ class NPC {
     if (this.taskPhase === 'do') {
       this.rt += dt; const d = Math.hypot(spot[0] - this.pos[0], spot[1] - this.pos[2]); if (d > .05) { this.pos[0] = damp(this.pos[0], spot[0], 6, dt); this.pos[2] = damp(this.pos[2], spot[1], 6, dt); }
       res.yaw = yaw;
-      res.anim = { guard: 'guard', sit: 'sit', work: T.sit ? 'sitwork' : 'work', talk: 'talk', smoke: 'smoke', idle: T.anim || 'idle' }[T.t] || 'idle';
+      res.anim = { guard: 'guard', sit: T.anim === 'drink' ? 'sitdrink' : 'sit', work: T.sit ? 'sitwork' : 'work', talk: 'talk', smoke: 'smoke', idle: T.anim || 'idle', dance: T.anim || 'dance', drink: 'drink', kneel: 'kneel', cower: 'cower', lean: 'lean', phone: 'phone' }[T.t] || 'idle';
       if (T.t === 'talk') { const g = G.groups[T.group]; res.anim = g && g.speaker === this ? 'talk' : 'listen'; if (g && g.speaker && g.speaker !== this) res.yaw = Math.atan2(-(g.speaker.pos[0] - this.pos[0]), -(g.speaker.pos[2] - this.pos[2])); }
       if (T.t === 'smoke' && !this.hasProp) res.anim = 'idle';
       if (T.dur && this.rt > T.dur && this.routine.length > 1) { this.ri++; this.taskPhase = 'go'; }
@@ -268,7 +281,8 @@ class NPC {
     return bs < 40 ? best : null;
   }
   shoot(dt, d) {
-    const W = this.W; if (!W) return; this.fireCd -= dt; if (this.burstPause > 0) { this.burstPause -= dt; return; }
+    const W = this.W; if (!W) return;
+    if (P.hostage && P.hostage.phase === 'hold' && G.time - P.lastShot > 4) { this.fireCd = .5; if (Math.random() < dt * .5) this.say(pick(['Let him go!', 'Drop the gun and let him go!', 'Hold your fire, he has a hostage!', 'You have nowhere to run!'])); return; } this.fireCd -= dt; if (this.burstPause > 0) { this.burstPause -= dt; return; }
     if (this.fireCd > 0) return; if (d > W.range * 1.5) return;
     if (this.mag <= 0) { this.reloadT = 2.2; this.say('reload'); AUD.mech('magOut', this.pos); return; }
     this.fireCd = 60 / W.rpm; this.mag--; this.burst++;
@@ -292,7 +306,8 @@ class NPC {
     if (a === 'walk' || a === 'run') py = -poseWalk(j, this.ph, a === 'run' ? 1.1 : clamp(this.speed / 1.5, .5, 1.1), a === 'run', carry);
     else if (a === 'sit' || a === 'sitwork') { poseSit(j, G.time, this.k, a === 'sitwork'); py = -.5; }
     else if (a === 'crouch') { poseCrouch(j, 0, false); py = -.38; }
-    else poseIdle(j, G.time, a === 'aim' ? 'guard' : a, this.k);
+    else if (a === 'sitdrink') { poseSit(j, G.time, this.k, false); py = -.5; const up = bump((G.time * .15 + this.k) % 1, .1, .35); pj(j, SK.UAL, .5 + up * .4, .2, -.15 + up * .3); pj(j, SK.FAL, 1.3 + up, 0, 0); }
+    else { poseIdle(j, G.time, a === 'aim' ? 'guard' : a, this.k); if (a === 'cower') py = -.62; if (a === 'kneel') py = -.44; }
     if (a === 'aim') { pj(j, SK.THL, -.1, .25, -.1); pj(j, SK.THR, .15, -.25, .1); pj(j, SK.CH, 0, .35, 0); pj(j, SK.HD, 0, -.3, 0); }
     if (this.crouch > .5 && a !== 'run' && a !== 'walk') { poseCrouch(j, 0, false); py = -.38; pj(j, SK.CH, -.15, .3, 0); }
     if (this.state === 'suspicious' || this.state === 'investigate') pj(j, SK.HD, 0, Math.sin(G.time * 1.2 + this.k) * .5, 0);
@@ -301,7 +316,7 @@ class NPC {
     const r = rig.root; M4.ident(r); M4.translate(r, r, this.pos[0], this.pos[1], this.pos[2]); M4.rotY(r, r, this.yaw);
     // weapon placement
     let wl = null;
-    if (this.W) {
+    if (this.W && this.state !== 'hostage') {
       const m = this.wmLocal; M4.ident(m); const isP = this.wt === 'pistol';
       if (this.weaponMode === 'aim' && a !== 'run') { M4.translate(m, m, isP ? .02 : .11, .33, isP ? -.42 : -.22); M4.rotY(m, m, -.35); M4.rotX(m, m, clamp(this.aimPitch, -.8, .8)); if (this.crouch > .5) M4.rotY(m, m, -.1); wl = { m, gr: this.W.gr, gl: this.W.gl }; }
       else if (this.weaponMode === 'low' || (this.weaponMode === 'aim' && a === 'run')) { M4.translate(m, m, isP ? .2 : .08, isP ? .02 : .1, isP ? -.15 : -.26); M4.rotY(m, m, .55); M4.rotX(m, m, -.6); wl = { m, gr: this.W.gr, gl: isP ? null : this.W.gl }; }
@@ -338,22 +353,23 @@ class NPC {
   }
 }
 
-/* ---------------- security cameras ---------------- */
+/* ---------------- security cameras & surveillance network ---------------- */
 class SecCam {
-  constructor(pos, yaw, sweep = .9, room = null) { this.pos = pos; this.base = yaw; this.yaw = yaw; this.sweep = sweep; this.t = Math.random() * 6; this.susp = 0; this.alive = true; this.m = M4.create(); this.room = room; this.cool = 0; }
+  constructor(pos, yaw, sweep = .9, label) { this.pos = pos; this.base = yaw; this.yaw = yaw; this.sweep = sweep; this.t = Math.random() * 6; this.susp = 0; this.alive = true; this.m = M4.create(); this.cool = 0; this.empT = 0; this.label = label || 'CAMERA'; this.downT = 0; this.reported = false; }
+  get online() { return this.alive && this.empT <= 0 && !G.camFeedOff && !(this.needsPower && !G.powerOn); }
   update(dt) {
-    if (!this.alive) return; this.t += dt; this.yaw = this.base + Math.sin(this.t * .35) * this.sweep; this.cool -= dt;
+    this.empT = Math.max(0, this.empT - dt);
+    if (!this.online) { this.susp = 0; this.seeing = false; this.downT += dt; G.camDown(this); return; }
+    this.downT = 0; this.reported = false;
+    this.t += dt; this.yaw = this.base + Math.sin(this.t * .35) * this.sweep; this.cool -= dt;
     M4.trs(this.m, M4.create(), this.pos[0], this.pos[1], this.pos[2], -.35, this.yaw, 0);
     if (P.state !== 'ground' && P.state !== 'vehicle') return;
-    if (!G.powerOn && this.needsPower) { this.susp = 0; return; }
-    const pe = P.eye(); const d = V.dist(pe, this.pos); if (d > 22) { this.susp = Math.max(0, this.susp - dt * .3); return; }
+    const pe = P.eye(); const d = V.dist(pe, this.pos); if (d > 24) { this.susp = Math.max(0, this.susp - dt * .3); this.seeing = false; return; }
     const to = V.sc(V.sub(pe, this.pos), 1 / d); const f = [-Math.sin(this.yaw), 0, -Math.cos(this.yaw)]; const fl = Math.hypot(to[0], to[2]) || 1;
-    const ca = (to[0] * f[0] + to[2] * f[2]) / fl; const seen = ca > .8 && G.W.los(this.pos, pe);
-    if (seen) { this.susp += dt * (.8 + P.visibility) * (1 - d / 25) * 1.4 * G.diffMul; } else this.susp = Math.max(0, this.susp - dt * .25);
-    this.seeing = seen && this.susp > .1;
-    if (this.susp > 1 && this.cool <= 0) {
-      this.cool = 25; this.susp = 0; G.notify('SECURITY CAMERA ALERT', 'warn'); G.stats.detected = true;
-      const op = G.npcs.find(n => !n.dead && n.def.camOp); if (op || !this.room) { const speaker = op || G.npcs.find(n => !n.dead); if (speaker) G.speak(speaker, pick(LINES.camera), true); G.globalSearch(V.copy(P.pos), speaker, 'camera'); }
-    }
+    const ca = (to[0] * f[0] + to[2] * f[2]) / fl; const seen = ca > .78 && G.W.los(this.pos, pe) && G.smokeBlock(this.pos, pe) < .9;
+    const social = G.socialFactor(null, d);
+    if (seen) this.susp += dt * (.8 + P.visibility) * (1 - d / 27) * 1.3 * G.diffMul * Math.max(social, P.holstered ? 0 : .5); else this.susp = Math.max(0, this.susp - dt * .25);
+    this.seeing = seen && this.susp > .05;
+    if (this.susp > 1 && this.cool <= 0) { this.cool = 20; this.susp = 0; G.camAlert(this, V.copy(P.pos)); }
   }
 }

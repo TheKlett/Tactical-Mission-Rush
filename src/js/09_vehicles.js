@@ -18,7 +18,7 @@ Object.assign(G, {
     });
     this.vehicles.push(v); this.vehicleBones(v); return v;
   },
-  groundUnder(v) { const W = this.W; let g = -1e9; for (const [a, b] of [[0, 0], [.8, 1.5], [-.8, 1.5], [.8, -1.5], [-.8, -1.5]]) { const p = M4.pt(M4.trs(M4.create(), M4.create(), v.pos[0], 0, v.pos[2], 0, v.yaw, 0), a, 0, b); g = Math.max(g, W.th(p[0], p[2])); } return g; },
+  groundUnder(v) { const W = this.W; let g = -1e9; if (v.yFn) return v.yFn(); for (const [a, b] of [[0, 0], [.8, 1.5], [-.8, 1.5], [.8, -1.5], [-.8, -1.5]]) { const p = M4.pt(M4.trs(M4.create(), M4.create(), v.pos[0], 0, v.pos[2], 0, v.yaw, 0), a, 0, b); g = Math.max(g, W.th(p[0], p[2])); } return g; },
   updateVehicleCol(v) {
     const c = Math.abs(Math.cos(v.yaw)), s = Math.abs(Math.sin(v.yaw)); const hw = (v.def.W * c + v.def.L * s) / 2 * .92, hd = (v.def.W * s + v.def.L * c) / 2 * .92;
     this.W.moveCol(v.col, [v.pos[0] - hw, v.pos[1] + .3, v.pos[2] - hd], [v.pos[0] + hw, v.pos[1] + v.def.h, v.pos[2] + hd]);
@@ -32,7 +32,7 @@ Object.assign(G, {
   },
   enterVehicle(v) {
     P.state = 'vehicle'; P.vehicle = v; v.driver = true; v.col.on = false; P.yaw = 0; P.pitch = -.08; P.ads = 0; this.stats.vehicles++;
-    if (!v.engine) { v.engine = true; AUD.click(400, .6, v.pos); setTimeout(() => AUD.click(300, .5, v.pos), 150); v.sound = AUD.engineLoop(v.kind === 'truck' ? 'car' : 'car', v.pos); this.noise(v.pos, 35, 'vehicle'); }
+    if (!v.engine) { v.engine = true; AUD.click(400, .6, v.pos); G.after(() => AUD.click(300, .5, v.pos), 150); v.sound = AUD.engineLoop(v.kind === 'truck' ? 'car' : 'car', v.pos); this.noise(v.pos, 35, 'vehicle'); }
     UI.hint('W/S — THROTTLE / BRAKE · A/D — STEER · SPACE — HANDBRAKE · C — CAMERA · E — EXIT');
   },
   exitVehicle() {
@@ -139,7 +139,7 @@ Object.assign(G, {
       },
     };
   },
-  openRamp() { const pl = this.plane; pl.opening = true; pl.btn = 1; AUD.mech('button'); setTimeout(() => { AUD.hydraulic(M4.pos(pl.m), 4.5); for (let i = 0; i < 3; i++) setTimeout(() => AUD.beep(700, .25, .25), i * 600); }, 250); this.complete('jump0'); UI.hint('Ramp opening. Jump out, then press [SPACE] to deploy your parachute.'); },
+  openRamp() { const pl = this.plane; pl.opening = true; pl.btn = 1; AUD.mech('button'); G.after(() => { AUD.hydraulic(M4.pos(pl.m), 4.5); for (let i = 0; i < 3; i++) G.after(() => AUD.beep(700, .25, .25), i * 600); }, 250); this.complete('jump0'); UI.hint('Ramp opening. Jump out, then press [SPACE] to deploy your parachute.'); },
   updatePlaneObj(dt) {
     const pl = this.plane; pl.ang += pl.w * dt; const c = pl.center;
     const pos = [c[0] + Math.cos(pl.ang) * pl.R, pl.alt, c[1] + Math.sin(pl.ang) * pl.R];
@@ -171,7 +171,7 @@ Object.assign(G, {
     const segs = []; let tot = 0; for (let i = 0; i < o.path.length - 1; i++) { const a = o.path[i], b = o.path[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); segs.push([a, b, L, tot]); tot += L; } boat.segs = segs; boat.len = tot;
     const at = s => { s = clamp(s, 0, tot - .01); for (const sg of segs) if (s <= sg[3] + sg[2]) { const k = (s - sg[3]) / sg[2]; return [lerp(sg[0][0], sg[1][0], k), lerp(sg[0][1], sg[1][1], k), Math.atan2(-(sg[1][0] - sg[0][0]), -(sg[1][1] - sg[0][1]))]; } return [0, 0, 0]; };
     boat.at = at;
-    this.W.interact.push({ r: 3, wide: true, pos: o.ladder, label: () => P.state === 'boatride' && boat.done ? '[E] CLIMB ONTO THE PIER' : '', anim: 'reach', dur: .9, at: .5, act: () => { UI.fade(1, .25); setTimeout(() => { P.state = 'ground'; P.pos = V.copy(o.top); P.vel = [0, 0, 0]; P.yaw = o.topYaw; P.pitch = 0; P.camOverride = null; UI.fade(0, .5); boat.leaving = true; AUD.step('metal', null, .5); UI.hint('Infiltrate the harbor. Your radio intercept is live — enemy chatter will be transcribed.'); this.complete('insert'); }, 300); } });
+    this.W.interact.push({ r: 3, wide: true, pos: o.ladder, label: () => P.state === 'boatride' && boat.done ? '[E] CLIMB ONTO THE PIER' : '', anim: 'reach', dur: .9, at: .5, act: () => { UI.fade(1, .25); G.after(() => { P.state = 'ground'; P.pos = V.copy(o.top); P.vel = [0, 0, 0]; P.yaw = o.topYaw; P.pitch = 0; P.camOverride = null; UI.fade(0, .5); boat.leaving = true; AUD.step('metal', null, .5); UI.hint('Infiltrate the harbor. Your radio intercept is live — enemy chatter will be transcribed.'); this.complete('insert'); }, 300); } });
     let t = 0; this.state = 'intro'; this.cineLock = true; UI.letterbox(true); UI.title(o.title, o.sub, o.meta);
     this.cine = {
       hideVM: true, hideBody: true,

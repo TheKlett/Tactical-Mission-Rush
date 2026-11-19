@@ -15,11 +15,11 @@ const VM = {
   wrist(c, bs, left) { const sx = left ? -1 : 1; return V.sub(c, V.add(V.sc(bs[0], -sx * .015), V.sc(bs[1], -.065))); },
   update(dt) {
     const L = P.vmL; const A = P.anim; const w = P.weapon; const u = A.d > 1e8 ? 0 : clamp(A.t / A.d, 0, 1);
-    const W8 = WEAPONS[w]; const isP = w === 'pistol', isR = W8 && W8.type === 'rifle', isK = w === 'knife';
+    const W8 = P.weps[w]; const isP = !!W8 && W8.type === 'pistol', isR = !!W8 && W8.type === 'rifle', isK = !!W8 && W8.type === 'knife';
     const item = P.curItemKind(); const st = P.state;
     const optic = G.loadout.optic;
     let cfg = isP ? VM_CFG.pistol : isR ? VM_CFG.rifle : VM_CFG.knife;
-    const adsP = isR ? (optic === 'reddot' ? VM_CFG.rifleRD.ads : optic === 'holo' ? VM_CFG.rifleHolo.ads : cfg.ads) : (cfg.ads || cfg.hip);
+    const adsP = isR ? (optic === 'reddot' ? VM_CFG.rifleRD.ads : optic === 'holo' ? VM_CFG.rifleHolo.ads : optic === 'scope' ? VM_CFG.rifleScope.ads : cfg.ads) : (cfg.ads || cfg.hip);
     const pos = V.lerp(cfg.hip, adsP, P.ads); let rx = 0, ry = 0, rz = 0;
     const b = P.bob, ba = P.bobAmt * (1 - P.ads * .85);
     pos[0] += Math.sin(b) * .011 * ba; pos[1] += -Math.abs(Math.cos(b)) * .013 * ba; rz += Math.sin(b) * .02 * ba; ry += Math.cos(b) * .01 * ba;
@@ -140,6 +140,14 @@ const VM = {
       const rc = [.1, -.32, -.22]; RT = V.lerp(V.lerp(this.restR, rc, k1), [.32, .18, -.3], k2); RB = this.reachBasis(shR, RT, false); wpnShow = 0; knifeShow = 0;
       LT = V.lerp(this.restL, [-.45, -.05, -.3], k1); LB = this.reachBasis(shL, LT, true);
     }
+    // hostage hold: left arm locks around the hostage, pistol stays raised one-handed
+    if (P.hostage) {
+      const H = P.hostage; const k = H.phase === 'grab' ? smooth(H.t / .4) : H.phase === 'escape' && H.t > 1.05 ? 1 - smooth((H.t - 1.05) / .3) : 1;
+      const sq = H.phase === 'kill' ? bump(H.t, 0, .6) * .05 : H.phase === 'escape' ? Math.sin(G.time * 30) * .02 * (H.t < 1.05 ? 1 : 0) : 0;
+      const T = [-.05 + sq, -.36 - sq, -.38]; LT = V.lerp(LT, T, k); LB = this.blendBasis(LB, [V.norm([0, .2, -1]), V.norm([.8, .3, .4]), null].map((v, i, a) => i === 2 ? V.cross(a[0], a[1]) : v), k);
+      if (gun) { RT = V.add(RT, [.03 * k, .025 * k, 0]); }
+    }
+    if (P.holstered && A.k !== 'holster' && A.k !== 'draw') { wpnShow = 0; knifeShow = 0; if (A.k !== 'interact' && A.k !== 'hold' && A.k !== 'takedown') { LT = V.copy(this.restL); RT = V.copy(this.restR); LB = this.reachBasis(shL, LT, true); RB = this.reachBasis(shR, RT, false); } }
     // state-based hand placement
     if (st === 'fall' && A.k !== 'chutepull') { const fl = Math.sin(G.time * 7) * .015; LT = [-.36, -.1 + fl, -.42]; RT = [.36, -.1 - fl, -.42]; LB = this.reachBasis(shL, LT, true); RB = this.reachBasis(shR, RT, false); wpnShow = 0; knifeShow = 0; }
     if (st === 'chute' && A.k !== 'chutepull') {
@@ -147,7 +155,7 @@ const VM = {
       LT = [-.34, .26 - tl - fl, -.22]; RT = [.34, .26 - tr - fl, -.22]; LB = this.reachBasis(shL, LT, true); RB = this.reachBasis(shR, RT, false); wpnShow = 0; knifeShow = 0;
     }
     if (st === 'vehicle') { const hs = G.vehicleHands(toCam); LT = hs[0]; RT = hs[1]; LB = hs[2]; RB = hs[3]; wpnShow = 0; knifeShow = 0; }
-    if (st === 'boatride' || st === 'heliride') { LT = [-.28, -.42, -.32]; RT = [.25, -.45, -.3]; LB = this.reachBasis(shL, LT, true); RB = this.reachBasis(shR, RT, false); wpnShow = 0; knifeShow = 0; }
+    if (st === 'boatride' || st === 'heliride' || st === 'truckride') { LT = [-.28, -.42, -.32]; RT = [.25, -.45, -.3]; LB = this.reachBasis(shL, LT, true); RB = this.reachBasis(shR, RT, false); wpnShow = 0; knifeShow = 0; }
     if (item && !isK && !gun && A.k !== 'hold') { itemShow = itemShow ?? item; if (A.k !== 'interact') itemHand = 'R'; if (A.k === 'gadget' && A.fired) itemShow = null; }
     if (P.state === 'dead') { wpnShow = 0; knifeShow = 0; }
     // -------- IK solve --------
@@ -176,12 +184,16 @@ const VM = {
     for (let i = 0; i < VB.N; i++) { if (L[i][15] === 0) { out.set(ZERO_M, i * 16); continue; } M4.mul(tmp, P.camM, L[i]); out.set(tmp, i * 16); }
     this.wpnWorld = M4.mul(M4.create(), P.camM, Wm); this.isR = isR; this.isP = isP; this.gun = gun && wpnShow;
   },
-  muzzleWorld() { return M4.pt(this.wpnWorld, 0, this.isR ? .045 : .042, this.isR ? -.77 : -.33); },
+  muzzleWorld() {
+    if (!this.isR) return M4.pt(this.wpnWorld, 0, .042, P.cfg.pistol === 'p45' ? -.36 : P.cfg.pistol === 'mp18' ? -.31 : -.34);
+    const v = P.cfg.rifle; const hg = { dmr: .34, vx9: .3, mk17: .26, ar7: .24 }[v] || .24; const bl = v === 'dmr' ? .2 : .14; const me = -.32 - hg - bl + .02;
+    return M4.pt(this.wpnWorld, 0, .045, v === 'vx9' ? -.32 - hg - .18 : P.cfg.muzzle === 'sup' ? me - .17 : me - .05);
+  },
   ejectWorld() { return M4.pt(this.wpnWorld, .03, .05, this.isR ? -.1 : -.06); },
   drawList() {
     const list = [{ mesh: P.vmArms, bones: P.vmBones }];
     const w = P.weapon;
-    if (w === 'pistol') list.push({ mesh: P.vmMeshes.pistol, bones: P.vmBones }); else if (WEAPONS[w] && WEAPONS[w].type === 'rifle') list.push({ mesh: P.vmMeshes.rifle, bones: P.vmBones });
+    if (w === 'pistol') list.push({ mesh: P.vmMeshes.pistol, bones: P.vmBones }); else if (w === 'rifle') list.push({ mesh: P.vmMeshes.rifle, bones: P.vmBones });
     list.push({ mesh: P.vmMeshes.knife, bones: P.vmBones });
     if (this.itemKind && P.vmMeshes.items[this.itemKind]) list.push({ mesh: P.vmMeshes.items[this.itemKind], bones: P.vmBones });
     return list;

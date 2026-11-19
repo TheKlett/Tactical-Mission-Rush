@@ -23,158 +23,6 @@ function segMat(o, p0, p1, side) {
 }
 
 /* ======================= CHARACTER GEOMETRY ======================= */
-function buildHand(B, bone, left, glove, skin, open = false) {
-  const sx = left ? -1 : 1; B.b(bone);
-  B.col(glove, glove === skin ? MAT.SKIN : MAT.LEATHER);
-  B.box(0, -.05, 0, .034, .095, .085);                // palm
-  B.box(-sx * .004, -.01, 0, .04, .03, .075);         // wrist cuff
-  if (glove !== skin) { B.col(0x1a1a1a, MAT.RUBBER); B.box(sx * .019, -.075, 0, .006, .028, .07); } // knuckle guard
-  B.col(glove, glove === skin ? MAT.SKIN : MAT.LEATHER);
-  // fingers (curled toward palm side)
-  const curl = open ? .35 : 1.25;
-  for (let i = 0; i < 4; i++) {
-    const z = -.03 + i * .02; const ln = [.04, .045, .042, .034][i];
-    B.push().t(0, -.098, z).rz(-sx * curl * .55);
-    B.box(0, -ln / 2, 0, .019, ln, .017);
-    B.push().t(0, -ln, 0).rz(-sx * curl * .9); B.box(0, -.016, 0, .017, .034, .016); B.pop();
-    B.pop();
-  }
-  // thumb
-  B.push().t(-sx * .012, -.03, -.045).rx(-.5).rz(-sx * (open ? .3 : .9));
-  B.box(0, -.022, 0, .02, .045, .02); B.t(0, -.045, 0).rz(-sx * .4).box(0, -.015, 0, .018, .03, .018);
-  B.pop();
-}
-const FACTIONS = {
-  cartel: { shirts: [0x6b5b45, 0x3b4a3a, 0x7a2e2a, 0x2f3b4c, 0x8c8478, 0x4a4a42, 0x5e6b52], pants: [0x2c2a26, 0x3d3a30, 0x24303a, 0x4a4235], heads: ['cap', 'bald', 'hair', 'bandana', 'hair', 'cap', 'beanie'], vest: .45, camo: .2 },
-  pmc: { shirts: [0x1d2024, 0x23272b, 0x2b2e30], pants: [0x1b1e21, 0x25282a], heads: ['helmet', 'helmet', 'cap', 'helmet'], vest: 1, camo: 0, vestCol: 0x2a2d2f },
-  militia: { shirts: [0xb8bcc0, 0x9ea4a8, 0x6d7378], pants: [0x8f969b, 0x5b6166, 0xa9aeb2], heads: ['beanie', 'hood', 'beanie', 'helmet', 'balaclava'], vest: .7, camo: .8, vestCol: 0x6f7468 },
-};
-function appearanceFor(faction, rng, overrides = {}) {
-  const F = FACTIONS[faction];
-  const skins = [0xe0b896, 0xc89670, 0xa87452, 0x8a5a3c, 0x6b4430, 0xf0c8a8];
-  const a = {
-    skin: skins[(rng() * skins.length) | 0], shirt: F.shirts[(rng() * F.shirts.length) | 0], pants: F.pants[(rng() * F.pants.length) | 0],
-    boots: rng() < .5 ? 0x2a2018 : 0x1c1c1c, head: F.heads[(rng() * F.heads.length) | 0], hair: [0x1a1410, 0x3a2a1c, 0x5a4530, 0x111111][(rng() * 4) | 0],
-    vest: rng() < F.vest, vestCol: F.vestCol || [0x3f3c30, 0x2a2e22, 0x4d4636][(rng() * 3) | 0], beard: rng() < .35, glasses: rng() < .15, camo: rng() < F.camo,
-    gloves: rng() < .5, bulk: .92 + rng() * .2, rolled: rng() < .3, backpack: rng() < .15, faction,
-  };
-  return Object.assign(a, overrides);
-}
-function buildCharacter(app) {
-  const B = new MB(16000); const bk = app.bulk || 1;
-  const shirtMat = app.camo ? MAT.CAMO : MAT.CLOTH;
-  const skin = app.skin, shirt = app.shirt, pants = app.pants;
-  // ---- pelvis ----
-  B.b(SK.PEL).col(pants, app.camo ? MAT.CAMO : MAT.CLOTH);
-  B.tbox(0, -.02, 0, .33 * bk, .2, .21 * bk, .31 * bk, .2 * bk);
-  B.col(0x1c1a17, MAT.LEATHER).box(0, .07, 0, .35 * bk, .045, .225 * bk);
-  B.col(0x777066, MAT.METAL).box(0, .07, -.115 * bk, .045, .03, .01);
-  if (!app.suit) { B.col(0x2a2a26, MAT.CLOTH).box(.16 * bk, .03, .02, .05, .07, .09); B.box(-.16 * bk, .03, .03, .05, .06, .07); } // belt pouches
-  // ---- chest ----
-  B.b(SK.CH).col(app.suit ? app.suit : shirt, app.suit ? MAT.CLOTH : shirtMat);
-  B.tbox(0, .2, 0, .31 * bk, .4, .2 * bk, .41 * bk, .23 * bk);
-  B.sph(-.18 * bk, .37, 0, .075 * bk, .07, .085 * bk, 8, 5); B.sph(.18 * bk, .37, 0, .075 * bk, .07, .085 * bk, 8, 5);
-  B.col(skin, MAT.SKIN).cyl(0, .38, 0, .055, .05, .12, 8);
-  if (app.suit) { // commander: suit jacket, shirt, tie, gold chain
-    B.col(0xe8e4dc, MAT.CLOTH).tbox(0, .33, -.105 * bk, .1, .16, .02, .05, .02);
-    B.col(0x5a0f12, MAT.CLOTH).tbox(0, .31, -.118 * bk, .035, .15, .01, .02, .01);
-    B.col(app.suit, MAT.CLOTH).push().t(-.07, .3, -.12 * bk).rz(-.35).box(0, 0, 0, .04, .2, .02).pop().push().t(.07, .3, -.12 * bk).rz(.35).box(0, 0, 0, .04, .2, .02).pop();
-    B.col(0xd4af37, MAT.METAL).torus(0, .38, -.02, .075, .006, 16, 4);
-  }
-  if (app.vest) {
-    const vc = app.vestCol; B.col(vc, MAT.CANVAS);
-    B.tbox(0, .23, 0, .35 * bk, .32, .26 * bk, .39 * bk, .27 * bk);
-    B.col(vc, MAT.CANVAS); for (let i = -1; i <= 1; i++) { B.box(i * .085, .14, -.145 * bk, .07, .1, .04); B.col(0x111111, MAT.PLASTIC).box(i * .085, .19, -.165 * bk, .06, .012, .012); B.col(vc, MAT.CANVAS); }
-    B.box(-.14 * bk, .3, -.14 * bk, .05, .08, .03); B.col(0x161616, MAT.PLASTIC).box(-.14 * bk, .33, -.16 * bk, .035, .07, .02); // radio
-    B.col(0x0d0d0d, MAT.RUBBER).cyl(-.14 * bk, .37, -.16 * bk, .004, .004, .07, 4);
-    B.col(vc, MAT.CANVAS).box(-.13 * bk, .38, 0, .06, .05, .27 * bk); B.box(.13 * bk, .38, 0, .06, .05, .27 * bk); // shoulder straps
-  } else if (!app.suit) {
-    B.col(shirt, shirtMat).box(0, .38, -.05, .2, .03, .14); // collar
-    B.col(lin(shirt).map(v => v * .7), MAT.CLOTH).box(-.09, .3, -.112 * bk, .07, .06, .01); // breast pocket
-  }
-  if (app.backpack) { B.col(0x3a3b30, MAT.CANVAS).box(0, .22, .17 * bk, .28, .34, .14); B.col(0x2a2a24, MAT.CANVAS).box(0, .12, .25 * bk, .22, .12, .05); }
-  // ---- head ----
-  B.b(SK.HD).col(skin, MAT.SKIN);
-  B.cyl(0, -.02, .005, .052, .05, .08, 8);
-  B.sph(0, .135, 0, .093, .118, .105, 12, 8);
-  B.tbox(0, .055, -.035, .12, .07, .11, .1, .1); // jaw
-  B.tbox(0, .12, -.103, .022, .045, .03, .014, .02); // nose
-  B.box(0, .095, -.096, .02, .012, .02);
-  B.box(-.094, .13, .005, .014, .045, .03); B.box(.094, .13, .005, .014, .045, .03); // ears
-  B.col(0xf2eee6, MAT.GLASS).box(-.036, .155, -.092, .024, .012, .01); B.box(.036, .155, -.092, .024, .012, .01);
-  B.col(0x15110d, MAT.GLASS).box(-.036, .155, -.097, .011, .011, .006); B.box(.036, .155, -.097, .011, .011, .006);
-  B.col(app.hair, MAT.HAIR).box(-.036, .175, -.096, .034, .009, .012); B.box(.036, .175, -.096, .034, .009, .012);
-  B.col(lin(skin).map(v => v * .6), MAT.SKIN).box(0, .075, -.097, .04, .008, .01); // mouth
-  if (app.beard) { B.col(app.hair, MAT.HAIR); B.tbox(0, .07, -.05, .135, .08, .11, .12, .11); B.box(0, .09, -.1, .06, .02, .02); }
-  if (app.glasses) { B.col(0x0a0a0a, MAT.GLASS).box(0, .155, -.103, .15, .03, .01); B.col(0x111111, MAT.PLASTIC).box(-.08, .16, -.05, .01, .01, .1); B.box(.08, .16, -.05, .01, .01, .1); }
-  const hd = app.head;
-  if (hd === 'hair' || hd === 'cap' || hd === 'bandana') { B.col(app.hair, MAT.HAIR).sph(0, .165, .01, .098, .095, .108, 10, 6); }
-  if (hd === 'cap') { B.col(app.capCol || [0x2b2b2b, 0x4a3b28, 0x1f2a3a, 0x6a1d1d][(app.skin >> 3) % 4], MAT.CLOTH).sph(0, .19, .005, .102, .07, .11, 10, 5); B.box(0, .19, -.135, .17, .012, .09); }
-  if (hd === 'beanie' || hd === 'hood') { B.col(hd === 'hood' ? app.shirt : [0x2b2b2b, 0x5a5f63, 0x3b2f2a][(app.skin >> 4) % 3], MAT.CLOTH).sph(0, .18, .005, .104, .09, .112, 10, 6); B.cyl(0, .13, .005, .107, .105, .05, 10); if (hd === 'hood') B.tbox(0, .07, .06, .21, .2, .12, .2, .12); }
-  if (hd === 'helmet') {
-    B.col(app.helmetCol || 0x2e3229, MAT.PAINT).sph(0, .17, .01, .118, .1, .128, 12, 6); B.cyl(0, .135, .01, .12, .12, .03, 12);
-    B.col(0x151515, MAT.RUBBER).box(0, .2, -.12, .05, .04, .02); // NVG mount
-    B.col(0x222222, MAT.CLOTH).box(-.1, .09, 0, .012, .08, .02); B.box(.1, .09, 0, .012, .08, .02);
-  }
-  if (hd === 'bandana') { B.col(0x7a1515, MAT.CLOTH).sph(0, .175, .01, .1, .085, .11, 10, 5); }
-  if (hd === 'balaclava') { B.col(0x1c1c1c, MAT.CLOTH).sph(0, .135, 0, .098, .124, .11, 12, 8); B.col(skin, MAT.SKIN).box(0, .155, -.1, .1, .03, .01); }
-  if (hd === 'bald' || hd === 'hair') { /* nothing extra */ }
-  // ---- arms ----
-  const sleeveCol = app.suit ? app.suit : shirt, sleeveMat = app.suit ? MAT.CLOTH : shirtMat;
-  for (const L of [1, 0]) {
-    const ua = L ? SK.UAL : SK.UAR, fa = L ? SK.FAL : SK.FAR, h = L ? SK.HL : SK.HR;
-    B.b(ua).col(sleeveCol, sleeveMat).cyl(0, -.29, 0, .046 * bk, .058 * bk, .3, 8).sph(0, 0, 0, .06 * bk, .06, .06 * bk, 8, 5);
-    B.b(fa);
-    if (app.rolled && !app.suit) { B.col(skin, MAT.SKIN).cyl(0, -.25, 0, .033, .044, .2, 8); B.col(sleeveCol, sleeveMat).cyl(0, -.07, 0, .05, .05, .07, 8); }
-    else { B.col(sleeveCol, sleeveMat).cyl(0, -.24, 0, .037, .047 * bk, .25, 8); B.col(skin, MAT.SKIN).cyl(0, -.27, 0, .03, .034, .04, 6); }
-    if (L && app.suit) { B.col(0xd4af37, MAT.METAL).cyl(0, -.25, 0, .036, .036, .015, 8); }
-    buildHand(B, h, !!L, app.gloves ? 0x1c1c1c : skin, skin);
-  }
-  // ---- legs ----
-  for (const L of [1, 0]) {
-    const th = L ? SK.THL : SK.THR, sh = L ? SK.SHL : SK.SHR, ft = L ? SK.FTL : SK.FTR; const sx = L ? -1 : 1;
-    B.b(th).col(pants, app.camo ? MAT.CAMO : MAT.CLOTH).cyl(0, -.46, 0, .058, .088 * bk, .47, 9);
-    if (!app.suit) { B.box(sx * .075 * bk, -.25, 0, .03, .12, .1); B.col(0x1d1d1d, MAT.PLASTIC).box(sx * .09 * bk, -.2, 0, .005, .01, .09); }
-    B.b(sh).col(pants, app.camo ? MAT.CAMO : MAT.CLOTH).cyl(0, -.3, 0, .047, .058, .32, 8);
-    if (app.vest) { B.col(0x202020, MAT.RUBBER).box(0, -.02, -.055, .09, .1, .03); }
-    B.col(app.boots, MAT.LEATHER).cyl(0, -.42, 0, .05, .053, .14, 8);
-    B.b(ft).col(app.boots, MAT.LEATHER).tbox(0, -.025, -.055, .1, .08, .25, .09, .2);
-    B.col(0x111111, MAT.RUBBER).box(0, -.06, -.06, .105, .025, .27);
-    B.col(0x0f0f0f, MAT.CLOTH).box(0, .005, -.1, .04, .01, .08);
-  }
-  // ---- held prop (bone 16) ----
-  B.b(SK.PROP);
-  if (app.prop === 'cig') { B.col(0xeeeeee, MAT.PAINT).cylZ(0, 0, 0, .004, .07, 5); B.col(0xff5a1a, MAT.EMIT).cylZ(0, 0, -.036, .0045, .006, 5); }
-  if (app.prop === 'cup') { B.col(0x8a2a1a, MAT.PLASTIC).cyl(0, -.04, 0, .03, .035, .09, 10); }
-  if (app.prop === 'phone') { B.col(0x111111, MAT.PLASTIC).box(0, 0, 0, .07, .14, .01); B.col(0x6fa0d0, MAT.EMIT).box(0, 0, -.006, .06, .12, .002); }
-  if (app.prop === 'clipboard') { B.col(0x7a5a3a, MAT.WOOD).box(0, 0, 0, .22, .3, .01); B.col(0xeeeeee, MAT.PAINT).box(0, -.01, -.006, .2, .25, .002); }
-  // ---- weapon (bone 15) ----
-  B.b(SK.WPN); if (app.weapon) buildNpcWeapon(B, app.weapon);
-  return B.mesh();
-}
-function buildNpcWeapon(B, w) {
-  if (w === 'ak') {
-    B.col(0x1d1d1d, MAT.METAL).box(0, .03, -.12, .045, .07, .32); // receiver
-    B.col(0x6a3a1c, MAT.WOOD).box(0, .025, -.36, .055, .06, .2); // handguard
-    B.col(0x222222, MAT.METAL).cylZ(0, .04, -.6, .011, .34, 6).box(0, .085, -.62, .01, .04, .012);
-    B.col(0x6a3a1c, MAT.WOOD).tbox(0, .0, .25, .045, .09, .26, .04, .2); B.box(0, -.06, .04, .04, .1, .04);
-    B.col(0x2a1a10, MAT.METAL).push().t(0, -.06, -.17).rx(.35).box(0, -.06, 0, .035, .16, .07).pop();
-  } else if (w === 'shotgun') {
-    B.col(0x1a1a1a, MAT.METAL).box(0, .03, -.1, .05, .07, .26).cylZ(0, .05, -.5, .014, .55, 8).cylZ(0, .02, -.45, .012, .45, 8);
-    B.col(0x4a2e18, MAT.WOOD).box(0, .02, -.42, .06, .06, .16).tbox(0, -.01, .25, .045, .1, .28, .04, .22);
-  } else if (w === 'smg') {
-    B.col(0x1b1b1b, MAT.METAL).box(0, .03, -.08, .045, .08, .28).cylZ(0, .05, -.3, .016, .14, 8).box(0, -.08, -.1, .03, .16, .04).box(0, .0, .14, .03, .05, .2).box(0, -.05, .04, .035, .09, .04);
-  } else if (w === 'pistol') {
-    B.col(0x1b1b1b, MAT.METAL).box(0, .03, -.06, .03, .035, .19).box(0, -.03, .0, .028, .1, .04);
-  } else { // modern rifle (pmc / militia)
-    B.col(0x1e1f20, MAT.METAL).box(0, .035, -.08, .05, .07, .3).box(0, .03, -.36, .055, .06, .26);
-    B.cylZ(0, .045, -.6, .012, .25, 6).box(0, .085, -.1, .04, .03, .1);
-    B.col(0x2a2c2d, MAT.PLASTIC).box(0, .02, .22, .045, .08, .22).box(0, -.06, .03, .035, .1, .045);
-    B.push().t(0, -.05, -.17).rx(.15).box(0, -.07, 0, .032, .15, .07).pop();
-    if (w === 'rifleL') { B.col(0x111111, MAT.PLASTIC).box(.035, .04, -.4, .02, .03, .06); }
-  }
-}
-
 /* ======================= CHARACTER RIG & POSES ======================= */
 class Rig {
   constructor(mesh) {
@@ -188,7 +36,7 @@ class Rig {
   setTarget(j, py = 0, pz = 0) { this.tj.set(j); this.tpy = py; this.tpz = pz; }
   blend(k, dt) { const f = 1 - Math.exp(-k * dt); for (let i = 0; i < 45; i++) this.j[i] += (this.tj[i] - this.j[i]) * f; this.py += (this.tpy - this.py) * f; this.pz += (this.tpz - this.pz) * f; }
   solve(weaponLocal, propOn) {
-    const M = this.mats;
+    const M = this.mats; if (this.sc && this.sc !== 1) M4.scale(this.root, this.root, this.sc, this.sc, this.sc);
     for (let i = 0; i < 15; i++) {
       const o = J_OFS[i], p = J_PAR[i]; const src = p < 0 ? this.root : M[p];
       const x = o[0], y = o[1] + (i === 0 ? this.py : 0), z = o[2] + (i === 0 ? this.pz : 0);
@@ -215,175 +63,26 @@ class Rig {
   }
   bonePos(i) { return M4.pos(this.mats[i]); }
 }
-// pose helpers: write joint angles into array
-function P_() { return new Float32Array(45); }
-function pj(a, b, x, y, z) { a[b * 3] = x; a[b * 3 + 1] = y; a[b * 3 + 2] = z; }
-function poseWalk(a, ph, amp, run, carry) {
-  const s = Math.sin(ph), c = Math.cos(ph);
-  const legA = amp * (run ? .75 : .45);
-  pj(a, SK.THL, s * legA - (run ? .15 : 0), 0, -.02); pj(a, SK.THR, -s * legA - (run ? .15 : 0), 0, .02);
-  pj(a, SK.SHL, -Math.max(0, -c) * (run ? 1.4 : .7) * amp - .05, 0, 0); pj(a, SK.SHR, -Math.max(0, c) * (run ? 1.4 : .7) * amp - .05, 0, 0);
-  pj(a, SK.FTL, Math.max(0, s) * .3 * amp, 0, 0); pj(a, SK.FTR, Math.max(0, -s) * .3 * amp, 0, 0);
-  pj(a, SK.PEL, 0, s * .08 * amp, 0); pj(a, SK.CH, run ? -.22 : -.04, -s * .1 * amp, 0);
-  if (!carry) {
-    pj(a, SK.UAL, -s * (run ? .7 : .35) * amp, 0, -.1); pj(a, SK.UAR, s * (run ? .7 : .35) * amp, 0, .1);
-    pj(a, SK.FAL, (run ? 1.3 : .3) + Math.max(0, -s) * .3 * amp, 0, 0); pj(a, SK.FAR, (run ? 1.3 : .3) + Math.max(0, s) * .3 * amp, 0, 0);
-  }
-  pj(a, SK.HD, run ? .12 : .02, s * .05, 0);
-  return Math.abs(Math.cos(ph * 2)) * (run ? .06 : .03) * amp; // pelvis bob
-}
-function poseIdle(a, t, kind, k) {
-  const br = Math.sin(t * 1.6) * .02;
-  pj(a, SK.THL, 0, .05, -.04); pj(a, SK.THR, 0, -.05, .04); pj(a, SK.SHL, -.02, 0, 0); pj(a, SK.SHR, -.02, 0, 0);
-  pj(a, SK.CH, br, 0, 0); pj(a, SK.HD, -br, Math.sin(t * .3 + k) * .25, 0);
-  pj(a, SK.UAL, .05, 0, -.12); pj(a, SK.UAR, .05, 0, .12); pj(a, SK.FAL, .25, 0, 0); pj(a, SK.FAR, .25, 0, 0);
-  if (kind === 'talk') {
-    const g = Math.sin(t * 2.3 + k) * .5 + .5, g2 = Math.sin(t * 1.7 + k * 2) * .5 + .5;
-    pj(a, SK.UAR, .5 + g * .4, -.3, .25); pj(a, SK.FAR, 1.2 + g2 * .6, 0, 0);
-    pj(a, SK.UAL, .2 + g2 * .3, .2, -.2); pj(a, SK.FAL, .9 + g * .5, 0, 0);
-    pj(a, SK.HD, Math.sin(t * 3.1 + k) * .08, Math.sin(t * .8 + k) * .15, Math.sin(t * 1.3) * .05); pj(a, SK.CH, br, Math.sin(t * .9 + k) * .1, 0);
-  } else if (kind === 'listen') {
-    pj(a, SK.UAL, .35, .5, -.35); pj(a, SK.FAL, 1.9, 0, 0); pj(a, SK.UAR, .35, -.5, .35); pj(a, SK.FAR, 1.9, 0, 0);
-    pj(a, SK.HD, Math.sin(t * 2.1 + k) > .7 ? -.12 : 0, 0, .05);
-  } else if (kind === 'smoke') {
-    const cyc = (t * .18 + k) % 1; const up = bump(cyc, .05, .35);
-    pj(a, SK.UAL, .25 + up * .35, .1, -.1 + up * .35); pj(a, SK.FAL, .8 + up * 1.55, 0, 0);
-    pj(a, SK.UAR, .1, 0, .1); pj(a, SK.FAR, .2, 0, 0); pj(a, SK.HD, -.05 + up * .1, 0, 0);
-  } else if (kind === 'radio') {
-    pj(a, SK.UAL, .35, -.2, -.95); pj(a, SK.FAL, 2.3, 0, 0); pj(a, SK.HD, .05, .2, -.08);
-  } else if (kind === 'work') {
-    pj(a, SK.CH, -.3, 0, 0); pj(a, SK.HD, -.35, 0, 0);
-    const w1 = Math.sin(t * 2.2 + k), w2 = Math.sin(t * 1.7 + k + 1);
-    pj(a, SK.UAL, .7 + w1 * .08, 0, -.05); pj(a, SK.FAL, .6 + w2 * .15, 0, 0); pj(a, SK.UAR, .75 + w2 * .1, 0, .05); pj(a, SK.FAR, .55 + w1 * .2, 0, 0);
-  } else if (kind === 'look') {
-    pj(a, SK.HD, .05, Math.sin(t * .9 + k) * .9, 0); pj(a, SK.CH, 0, Math.sin(t * .9 + k) * .3, 0);
-  } else if (kind === 'guard') {
-    pj(a, SK.THL, 0, .15, -.1); pj(a, SK.THR, 0, -.15, .1); pj(a, SK.HD, 0, Math.sin(t * .4 + k) * .6, 0);
-  } else if (kind === 'surrender') {
-    pj(a, SK.UAL, 2.8, 0, -.4); pj(a, SK.FAL, .5, 0, 0); pj(a, SK.UAR, 2.8, 0, .4); pj(a, SK.FAR, .5, 0, 0);
-  }
-}
-function poseSit(a, t, k, table) {
-  pj(a, SK.THL, 1.55, .06, -.05); pj(a, SK.THR, 1.55, -.06, .05); pj(a, SK.SHL, -1.5, 0, 0); pj(a, SK.SHR, -1.5, 0, 0);
-  pj(a, SK.CH, table ? -.15 : .12, 0, 0); pj(a, SK.HD, table ? -.25 : Math.sin(t * .5 + k) * .1, Math.sin(t * .35 + k) * .3, 0);
-  if (table) { const w = Math.sin(t * 1.9 + k); pj(a, SK.UAL, .9, 0, -.1); pj(a, SK.FAL, .6 + w * .1, 0, 0); pj(a, SK.UAR, .9, 0, .1); pj(a, SK.FAR, .55 - w * .15, 0, 0); }
-  else { pj(a, SK.UAL, .5, 0, -.15); pj(a, SK.FAL, .9, 0, 0); pj(a, SK.UAR, .5, 0, .15); pj(a, SK.FAR, .9, 0, 0); }
-}
-function poseCrouch(a, ph, moving) {
-  const s = moving ? Math.sin(ph) : 0;
-  pj(a, SK.THL, 1.1 + s * .3, 0, -.08); pj(a, SK.THR, 1.1 - s * .3, 0, .08); pj(a, SK.SHL, -1.9 + Math.max(0, s) * .3, 0, 0); pj(a, SK.SHR, -1.9 + Math.max(0, -s) * .3, 0, 0);
-  pj(a, SK.FTL, .7, 0, 0); pj(a, SK.FTR, .7, 0, 0); pj(a, SK.CH, -.35, 0, 0); pj(a, SK.HD, .3, 0, 0);
-}
-function poseDead(a, k) {
-  pj(a, SK.THL, .2 + k * .3, 0, -.15); pj(a, SK.THR, -.1, 0, .2); pj(a, SK.SHL, -.4, 0, 0); pj(a, SK.SHR, -.1, 0, 0);
-  pj(a, SK.UAL, .4, 0, -1.1); pj(a, SK.UAR, -.2, 0, .9 + k * .6); pj(a, SK.FAL, .6, 0, 0); pj(a, SK.FAR, .3, 0, 0); pj(a, SK.HD, -.2, .6 * (k - .5), 0); pj(a, SK.CH, 0, 0, 0);
-}
-
 /* ======================= VIEWMODEL (first person) ======================= */
 const VB = { UAR: 0, FAR: 1, HR: 2, UAL: 3, FAL: 4, HL: 5, WPN: 6, MAG: 7, SLD: 8, ITEM: 9, KNIFE: 10, N: 11 };
 const VM_UA = .36, VM_FA = .34;
 function buildArms(app) {
-  const B = new MB(8000); const sleeve = app.sleeve, glove = app.glove;
+  const B = new MB(12000); const sleeve = app.sleeve, glove = app.glove, mat = app.plain ? MAT.CLOTH : MAT.CAMO;
+  const dk = lin(sleeve).map(v => v * .72);
   for (const L of [0, 1]) {
-    const ua = L ? VB.UAL : VB.UAR, fa = L ? VB.FAL : VB.FAR, h = L ? VB.HL : VB.HR;
-    B.b(ua).col(sleeve, MAT.CAMO).cyl(0, -VM_UA - .02, 0, .047, .06, VM_UA + .04, 10);
-    B.col(0x2a2c22, MAT.CANVAS).cyl(0, -.12, 0, .062, .062, .05, 10); // arm band
-    if (!L) { B.col(0x8a1010, MAT.CLOTH).box(.0, -.13, -.06, .05, .035, .01); }
-    B.b(fa).col(sleeve, MAT.CAMO).cyl(0, -.25, 0, .04, .05, .27, 10);
-    B.col(lin(sleeve).map(v => v * .75), MAT.CAMO).cyl(0, -.26, 0, .046, .046, .035, 10);
-    B.col(0x1a1a1a, MAT.LEATHER).cyl(0, -VM_FA, 0, .036, .041, .09, 10);
-    if (L) { B.col(0x141414, MAT.RUBBER).cyl(0, -.29, 0, .043, .043, .026, 12); B.col(0x0a0a0a, MAT.GLASS).box(0, -.277, -.044, .028, .03, .006); B.col(0xc02020, MAT.EMIT).box(.006, -.277, -.048, .008, .004, .001); }
-    buildHand(B, h, !!L, glove, glove);
+    const ua = L ? VB.UAL : VB.UAR, fa = L ? VB.FAL : VB.FAR, h = L ? VB.HL : VB.HR; const sx = L ? -1 : 1;
+    B.b(ua).col(sleeve, mat).cyl(0, -VM_UA - .02, 0, .046, .06, VM_UA + .04, 12).sph(0, -.02, 0, .062, .06, .062, 10, 6);
+    B.col(dk, mat); for (let i = 0; i < 3; i++) B.torus(0, -.1 - i * .085, 0, .053 - i * .003, .006, 12, 3);
+    if (!app.plain) { B.col(0x2a2c22, MAT.CANVAS).cyl(0, -.13, 0, .061, .061, .05, 12); B.col(sleeve, mat).box(sx * .056, -.06, 0, .012, .08, .07); B.col(0x8a1010, MAT.CLOTH).box(sx * .063, -.06, 0, .002, .04, .05); B.col(0x1a1a1a, MAT.CLOTH).box(sx * .063, -.085, 0, .002, .01, .05); }
+    B.b(fa).col(sleeve, mat).cyl(0, -.26, 0, .04, .051, .28, 12).sph(0, 0, 0, .052, .05, .052, 9, 5);
+    B.col(dk, mat); B.torus(0, -.08, 0, .049, .006, 12, 3).torus(0, -.17, 0, .045, .005, 12, 3);
+    if (app.plain) { B.col(0xf4f2ee, MAT.CLOTH).cyl(0, -.3, 0, .042, .044, .05, 12); B.col(0xc9a23a, MAT.METAL).sph(sx * .035, -.28, -.02, .008, .008, .006, 5, 3); }
+    else B.col(dk, mat).cyl(0, -.28, 0, .047, .047, .035, 12);
+    B.col(glove, glove === 0xd8b090 ? MAT.SKIN : MAT.LEATHER).cyl(0, -VM_FA, 0, .034, .04, .09, 10);
+    if (L) { B.col(0x141414, MAT.RUBBER).cyl(0, -.297, 0, .043, .043, .026, 14); B.col(0x0a0a0a, MAT.GLASS).box(0, -.284, -.044, .03, .032, .007); B.col(0x7a7e82, MAT.METAL).box(.018, -.284, -.044, .006, .008, .006); B.col(0xc02020, MAT.EMIT).box(.006, -.284, -.0485, .01, .005, .001); B.col(0x30d050, MAT.EMIT).box(-.006, -.29, -.0485, .006, .004, .001); }
+    buildHand(B, h, !!L, glove, glove === 0xd8b090 ? glove : 0xc89670);
   }
   return B.mesh();
-}
-// weapon definitions (gameplay + model)
-const WEAPONS = {
-  pistol: { name: 'P-9 SD', type: 'pistol', mag: 15, reserve: 60, dmg: 48, rpm: 380, auto: false, spread: .012, adsSpread: .0025, recoil: .035, suppressed: true, reload: 1.6, adsFov: 58, noise: 10, sound: 'pistolS' },
-  ar7: { name: 'AR-7 CARBINE', type: 'rifle', mag: 30, reserve: 150, dmg: 34, rpm: 760, auto: true, spread: .03, adsSpread: .004, recoil: .022, suppressed: false, reload: 2.3, adsFov: 50, noise: 140, sound: 'rifle' },
-  mk17: { name: 'MK-17 BATTLE RIFLE', type: 'rifle', mag: 20, reserve: 100, dmg: 52, rpm: 560, auto: true, spread: .034, adsSpread: .003, recoil: .036, suppressed: false, reload: 2.6, adsFov: 46, noise: 160, sound: 'rifle2' },
-  knife: { name: 'CK-1 COMBAT KNIFE', type: 'knife', dmg: 150, noise: 0 },
-};
-function buildPistolVM(B) {
-  // origin = top of grip (hand web). barrel -Z
-  B.b(VB.WPN).col(0x202224, MAT.PLASTIC);
-  B.push().t(0, -.005, .01).rx(-.22).box(0, -.05, 0, .029, .105, .045).pop(); // grip
-  B.col(0x16181a, MAT.RUBBER); for (let i = 0; i < 5; i++) B.push().t(0, -.02 - i * .017, .01).rx(-.22).box(0, 0, -.024, .03, .004, .004).pop();
-  B.col(0x202224, MAT.PLASTIC).box(0, .012, -.06, .027, .028, .16); // frame
-  B.col(0x26282a, MAT.PLASTIC).box(0, -.012, -.11, .022, .01, .06); // rail
-  B.torus(0, -.008, -.04, .018, .003, 10, 4); // trigger guard (approx)
-  B.col(0x111111, MAT.METAL).push().t(0, -.002, -.035).rx(.3).box(0, -.008, 0, .006, .02, .006).pop();
-  B.col(0x0e0e0e, MAT.METAL).cylZ(0, .042, -.235, .014, .17, 14).cylZ(0, .042, -.155, .016, .012, 14).cylZ(0, .042, -.315, .015, .01, 14); // suppressor
-  B.col(0x222222, MAT.METAL); for (let i = 0; i < 6; i++) B.cylZ(0, .042, -.17 - i * .024, .0145, .003, 12);
-  // slide (bone)
-  B.b(VB.SLD).col(0x2b2d2f, MAT.METAL).box(0, .042, -.065, .028, .03, .19);
-  B.col(0x1a1a1a, MAT.METAL); for (let i = 0; i < 6; i++) B.box(0, .042, .005 - i * .007, .0285, .022, .002);
-  B.col(0x111111, MAT.METAL).box(0, .06, .02, .02, .008, .01).box(0, .06, -.15, .006, .008, .008);
-  B.col(0xd0f040, MAT.EMIT).box(0, .064, -.15, .002, .002, .002).box(-.006, .064, .02, .002, .002, .002).box(.006, .064, .02, .002, .002, .002);
-  B.col(0x3a3a3a, MAT.METAL).box(.0145, .045, -.07, .002, .012, .03); // ejection port
-  // mag (bone)
-  B.b(VB.MAG).col(0x151515, MAT.METAL).push().rx(-.22).box(0, -.06, .012, .022, .11, .035).col(0x2a2a2a, MAT.PLASTIC).box(0, -.118, .012, .026, .012, .042).pop();
-}
-function buildRifleVM(B, variant, optic) {
-  const big = variant === 'mk17';
-  B.b(VB.WPN);
-  const rc = big ? 0x5d5444 : 0x232425; // receiver color (mk17 = FDE)
-  B.col(0x1d1e1f, MAT.PLASTIC).push().t(0, -.004, .012).rx(-.35).box(0, -.045, 0, .03, .1, .045).pop(); // pistol grip
-  B.col(rc, MAT.METAL).box(0, .012, -.09, .044, .045, .22); // lower
-  B.box(0, .05, -.14, .046, .04, big ? .34 : .3); // upper
-  B.col(0x141414, MAT.METAL).box(0, .077, -.17, .024, .012, big ? .4 : .36); // top rail
-  for (let i = 0; i < 16; i++) B.box(0, .084, -.0 - i * .022, .026, .004, .008);
-  B.col(rc, MAT.METAL).box(0, .042, -.4, .052, .05, big ? .26 : .24); // handguard
-  B.col(0x121212, MAT.METAL); for (let i = 0; i < 7; i++) { B.box(.027, .042, -.31 - i * .03, .004, .03, .012); B.box(-.027, .042, -.31 - i * .03, .004, .03, .012); }
-  B.box(0, .012, -.42, .02, .008, .18); // bottom rail
-  B.col(0x101010, MAT.METAL).cylZ(0, .045, -.62, .01, .22, 10);
-  B.cylZ(0, .045, -.73, .016, .05, 8); B.col(0x1a1a1a, MAT.METAL); for (let i = 0; i < 3; i++) B.box(0, .045 + (i - 1) * .009, -.74, .034, .003, .03);
-  // front sight post
-  B.col(0x121212, MAT.METAL).box(0, .09, -.5, .012, .03, .012);
-  // stock
-  B.col(0x1d1e1f, MAT.PLASTIC).cylZ(0, .035, .07, .014, .14, 10).tbox(0, .02, .19, .04, .1, .12, .042, .1).box(0, -.035, .25, .045, .02, .02);
-  B.col(0x0e0e0e, MAT.RUBBER).box(0, .015, .255, .046, .12, .015);
-  // trigger guard + trigger
-  B.col(0x111111, MAT.METAL).box(0, -.017, -.045, .006, .005, .055).push().t(0, -.0, -.035).rx(.3).box(0, -.008, 0, .005, .018, .005).pop();
-  // vertical grip + laser
-  B.col(0x1a1a1a, MAT.PLASTIC).cyl(0, -.075, -.42, .014, .016, .07, 10);
-  B.col(0x222222, MAT.PLASTIC).box(.032, .03, -.48, .018, .028, .06); B.col(0x30ff50, MAT.EMIT).box(.032, .03, -.511, .006, .006, .002);
-  // sling mount
-  B.col(0x111111, MAT.METAL).torus(-.03, .03, .1, .012, .002, 8, 3);
-  // optic
-  if (optic === 'reddot') {
-    B.col(0x151515, MAT.METAL).box(0, .1, -.15, .04, .015, .07).cylZ(0, .122, -.15, .022, .065, 14, 0);
-    B.col(0x0b0b0b, MAT.METAL); for (const z of [-.118, -.182]) B.torus(0, .122, z, .022, .004, 14, 4);
-    B.col(0x406060, MAT.GLASS).push().t(0, .122, -.16).rx(Math.PI / 2).cyl(0, 0, 0, .019, .019, .002, 14).pop();
-    B.col(0xff2020, MAT.EMIT).box(0, .122, -.13, .0012, .0012, .0005);
-  } else if (optic === 'holo') {
-    B.col(0x151515, MAT.METAL).box(0, .1, -.14, .05, .015, .09).box(-.022, .13, -.14, .006, .05, .09).box(.022, .13, -.14, .006, .05, .09).box(0, .158, -.14, .05, .006, .09);
-    B.col(0x406060, MAT.GLASS).vplane(0, .13, -.11, .036, .042);
-    B.col(0xff2a2a, MAT.EMIT).box(0, .13, -.112, .0015, .0015, .0005);
-    for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; B.box(Math.cos(a) * .006, .13 + Math.sin(a) * .006, -.112, .0012, .0012, .0005); }
-  } else {
-    B.col(0x121212, MAT.METAL).box(0, .1, .03, .02, .024, .02).box(0, .115, .03, .008, .008, .012);
-  }
-  // magazine (bone)
-  B.b(VB.MAG).col(big ? 0x1b1b1b : 0x252525, MAT.METAL);
-  if (big) B.push().t(0, -.01, -.13).rx(.08).box(0, -.08, 0, .03, .16, .07).box(0, -.165, 0, .034, .012, .075).pop();
-  else { B.push().t(0, -.01, -.13).rx(.12).box(0, -.06, 0, .026, .12, .065).rx(.2).box(0, -.15, .01, .026, .08, .062).box(0, -.19, .012, .03, .012, .066).pop(); }
-  // charging handle (bone)
-  B.b(VB.SLD).col(0x111111, MAT.METAL).box(0, .066, .03, .02, .01, .03).box(0, .066, .045, .05, .01, .01);
-}
-function buildKnifeVM(B, bone) {
-  B.b(bone);
-  B.col(0x1b1b1b, MAT.RUBBER).cyl(0, -.06, 0, .014, .016, .11, 10); for (let i = 0; i < 5; i++) B.cyl(0, -.05 + i * .018, 0, .0165, .0165, .004, 10);
-  B.col(0x222222, MAT.METAL).box(0, .055, 0, .05, .01, .022).cyl(0, -.07, 0, .015, .015, .012, 10);
-  B.col(0xb8bcc0, MAT.METAL).push().t(0, .06, 0);
-  B.begin(); const L = .17;
-  B.quad([-.003, 0, -.016], [.003, 0, -.016], [.003, L * .8, -.012], [-.003, L * .8, -.012]);
-  B.tri([-.003, L * .8, -.012], [.003, L * .8, -.012], [0, L, .004]);
-  B.col(0x8a8e92, MAT.METAL).quad([.003, 0, -.016], [.0005, 0, .016], [.0005, L * .85, .006], [.003, L * .8, -.012]);
-  B.quad([-.0005, 0, .016], [-.003, 0, -.016], [-.003, L * .8, -.012], [-.0005, L * .85, .006]);
-  B.tri([.0005, L * .85, .006], [0, L, .004], [.003, L * .8, -.012]); B.tri([-.003, L * .8, -.012], [0, L, .004], [-.0005, L * .85, .006]);
-  B.col(0x2a2a2a, MAT.METAL).box(0, .05, -.016, .007, .1, .004);
-  B.pop();
 }
 function buildItemMesh(kind) {
   const B = new MB(2000); B.b(VB.ITEM); buildItemGeo(B, kind); return B.mesh();
@@ -398,16 +97,10 @@ function buildItemGeo(B, kind) {
   else if (kind === 'smoke') { B.col(0x3c4a3a, MAT.METAL).cyl(0, -.05, 0, .028, .028, .1, 12); B.col(0xbbbbbb, MAT.METAL).cyl(0, .05, 0, .015, .012, .02, 8); B.col(0x999999, MAT.METAL).torus(.03, .065, 0, .012, .002, 8, 3); }
   else if (kind === 'codes') { B.col(0x2a2a2a, MAT.METAL).box(0, 0, 0, .14, .04, .1); B.col(0xbb1111, MAT.PAINT).box(0, .021, 0, .1, .002, .06); B.col(0xeeeeee, MAT.PAINT).box(0, .022, 0, .08, .001, .02); }
   else if (kind === 'ammo') { B.col(0x3a4a2a, MAT.METAL).box(0, 0, 0, .14, .1, .06); B.col(0xc9a23a, MAT.METAL).box(0, .055, 0, .12, .01, .04); }
-  else if (kind === 'knife') { buildKnifeVM(B, B.bone); }
+  else if (kind === 'knife') { buildKnifeVM(B, B.bone, (typeof G !== 'undefined' && G.loadout && G.loadout.knife) || 'knife'); }
+  else if (kind === 'emp') { B.col(0x2a3038, MAT.METAL).cyl(0, -.04, 0, .03, .03, .08, 12); B.col(0x40a0ff, MAT.EMIT).torus(0, .0, 0, .031, .004, 12, 3).box(0, .045, 0, .012, .01, .012); B.col(0x111111, MAT.PLASTIC).cyl(0, .04, 0, .02, .015, .01, 8); }
+  else if (kind === 'medkit') { B.col(0x8a1414, MAT.CANVAS).box(0, 0, 0, .14, .07, .1); B.col(0xeeeeee, MAT.PAINT).box(0, .036, 0, .06, .002, .016).box(0, .036, 0, .016, .002, .06); B.col(0x111111, MAT.PLASTIC).box(0, 0, -.051, .1, .02, .004); }
 }
-// small hip-fire/ADS rest positions per weapon, grip points for IK (weapon space)
-const VM_CFG = {
-  pistol: { hip: [.135, -.15, -.5], ads: [0, -.0565, -.33], gripR: [0, -.035, .055], gripL: [-.01, -.07, .035], sight: .059 },
-  rifle: { hip: [.13, -.165, -.36], ads: [0, -.119, -.2], gripR: [0, -.04, .06], gripL: [0, -.03, -.31], sight: .119 },
-  rifleRD: { ads: [0, -.122, -.17] }, rifleHolo: { ads: [0, -.13, -.16] },
-  knife: { hip: [.17, -.2, -.45] },
-};
-
 /* ======================= VEHICLES ======================= */
 const VEHB = { BODY: 0, W0: 1, W1: 2, W2: 3, W3: 4, STEER: 5, DOOR: 6 };
 function buildWheel(B, bone, r, w) {
@@ -415,6 +108,27 @@ function buildWheel(B, bone, r, w) {
   B.col(0x111111, MAT.RUBBER); for (let i = 0; i < 12; i++) { const a = i / 12 * TAU; B.push().rx(a).box(0, r, 0, w * 1.02, .025, .05).pop(); }
   B.col(0x7a7a7a, MAT.METAL).push().rz(Math.PI / 2).cyl(0, -w / 2 - .005, 0, r * .55, r * .55, w + .01, 12).pop();
   B.col(0x333333, MAT.METAL); for (let i = 0; i < 5; i++) { const a = i / 5 * TAU; B.push().rx(a).box(0, r * .3, 0, w + .02, r * .35, .04).pop(); }
+}
+function carTrim(B, kind, L, W, pc, wr, tall) {
+  B.b(VEHB.BODY); const dk = lin(pc).map(v => v * .55), y0 = tall ? .55 : .5;
+  // wheel arches
+  B.col(0x141414, MAT.RUBBER); for (const z of [-L * .32, L * (tall ? .3 : .32)]) for (const s of [-1, 1]) { B.push().t(s * (W / 2 + .005), wr, z).rz(Math.PI / 2); B.torus(0, 0, 0, wr + .07, .045, 12, 4); B.pop(); }
+  // door seams, handles, sills
+  B.col(dk, MAT.PAINT); for (const s of [-1, 1]) { const x = s * (W / 2 + .004); B.box(x, (tall ? 1.35 : 1.0), -L * .03, .006, (tall ? 1.1 : .75), .012).box(x, (tall ? 1.35 : 1.0), tall ? -L * .2 : L * .2, .006, (tall ? 1.1 : .75), .012); }
+  B.col(0x9a9a9a, MAT.METAL); for (const s of [-1, 1]) B.box(s * (W / 2 + .01), tall ? 1.55 : 1.08, -L * .08, .012, .03, .14).box(s * (W / 2 + .01), tall ? 1.55 : 1.08, tall ? L * .02 : L * .12, .012, .03, .14);
+  B.col(0x111111, MAT.RUBBER); for (const s of [-1, 1]) B.box(s * (W / 2 + .01), y0 + .05, 0, .03, .08, L * .45);
+  // plates, exhaust, wipers, antenna, fog lights
+  B.col(0xe8e8e0, MAT.PAINT).box(0, y0 + .15, -L / 2 - .07, .5, .12, .01).box(0, y0 + .3, L / 2 + .07, .5, .12, .01); B.col(0x1a2a6a, MAT.PAINT).box(-.2, y0 + .15, -L / 2 - .076, .07, .11, .004).box(-.2, y0 + .3, L / 2 + .076, .07, .11, .004);
+  B.col(0x222222, MAT.PAINT); for (let i = 0; i < 5; i++) B.box(.02 + i * .04, y0 + .15, -L / 2 - .077, .025, .06, .003).box(.02 + i * .04, y0 + .3, L / 2 + .077, .025, .06, .003);
+  B.col(0x777777, MAT.METAL).cylZ(W * .3, y0 - .05, L / 2 + .05, .035, .2, 8); B.col(0x111111, MAT.METAL).cylZ(W * .3, y0 - .05, L / 2 + .151, .028, .005, 8);
+  B.col(0x0a0a0a, MAT.RUBBER).push().t(-.25, tall ? 1.88 : 1.36, tall ? -L * .2 : -L * .13).rz(.3).box(0, 0, 0, .55, .015, .02).pop().push().t(.35, tall ? 1.88 : 1.36, tall ? -L * .2 : -L * .13).rz(.3).box(0, 0, 0, .5, .015, .02).pop();
+  B.col(0x111111, MAT.METAL).cyl(W * .4, tall ? 2.1 : 1.55, L * .05, .006, .002, .8, 4);
+  B.col(0xfff4d0, MAT.EMIT).cylZ(W * .38, y0 + .02, -L / 2 - .06, .05, .03, 10).cylZ(-W * .38, y0 + .02, -L / 2 - .06, .05, .03, 10);
+  if (kind === 'suv') { B.col(0x1a1a1a, MAT.METAL).box(W * .38, 1.88, .25, .04, .05, L * .5).box(-W * .38, 1.88, .25, .04, .05, L * .5); for (let i = 0; i < 3; i++) B.box(0, 1.92, -.3 + i * .5, W * .8, .03, .04); }
+  if (kind === 'sedan' || kind === 'suv') { B.col(0x111111, MAT.METAL); for (let i = 0; i < 6; i++) B.box(0, .62 + i * .05, -L / 2 - .02, W * .45, .02, .03); B.col(0xc0c0c0, MAT.METAL).box(0, .78, -L / 2 - .035, .08, .06, .01); }
+  // interior: dashboard gauges, mirror, door cards
+  B.col(0x0a0a0a, MAT.GLASS).box(tall ? -.42 : -.4, tall ? 1.48 : 1.16, tall ? -L * .18 + .16 : -L * .17 + .16, .3, .1, .01); B.col(0xff8a20, MAT.EMIT).box(tall ? -.47 : -.45, tall ? 1.48 : 1.16, tall ? -L * .18 + .166 : -L * .17 + .166, .06, .06, .002).box(tall ? -.37 : -.35, tall ? 1.48 : 1.16, tall ? -L * .18 + .166 : -L * .17 + .166, .06, .06, .002);
+  B.col(0x111111, MAT.PLASTIC).box(0, tall ? 1.95 : 1.5, tall ? -L * .18 : -L * .12, .2, .05, .02);
 }
 function buildCar(kind, color) {
   const B = new MB(12000); B.b(VEHB.BODY); B.jit = 0;
@@ -444,6 +158,7 @@ function buildCar(kind, color) {
     const wr = kind === 'truck' ? .55 : .42, wy = wr;
     buildWheel(B, VEHB.W0, wr, .3); buildWheel(B, VEHB.W1, wr, .3); buildWheel(B, VEHB.W2, wr, .3); buildWheel(B, VEHB.W3, wr, .3);
     B.b(VEHB.STEER).col(0x151515, MAT.RUBBER).torus(0, 0, 0, .19, .018, 18, 6); B.box(0, 0, 0, .36, .03, .03); B.box(0, -.08, 0, .03, .16, .03);
+    carTrim(B, kind, L, W, pc, wr, true);
     return { mesh: B.mesh(), L, W, wr, wheelPos: [[W / 2 - .05, wy, -L * .32], [-W / 2 + .05, wy, -L * .32], [W / 2 - .05, wy, L * .3], [-W / 2 + .05, wy, L * .3]], seat: [-.42, 1.6, -L * .03], steer: [-.42, 1.4, -L * .18 + .4], h: 2.2 };
   }
   // sedan / suv
@@ -459,6 +174,7 @@ function buildCar(kind, color) {
   const wr = suv ? .4 : .34;
   buildWheel(B, VEHB.W0, wr, .25); buildWheel(B, VEHB.W1, wr, .25); buildWheel(B, VEHB.W2, wr, .25); buildWheel(B, VEHB.W3, wr, .25);
   B.b(VEHB.STEER).col(0x151515, MAT.RUBBER).torus(0, 0, 0, .18, .016, 18, 6); B.box(0, 0, 0, .34, .025, .025); B.box(0, -.07, 0, .025, .14, .025);
+  carTrim(B, kind, L, W, pc, wr, false);
   return { mesh: B.mesh(), L, W, wr, wheelPos: [[W / 2 - .1, wr, -L * .32], [-W / 2 + .1, wr, -L * .32], [W / 2 - .1, wr, L * .32], [-W / 2 + .1, wr, L * .32]], seat: [-.4, 1.3, .02], steer: [-.4, 1.12, -L * .17 + .38], h: 1.6 };
 }
 function buildBoat(kind) {
@@ -502,6 +218,11 @@ function buildCargoPlane() {
   for (const x of [-13, -7, 7, 13]) { B.col(0x4a5040, MAT.PAINT).cylZ(x, 4.35, -3.6, .8, 4.6, 12); B.col(0x222222, MAT.METAL).cylZ(x, 4.35, -6, .5, .4, 10); }
   B.col(ext, MAT.PAINT).box(0, 8.6, 18.2, .4, 6, 3.6).box(0, 5.4, 18.6, 15, .3, 3.2);
   B.col(0x2a2e26, MAT.PAINT).box(3, .6, -3, 1.2, 1.3, 6).box(-3, .6, -3, 1.2, 1.3, 6);
+  B.col(0x1a2228, MAT.GLASS); for (const s of [-1, 1]) for (let z = -10; z < 6; z += 2.4) B.box(s * 3.02, 3.0, z, .02, .32, .32);
+  B.col(0x3a3e34, MAT.PAINT); for (let z = -12; z < 9; z += 1.5) B.torus(0, CY, z, R0 + .005, .015, 14, 3);
+  B.col(0x111111, MAT.METAL).cyl(0, CY + R0 * .85, -6, .02, .01, 1.2, 4).cyl(.5, CY + R0 * .85, 2, .02, .01, .8, 4).box(0, CY + R0 * .85 + .1, -2, .1, .2, 1);
+  B.col(0xffffff, MAT.PAINT).box(3.12, 3.6, -9, .01, .3, 1.5).box(-3.12, 3.6, -9, .01, .3, 1.5);
+  for (const x of [-13, -7, 7, 13]) { B.col(0x1a1a1a, MAT.METAL).sph(x, 4.35, -6.45, .3, .3, .45, 10, 6); B.col(0x2a2a2a, MAT.METAL).cylZ(x, 4.05, -1.4, .12, .8, 8); }
   B.col(0x101010, MAT.PAINT).box(3.05, 3.3, -6, .02, .5, 3).box(-3.05, 3.3, -6, .02, .5, 3);
   // ---------------- interior (cargo bay) ----------------
   B.col(0x3e423a, MAT.METAL).box(0, .2, -1.5, 3.9, .4, 21);
@@ -548,7 +269,10 @@ function buildHeli(color = 0x30362c) {
   // cabin interior
   B.col(0x2a2c28, MAT.METAL).box(0, .72, .3, 1.9, .06, 4); B.col(0x4a3a2a, MAT.CANVAS).box(0, 1.1, 1.7, 1.8, .35, .5).box(0, 1.5, 1.95, 1.8, .6, .08);
   B.col(0x151515, MAT.PLASTIC).box(0, 1.25, -2.3, 1.6, .4, .4); B.col(0x30ff60, MAT.EMIT).box(-.3, 1.35, -2.52, .3, .15, .01); B.col(0xffa020, MAT.EMIT).box(.3, 1.35, -2.52, .3, .15, .01);
-  B.col(0xff2020, MAT.EMIT).box(0, .3, 6.8, .1, .1, .1);
+  B.col(0xff2020, MAT.EMIT).box(0, .3, 6.8, .1, .1, .1).box(-1.12, 1.6, -1.5, .04, .08, .08); B.col(0x20ff40, MAT.EMIT).box(1.12, 1.6, -1.5, .04, .08, .08); B.col(0xffffff, MAT.EMIT).box(0, 3.3, 8.2, .06, .06, .06);
+  B.col(0x1f2a30, MAT.GLASS); for (const s of [-1, 1]) for (let i = 0; i < 2; i++) B.box(s * 1.02, 1.95, .6 + i * 1.1, .03, .5, .7);
+  B.col(0x222222, MAT.METAL).box(1.05, 2.4, .5, .05, .05, 3).box(1.05, .85, .5, .05, .05, 3).cylZ(.55, 2.95, 1.5, .18, .6, 10).cylZ(-.55, 2.95, 1.5, .18, .6, 10); B.col(0x111111, MAT.METAL).cylZ(.55, 2.95, 1.82, .14, .05, 10).cylZ(-.55, 2.95, 1.82, .14, .05, 10);
+  B.col(0x111111, MAT.METAL).cyl(0, .5, -1.5, .01, .005, .4, 4).cyl(.3, 3.05, 2.3, .01, .005, .5, 4); B.col(lin(color).map(v => v * .6), MAT.PAINT).box(0, 1.15, 4.2, .72, .12, .4).box(0, 1.5, -1, 2.22, .06, 3);
   B.b(HLB.ROTOR).col(0x161616, MAT.METAL); for (let k = 0; k < 4; k++) B.push().ry(k * Math.PI / 2).box(0, 0, -3.9, .35, .06, 7.6).pop(); B.cyl(0, -.1, 0, .25, .2, .25, 10);
   B.b(HLB.TAIL).col(0x161616, MAT.METAL); for (let k = 0; k < 3; k++) B.push().rx(k * TAU / 3).box(0, .55, 0, .05, 1.1, .15).pop();
   B.b(HLB.DOOR).col(color, MAT.PAINT).box(0, 0, 0, .05, 1.3, 1.4);

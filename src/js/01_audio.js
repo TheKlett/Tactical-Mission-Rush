@@ -71,8 +71,17 @@ const AUD = {
     if (opt.verb !== 0) { const s = C.createGain(); s.gain.value = opt.verb || .5; node.connect(s); s.connect(this.verbSend); }
     return g;
   },
+  rate: 1,
+  setRate(r) { this.rate = r; },
+  slowFx(on) {
+    if (!this.ready) return; const t = this.t;
+    if (!this.slowF) { this.slowF = this.filt('lowpass', 20000, .7); this.comp.disconnect(); this.comp.connect(this.slowF); this.slowF.connect(this.master); }
+    this.slowF.frequency.setTargetAtTime(on ? 1500 : 20000, t, on ? .25 : .5); this.verbSend.gain.setTargetAtTime(on ? .55 : .15, t, .4);
+    const o = this.osc('sine', on ? 220 : 55); o.frequency.exponentialRampToValueAtTime(on ? 45 : 240, t + .9); const g = this.ctx.createGain(); o.connect(g); g.connect(this.master); this.env(g.gain, t, .05, .5, 1.1); o.start(t); o.stop(t + 1.3);
+    this.swoosh(.6, null, on ? 300 : 900, 1); if (on) { this.heartT = 0; }
+  },
   noise(dest, t0, dur, type = 'white', rate = 1) {
-    const s = this.ctx.createBufferSource(); s.buffer = this[type]; s.playbackRate.value = rate; s.loop = true;
+    const s = this.ctx.createBufferSource(); s.buffer = this[type]; s.playbackRate.value = rate * (this.rate < 1 ? .55 + this.rate * .45 : 1); s.loop = true;
     s.connect(dest); s.start(t0, Math.random() * 1.5); s.stop(t0 + dur + .05); return s;
   },
   env(param, t0, a, peak, d, sus = 0) {
@@ -216,7 +225,7 @@ const AUD = {
       const sg = C.createGain(); sg.gain.value = .06; sg.connect(o); this.noise(sg, t, dur + .2, 'white');
       this.beep(1700, .05, .12); setTimeout(() => this.beep(1200, .06, .1), (dur + .15) * 1000);
     }
-    const src = this.osc('sawtooth', pitch); const vib = this.osc('sine', 5.5); const vg = C.createGain(); vg.gain.value = pitch * .02; vib.connect(vg); vg.connect(src.frequency);
+    pitch *= this.rate < 1 ? .6 + this.rate * .4 : 1; const src = this.osc('sawtooth', pitch); const vib = this.osc('sine', 5.5); const vg = C.createGain(); vg.gain.value = pitch * .02; vib.connect(vg); vg.connect(src.frequency);
     const amp = C.createGain(); amp.gain.value = 0; src.connect(amp);
     const fA = this.filt('bandpass', 700, 6), fB = this.filt('bandpass', 1200, 8), fC = this.filt('bandpass', 2600, 10);
     const mix = C.createGain(); mix.gain.value = 2.2; amp.connect(fA); amp.connect(fB); amp.connect(fC); fA.connect(mix); fB.connect(mix); fC.connect(mix); mix.connect(dest);
@@ -296,6 +305,12 @@ const AUD = {
         const w = this.mkNoiseLoop('pink', 'bandpass', 600, 2.5, .3, bus); parts.push(w);
         const lfo = this.osc('sine', .13); const lg = C.createGain(); lg.gain.value = 380; lfo.connect(lg); lg.connect(w.f.frequency); lfo.start(); parts.push({ s: lfo });
         parts.push(this.mkNoiseLoop('brown', 'lowpass', 300, .5, .35, bus));
+      } else if (kind === 'party') {
+        parts.push(this.mkNoiseLoop('brown', 'lowpass', 300, .5, .12, bus));
+        const crowd = this.mkNoiseLoop('pink', 'bandpass', 650, .9, .1, bus); parts.push(crowd);
+        const lfo = this.osc('sine', .3); const lg = C.createGain(); lg.gain.value = .04; lfo.connect(lg); lg.connect(crowd.g.gain); lfo.start(); parts.push({ s: lfo });
+      } else if (kind === 'city') {
+        parts.push(this.mkNoiseLoop('brown', 'lowpass', 220, .6, .45, bus)); parts.push(this.mkNoiseLoop('pink', 'bandpass', 900, .5, .05, bus)); parts.push(this.mkNoiseLoop('white', 'highpass', 4000, .5, .03, bus));
       } else if (kind === 'plane') {
         parts.push(this.mkNoiseLoop('brown', 'lowpass', 500, .6, .9, bus));
       }
@@ -310,9 +325,28 @@ const AUD = {
             if (r < .45) self.frog(p); else if (r < .8) self.cricket(p); else self.bird(p);
           } else if (kind === 'harbor') { if (Math.random() < .1) self.foghorn(); else self.click(300 + Math.random() * 500, .25, p, .05); }
           else if (kind === 'snow') { if (Math.random() < .3) self.swoosh(.15, null, 400, 2); }
+          else if (kind === 'party') { if (Math.random() < .3) self.voice('ha ha ha', 140 + Math.random() * 120, [L[0] + rnd(-12, 12), L[1], L[2] + rnd(-12, 12)]); else if (Math.random() < .25) self.click(5000 + Math.random() * 2000, .05, p, .01); }
+          else if (kind === 'city') { const r = Math.random(); if (r < .12) self.sirenWail(); else if (r < .3) self.carPass(); else if (r < .38) self.beep(440, .25, .05); }
         },
         stop() { for (const p of parts) { try { p.s.stop(); } catch (e) { } } },
       };
+    });
+  },
+  sirenWail() { const C = this.ctx, t = this.t; const o = this.osc('sawtooth', 700); const lp = this.filt('lowpass', 1500); const g = C.createGain(); o.connect(lp); lp.connect(g); g.connect(this.amb);
+    for (let i = 0; i < 6; i++) { o.frequency.setValueAtTime(i % 2 ? 960 : 720, t + i * .45); } g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(.025, t + .5); g.gain.setValueAtTime(.025, t + 2.4); g.gain.exponentialRampToValueAtTime(.0001, t + 2.9); o.start(t); o.stop(t + 3); },
+  carPass() { const C = this.ctx, t = this.t; const g = C.createGain(); const bp = this.filt('bandpass', 300, .7); bp.frequency.linearRampToValueAtTime(600, t + 1.2); bp.frequency.linearRampToValueAtTime(250, t + 2.6); bp.connect(g); g.connect(this.amb); g.gain.setValueAtTime(.0001, t); g.gain.linearRampToValueAtTime(.18, t + 1.2); g.gain.exponentialRampToValueAtTime(.0001, t + 2.8); this.noise(bp, t, 2.9, 'pink'); },
+  partyMusic(pos) {
+    const self = this;
+    return this.loop(C => {
+      const g = C.createGain(); g.gain.value = .5; const pan = C.createPanner(); pan.panningModel = 'equalpower'; pan.distanceModel = 'inverse'; pan.refDistance = 6; pan.rolloffFactor = 1.2;
+      if (pan.positionX) { pan.positionX.value = pos[0]; pan.positionY.value = pos[1]; pan.positionZ.value = pos[2]; } g.connect(pan); pan.connect(this.amb); const sv = C.createGain(); sv.gain.value = .6; g.connect(sv); sv.connect(this.verbSend);
+      const chords = [[220, 261.6, 329.6, 392], [174.6, 220, 261.6, 329.6], [196, 246.9, 293.7, 349.2], [164.8, 207.7, 246.9, 329.6]]; let beat = 0, next = 0;
+      return { update() { const t = AUD.t; if (next < t) next = t + .05; while (next < t + .25) { const ch = chords[Math.floor(beat / 8) % 4]; const b = beat % 8;
+        if (b === 0 || b === 3 || b === 6) for (const f of ch) { const o = self.osc('triangle', f); const og = C.createGain(); const lp = self.filt('lowpass', 1800); o.connect(lp); lp.connect(og); og.connect(g); self.env(og.gain, next, .02, .05, 1.1); o.start(next); o.stop(next + 1.2); }
+        const bo = self.osc('sine', ch[0] / 2); const bg = C.createGain(); bo.connect(bg); bg.connect(g); self.env(bg.gain, next, .01, b % 2 ? .08 : .16, .28); bo.start(next); bo.stop(next + .32);
+        if (b % 2 === 1) { const hg = C.createGain(); const hp = self.filt('highpass', 6000); hp.connect(hg); hg.connect(g); self.env(hg.gain, next, .001, .05, .05); self.noise(hp, next, .06); }
+        if (b === 4) { const kg = C.createGain(); const lp2 = self.filt('bandpass', 1800, 1); lp2.connect(kg); kg.connect(g); self.env(kg.gain, next, .002, .08, .08); self.noise(lp2, next, .1); }
+        beat++; next += .3; } }, stop() { g.gain.setTargetAtTime(0, AUD.t, .2); } };
     });
   },
   frog(p) {
@@ -383,5 +417,5 @@ const AUD = {
       };
     });
   },
-  update(dt) { for (const h of this.loops) if (h.update) h.update(dt); },
+  update(dt) { for (const h of this.loops) if (h.update) h.update(dt); if (this.rate < .9) { this.heartT = (this.heartT || 0) - dt; if (this.heartT <= 0) { this.heartT = 1.1; this.heartbeat(); } } },
 };

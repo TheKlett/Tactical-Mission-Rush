@@ -194,3 +194,7 @@ h1,h2,h3{font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 #vign{position:fixed;inset:0;z-index:3;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 60%,rgba(0,0,0,.42) 100%)}
 #engage{position:fixed;left:50%;top:58%;transform:translate(-50%,-50%);z-index:9;display:none;text-align:center;pointer-events:none;background:rgba(0,0,0,.6);padding:14px 26px;border:1px solid var(--red)}#engage.on{display:block}#engage b{display:block;font-size:18px;letter-spacing:.4em}#engage span{font-family:var(--m);font-size:10px;letter-spacing:.2em;color:var(--dim)}
 #tmap{flex:1;min-height:0}
+#slowmo{position:absolute;left:28px;bottom:28px;display:flex;align-items:center;gap:10px;font-family:var(--m)}
+#slowmo svg{width:44px;height:44px;transform:rotate(-90deg)}#slowmo circle{fill:none;stroke-width:3}#slowmo circle.b{stroke:rgba(255,255,255,.15)}#slowmo circle.p{stroke:#ddd;stroke-dasharray:100;transition:stroke .3s}
+#slowmo b{position:absolute;left:0;width:44px;text-align:center;font-size:15px;color:#fff}#slowmo span{font-size:11px;letter-spacing:.3em;color:#bbb}#slowmo i{font-style:normal;font-size:10px;color:#888;letter-spacing:.15em}
+#slowmo.ready circle.p{stroke:var(--red2)}#slowmo.ready span{color:#fff}#slowmo.active circle.p{stroke:var(--red2);filter:drop-shadow(0 0 4px #e0243a)}#slowmo.active span{color:var(--red2);animation:blink .8s infinite}

@@ -56,7 +56,7 @@ const UI = {
       $('bText').textContent = M.briefing;
       $('bObj').innerHTML = M.objectives.filter(o => o.type !== 'hidden').map(o => '<li class="' + o.type + '"><span>' + (o.type === 'primary' ? 'PRIMARY' : 'OPTIONAL') + '</span>' + o.text + '</li>').join('');
       $('bIntel').innerHTML = M.intel.map(t => '<li>' + t + '</li>').join('');
-      $('bLoad').textContent = WEAPONS[G.loadout.rifle].name + ' · ' + ({ iron: 'IRON SIGHTS', reddot: 'RED DOT', holo: 'HOLOGRAPHIC' })[G.loadout.optic] + ' · P-9 SD · CK-1 · ' + GADGETS[G.loadout.gadget].name;
+      const L = G.loadout; $('bLoad').textContent = [WEAPONS[L.pistol].name, WEAPONS[L.rifle].name + ' (' + ATTACH.optics[L.optic].name + (L.muzzle === 'sup' ? ', SUPPRESSED' : '') + ')', WEAPONS[L.knife].name, GEAR[L.gadget].name].join(' · ');
       this.makeTacMap(); this.tm.zoom = .5; this.tm.tz = 1; this.tm.rot = -.6; this.tm.tr = 0; this.tm.px = this.tm.tpx = 0; this.tm.py = this.tm.tpy = 0;
       this.show('brief');
     });
@@ -225,14 +225,14 @@ const UI = {
     let wn = '', a1 = '', a2 = '';
     if (P.state === 'vehicle') { wn = P.vehicle.name; a1 = Math.abs(P.vehicle.speed * 3.6) | 0; a2 = 'KM/H'; }
     else if (w && P.isGun()) { const a = P.ammo[P.weapon]; wn = w.name; a1 = a.mag; a2 = '/ ' + a.res; }
-    else if (P.weapon === 'knife') { wn = WEAPONS.knife.name; a1 = '—'; a2 = ''; }
+    else if (P.weapon === 'knife') { wn = P.weps.knife.name; a1 = '—'; a2 = ''; }
     else { const k = P.curItemKind(); if (k) { wn = ITEMDEF[k].name; const s = P.inv[P.cur]; a1 = s && s.count ? s.count : P.cur === 3 ? P.mission.filter(x => x === k).length : ''; a2 = ''; } }
     const key = wn + a1 + a2; if (key !== this._ak) { this._ak = key; am.querySelector('.wn').textContent = wn; am.querySelector('b').textContent = a1; am.querySelector('.am span').textContent = a2; am.classList.toggle('low', w && P.isGun() && P.ammo[P.weapon].mag <= Math.ceil(w.mag * .2)); }
     // slots
     const sk = P.inv.map(s => s ? s.k + (s.count || '') : '-').join() + P.cur + P.mission.join() + P.missionSel + P.anim.k;
     if (sk !== this._sk) {
       this._sk = sk; const el = $('slots');
-      el.innerHTML = [0, 1, 2, 3, 4].map(i => { let k = null, cnt = ''; if (i === 3) { k = P.mission[P.missionSel] || null; cnt = P.mission.length > 1 ? '×' + P.mission.length : ''; } else if (P.inv[i]) { k = P.inv[i].k; cnt = P.inv[i].count ? '×' + P.inv[i].count : ''; } const nm = k ? (WEAPONS[k] ? WEAPONS[k].name : ITEMDEF[k].name) : (i === 2 && P.thrownKnife ? 'KNIFE — RETRIEVE' : ''); return `<div class="slot ${i === P.cur ? 'sel' : ''} ${k ? '' : 'empty'}"><em>${i + 1}</em>${k ? ICONS[k] || '' : ''}<span>${nm}</span><u>${cnt}</u></div>`; }).join('');
+      el.innerHTML = [0, 1, 2, 3, 4].map(i => { let k = null, cnt = ''; if (i === 3) { k = P.mission[P.missionSel] || null; cnt = P.mission.length > 1 ? '×' + P.mission.length : ''; } else if (P.inv[i]) { k = P.inv[i].k; cnt = P.inv[i].count ? '×' + P.inv[i].count : ''; } const nm = k ? (P.weps[k] ? P.weps[k].name : ITEMDEF[k].name) : (i === 2 && P.thrownKnife ? 'KNIFE — RETRIEVE' : ''); return `<div class="slot ${i === P.cur ? 'sel' : ''} ${k ? '' : 'empty'}"><em>${i + 1}</em>${k ? ICONS[P.weps[k] ? P.weps[k].id : k] || ICONS[P.weps[k] ? P.weps[k].type === 'rifle' ? 'ar7' : P.weps[k].type : k] || '' : ''}<span>${nm}</span><u>${cnt}</u></div>`; }).join('');
     }
     // prompt
     const pr = $('prompt'); const ptxt = P.prompt || ''; if (pr._t !== ptxt) { pr._t = ptxt; pr.querySelector('span').textContent = ptxt; pr.classList.toggle('on', !!ptxt); }
@@ -242,7 +242,9 @@ const UI = {
     // altitude
     const alt = $('alt'); if (P.state === 'fall' || P.state === 'chute') { alt.classList.add('on'); alt.innerHTML = `<b>${Math.max(0, P.altitude) | 0}</b><span>M ALT</span><i>${(-P.vel[1]).toFixed(0)} M/S</i>` + (P.state === 'fall' ? `<em class="${P.altitude < 160 ? 'warn' : ''}">[SPACE] DEPLOY PARACHUTE</em>` : '<em>A/D STEER · W DIVE · S FLARE</em>'); } else alt.classList.remove('on');
     // damage
-    const hv = clamp((100 - P.health) / 80, 0, 1); $('hurt').style.opacity = hv * .9;
+    const hv = clamp((100 - P.health) / 80, 0, 1); $('hurt').style.opacity = hv * .9; R.post.hurt = hv;
+    const sl = G.slow, sm = $('slowmo'); const sv = sl.on ? 1 - sl.t / G.SLOW_DUR : sl.charge; sm.querySelector('circle.p').style.strokeDashoffset = (1 - sv) * 100;
+    const sst = sl.on ? 'active' : sl.charge >= 1 ? 'ready' : ''; if (sm._s !== sst + (sl.on ? (sl.t | 0) : (sl.charge * 100 | 0))) { sm._s = sst + (sl.on ? (sl.t | 0) : (sl.charge * 100 | 0)); sm.className = sst; sm.querySelector('i').textContent = sl.on ? Math.ceil(G.SLOW_DUR - sl.t) + 's' : sl.charge >= 1 ? 'READY' : Math.round(sl.charge * 100) + '%'; }
     const dd = $('dmgdir'); if (P.hurtDir !== null && G.time - P.lastHurt < 1.2) { const rel = P.hurtDir - P.yaw + Math.PI; dd.style.opacity = 1 - (G.time - P.lastHurt) / 1.2; dd.style.transform = `translate(-50%,-50%) rotate(${-rel}rad)`; } else dd.style.opacity = 0;
     // subtitles / notifications
     this.updateList('subs', G.subs, dt, s => `<div class="${s.radio ? 'radio' : ''}"><b>${s.radio ? '◉ RADIO · ' : ''}${s.who}:</b> ${s.text}</div>`);

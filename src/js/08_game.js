@@ -6,7 +6,7 @@ const G = {
   state: 'menu', time: 0, W: null, M: null, npcs: [], vehicles: [], cams: [], particles: [], vmParticles: [], dlights: [], groups: {}, projectiles: [], smokes: [], decals: [],
   alarm: 0, searchT: 0, powerOn: true, diffMul: 1, dmgMul: 1, cineLock: false, god: false, missionTime: 0, stats: null, objectives: [], subs: [],
   settings: { sens: 1, fov: 72, invert: false, master: .8, music: .5, amb: .8, quality: 'high', shadows: true, markers: true, subtitles: true, scale: 1, difficulty: 'normal' },
-  loadout: { rifle: 'ar7', optic: 'reddot', gadget: 'noisemaker', extraMags: false },
+  loadout: { pistol: 'pistol', rifle: 'ar7', knife: 'knife', optic: 'iron', muzzle: 'none', mag: 'std', laser: 'off', gadget: 'noisemaker', extraMags: false, armor: false, boots: false, operator: 'viper' },
   init() {
     try { Object.assign(this.settings, JSON.parse(localStorage.getItem('redline_settings') || '{}')); } catch (e) { }
     try { Object.assign(this.loadout, JSON.parse(localStorage.getItem('redline_loadout') || '{}')); } catch (e) { }
@@ -39,6 +39,7 @@ const G = {
     this.disposeWorld();
     const M = MISSIONS.find(m => m.id === id); this.M = M;
     const W = new World(M.size, M.seed); this.W = W;
+    this.timers = []; this.wtime = 0; this.slow = { on: false, t: 0, charge: 1, k: 0 }; this.timeScale = 1; R.post.slow = 0;
     this.npcs = []; this.vehicles = []; this.cams = []; this.groups = {}; this.particles = []; this.projectiles = []; this.smokes = []; this.decals = []; this.extras = []; this.hums = [];
     this.plane = null; this.heli = null; this.boat = null; this.chuteDrops = []; this.drops = []; this.extraUpdaters = []; this.exHeli = null; this.fires = []; this.marker = null; this._outF = 0; this.siren = null;
     this.rng = mulberry(M.seed * 7 + 3);
@@ -53,11 +54,12 @@ const G = {
     this.stats = { kills: 0, headshots: 0, takedowns: 0, shots: 0, hits: 0, detected: false, bodies: 0, alarms: 0, damage: 0, knifeKills: 0, stealthKills: 0, vehicles: 0, startT: performance.now() };
     this.objectives = M.objectives.map(o => Object.assign({ done: false, failed: false }, o));
     this.radioT = 70 + Math.random() * 30; this.lastEye = 0; this.subs = []; this.notifs = [];
-    P.reset(this.loadout); this.env = M.env; this.computeEnv();
+    P.reset(this.loadout); P.applyLook(M); this.env = M.env; this.computeEnv(); this.civTotal = this.npcs.filter(n => n.civ).length; this.camFeedOff = false; this._civReported = false;
     for (const it of M.startItems || []) P.mission.push(it);
     AUD.init(); AUD.stopAllLoops(); this.ambLoop = AUD.ambience(M.ambience); this.musicLoop = AUD.music();
     for (const h of this.W.sounds) if (h.kind === 'hum' && Math.random() < .3) this.hums.push(AUD.humAt(h.pos, h.f, h.vol));
     for (const g of this.W.gens || []) { g.hum = AUD.humAt(g.pos, 48, .35); this.hums.push(g.hum); }
+    if (M.musicPos) AUD.partyMusic(M.musicPos);
     this.windLoop = AUD.loop(C => { const n = AUD.mkNoiseLoop('pink', 'bandpass', 700, .6, 0, AUD.amb); return { set(f, v) { n.f.frequency.setTargetAtTime(300 + f * 900, AUD.t, .2); n.g.gain.setTargetAtTime(v, AUD.t, .2); }, stop() { try { n.s.stop(); } catch (e) { } } }; });
     UI.showHUD(false); M.start(this); this.updateObjectivesHUD();
   },
@@ -69,26 +71,48 @@ const G = {
     const run = this.state === 'play' || this.state === 'intro' || this.state === 'cine' || this.state === 'dead' || this.state === 'result';
     if (this.state === 'paused') { this.render(); IN.end(); return; }
     if (run) {
-      this.time += dt; if (this.state === 'play') this.missionTime += dt;
+      // unified time: rdt = real (player), wdt = world (scaled by slow motion)
+      this.updateSlow(dt); const wdt = dt * this.timeScale; this.rdt = dt;
+      this.time += wdt; this.wtime = (this.wtime || 0) + wdt; if (this.state === 'play') this.missionTime += dt;
       if (IN.hit('Escape') && (this.state === 'play')) this.pause();
       if (this.cine) this.cine.update(dt);
-      if (this.plane) this.updatePlaneObj(dt);
+      if (this.plane) this.updatePlaneObj(wdt);
       if (this.state !== 'result') P.update(dt);
-      this.updateWorld(dt);
-      if (this.M && this.state === 'play') this.M.update && this.M.update(this, dt);
+      this.runTimers();
+      this.updateWorld(wdt);
+      if (this.M && this.state === 'play') this.M.update && this.M.update(this, wdt);
     }
     this.render(); UI.hudFrame(dt); IN.end();
+  },
+  /* ---------------- game-time scheduler (respects slow motion & pause) ---------------- */
+  after(fn, ms) { (this.timers || (this.timers = [])).push({ t: (this.wtime || 0) + ms / 1000, fn }); },
+  runTimers() { const T = this.timers; if (!T || !T.length) return; const now = this.wtime; const due = T.filter(x => x.t <= now); this.timers = T.filter(x => x.t > now); for (const x of due) { try { x.fn(); } catch (e) { console.error(e); } } },
+  /* ---------------- slow-motion ability ---------------- */
+  timeScale: 1, slow: { on: false, t: 0, charge: 1, k: 0 },
+  SLOW_DUR: 15, SLOW_RECHARGE: 40,
+  triggerSlow() {
+    const s = this.slow; if (this.state !== 'play') return;
+    if (s.on) { s.t = this.SLOW_DUR; return; }
+    if (s.charge < 1) { this.notify('SLOW MOTION RECHARGING — ' + Math.round(s.charge * 100) + '%'); AUD.beep(300, .08, .2); return; }
+    s.on = true; s.t = 0; s.charge = 0; AUD.slowFx(true); this.stats && this.stats.slowmo++;
+  },
+  updateSlow(dt) {
+    const s = this.slow; if (IN.hit('KeyG')) this.triggerSlow();
+    if (s.on) { s.t += dt; if (s.t >= this.SLOW_DUR || this.state !== 'play' && this.state !== 'intro') { s.on = false; AUD.slowFx(false); } }
+    else s.charge = Math.min(1, s.charge + dt / this.SLOW_RECHARGE);
+    s.k = damp(s.k, s.on ? 1 : 0, s.on ? 5 : 3.5, dt);
+    this.timeScale = lerp(1, .25, s.k); R.post.slow = s.k; AUD.setRate(this.timeScale);
   },
   updateWorld(dt) {
     const W = this.W;
     for (const n of this.npcs) n.update(dt);
     this.updateGroups(dt); this.updateRadio(dt);
-    for (const v of this.vehicles) this.updateVehicle(v, dt);
+    for (const v of this.vehicles) this.updateVehicle(v, v.driver ? this.rdt : dt);
     for (const f of this.extraUpdaters) f(dt);
     this.updateFires(dt);
     for (const c of this.cams) c.update(dt);
     for (const d of W.doors) this.updateDoor(d, dt);
-    this.updateProjectiles(dt); this.updateParticles(dt); this.updateTakedown(dt); this.updateDrops(dt);
+    this.updateProjectiles(dt); this.updateParticles(dt); this.updateTakedown(dt); this.updateDrops(dt); this.updateHostage(dt);
     if (this.searchT > 0) { this.searchT -= dt; if (this.searchT <= 0 && !this.npcs.some(n => n.state === 'combat')) { this.alarm = 0; if (this.siren) { this.siren.stop(); this.siren = null; } } }
     if (this.alarm >= 2 && !this.npcs.some(n => !n.dead && n.state === 'combat') && this.searchT <= 0) this.searchT = 50;
     // visibility (light level)
@@ -168,12 +192,12 @@ const G = {
     this.speak(op, 'All posts, status report.', true);
     let t = 3.2;
     for (const n of posts) {
-      setTimeout(() => {
+      G.after(() => {
         if (this.state !== 'play') return;
         if (!n.dead && n.state !== 'combat') { this.speak(n, n.post + ', all clear.', true); }
         else if (n.dead) {
           this.speak(op, n.post + ', respond. ' + n.post + '?', true);
-          setTimeout(() => {
+          G.after(() => {
             if (this.state !== 'play') return;
             const alive = this.npcs.filter(o => !o.dead && o !== op && o.state === 'calm' && o.role !== 'commander');
             alive.sort((a, b) => V.dist(a.pos, n.pos) - V.dist(b.pos, n.pos)); const s = alive[0];
@@ -193,7 +217,7 @@ const G = {
     this._alerting = false;
     if (this.alarm < 2 && !this.alarmPending) {
       this.alarmPending = true;
-      setTimeout(() => {
+      G.after(() => {
         this.alarmPending = false; if (this.state !== 'play') return;
         if (npc.dead) { const other = this.npcs.find(n => !n.dead && n.state === 'combat'); if (!other) return; npc = other; }
         this.speak(npc, pick(LINES.alarmRadio), true); this.setAlarm(npc.lastKnown || P.pos);
@@ -234,7 +258,7 @@ const G = {
       const perp = V.len(V.sub(oc, V.sc(d, t))); if (perp > 1.4) continue; const h = n.hitTest(o, d); if (h && h.t < bt) { bt = h.t; bestN = n; bpart = h.part; }
     }
     const end = V.add(o, V.sc(d, bt));
-    if (weapon !== 'pistol') this.tracer(VM.gun ? VM.muzzleWorld() : o, end);
+    if (!(P.weps[weapon] && P.weps[weapon].suppressed)) this.tracer(VM.gun ? VM.muzzleWorld() : o, end);
     if (bestN) {
       const wasAlive = !bestN.dead; bestN.damage(dmg, o, bpart, weapon); if (wasAlive) { this.stats.hits++; UI.hitmarker(bestN.dead); if (bestN.dead && bpart === 'head') this.stats.headshots++; }
       this.blood(end, d); AUD.impact('flesh', end); return;
@@ -308,6 +332,8 @@ const G = {
     else AUD.melee(false);
   },
   killNPC(n, from, part, kind) {
+    if (P.hostage && P.hostage.n === n && P.hostage.phase !== 'kill') P.hostage = null;
+    if (n.civ) { this.stats.civKilled = (this.stats.civKilled || 0) + 1; this.notify('CIVILIAN CASUALTY — PAYOUT REDUCED', 'alarm'); }
     const wasState = n.state; n.dead = true; n.deathAt = this.time; n.deathT = 0; n.hp = 0; n.state = 'dead';
     const toS = Math.atan2(-(from[0] - n.pos[0]), -(from[2] - n.pos[2])); n.fallDir = Math.abs(angDiff(n.yaw, toS)) < Math.PI / 2 ? 1 : -1;
     this.stats.kills++; if (wasState !== 'combat' && wasState !== 'search') this.stats.stealthKills++;
@@ -324,9 +350,9 @@ const G = {
     for (const o of this.npcs) {
       if (o === n || o.dead || o.state === 'combat') continue; const d = V.dist(o.pos, n.pos); if (d > 26) continue;
       const to = V.norm(V.sub(n.pos, o.pos)); const f = o.fwd; if (to[0] * f[0] + to[2] * f[2] < .3 && d > 4) continue; if (!this.W.los(o.eye, V.add(n.pos, [0, 1.2, 0]))) continue;
-      n.discovered = true; o.say('body');
+      n.discovered = true; if (o.civ) { o.panic(n.pos, true); continue; } o.say('body');
       if (o.canSee || V.dist(o.pos, P.pos) < 12) { o.lastKnown = V.copy(P.pos); o.enterCombat(true); }
-      else setTimeout(() => { if (!o.dead) this.globalSearch(n.pos, o, 'body'); }, 1500);
+      else G.after(() => { if (!o.dead) this.globalSearch(n.pos, o, 'body'); }, 1500);
     }
     if (kind === 'knifeThrow' || kind === 'knife') { }
     this.M.onKill && this.M.onKill(this, n);
@@ -347,13 +373,20 @@ const G = {
     for (let i = 0; i < 16; i++) { const v = [rnd(-12, 12), rnd(4, 14), rnd(-12, 12)]; this.particles.push({ p: V.copy(p), v, life: 0, max: rnd(.5, 1.2), s: .6, w: .03, c: [1, .7, .3], a: 1, add: true, g: 9.8, streak: true, dir: V.norm(v) }); }
     for (const n of this.npcs) { if (n.dead) continue; const d = V.dist(V.add(n.pos, [0, 1, 0]), p); if (d < r) { n.damage(dmg * (1 - d / r) + 20, p, 'chest', 'explosion'); n.flinch = 1; } }
     const pd = V.dist(P.eye(), p); if (pd < r * 1.4) P.hurt(dmg * .7 * (1 - pd / (r * 1.4)), p); P.shake = Math.max(P.shake, clamp(1.5 - pd / 30, 0, 1.5));
-    for (const o of this.W.destr) { if (!o.alive) continue; const d = V.dist(o.pos, p); if (d < r) { if (o.kind === 'glass') this.breakGlass(o); else if (o.kind === 'crate' || (o.kind === 'barrel' && d > .5)) setTimeout(() => this.destroy(o), 120 + d * 30); } }
+    for (const o of this.W.destr) { if (!o.alive) continue; const d = V.dist(o.pos, p); if (d < r) { if (o.kind === 'glass') this.breakGlass(o); else if (o.kind === 'crate' || (o.kind === 'barrel' && d > .5)) G.after(() => this.destroy(o), 120 + d * 30); } }
     this.decalBig(p);
   },
   decalBig(p) { const gy = this.W.ground(p[0], p[2], p[1] + .5, 1); this.decals.push({ p: [p[0], gy + .02, p[2]], flat: [[1, 0, 0], [0, 0, 1]], s: 2.2, c: [.02, .02, .02], a: .85, life: 0, max: 1e9, decal: true }); },
   /* ---------------- projectiles: thrown knife & gadgets ---------------- */
+  emp(p) {
+    AUD.explosion(p); AUD.beep(3000, .3, .4, p); this.dlights.push({ pos: V.add(p, [0, 1, 0]), col: [.3, .6, 1], i: 8, range: 18, life: .3 });
+    for (let i = 0; i < 30; i++) { const v = [rnd(-8, 8), rnd(0, 6), rnd(-8, 8)]; this.particles.push({ p: V.add(p, [0, .3, 0]), v, life: 0, max: rnd(.2, .5), s: .4, w: .015, c: [.4, .7, 1], a: 1, add: true, streak: true, dir: V.norm(v) }); }
+    let n = 0; for (const c of this.cams) if (c.alive && V.dist(c.pos, p) < 18) { c.empT = 25; n++; }
+    for (const l of this.W.lights) if (l.on && V.dist(l.pos, p) < 18) { l.on = false; l.empOff = true; this.after(() => { if (!l.broken) l.on = true; }, 25000); }
+    this.noise(p, 20, 'impact'); this.notify('EMP — ' + n + ' CAMERA(S) AND NEARBY LIGHTS DISABLED', 'good');
+  },
   spawnThrownKnife() {
-    const e = P.eye(), f = P.fwd(); this.projectiles.push({ kind: 'knife', p: V.add(e, V.sc(f, .5)), v: V.add(V.sc(f, 24), [0, 1.2, 0]), spin: 0, t: 0, m: M4.create(), mesh: this.W.getMesh('item_knife', B => { B.b(0); buildItemGeo(B, 'knife'); }) });
+    const e = P.eye(), f = P.fwd(); this.projectiles.push({ kind: 'knife', dmg: P.weps.knife.throwDmg, p: V.add(e, V.sc(f, .5)), v: V.add(V.sc(f, P.weps.knife.throwSpeed), [0, 1.2, 0]), spin: 0, t: 0, m: M4.create(), mesh: this.W.getMesh('item_knife', B => { B.b(0); buildItemGeo(B, 'knife'); }) });
   },
   throwGadget(kind) {
     const e = P.eye(), f = P.fwd(); this.projectiles.push({ kind, p: V.add(e, V.sc(f, .5)), v: V.add(V.sc(f, 13), [0, 3, 0]), spin: 0, t: 0, m: M4.create(), mesh: this.W.getMesh('item_' + kind, B => { B.b(0); buildItemGeo(B, kind); }) });
@@ -361,12 +394,12 @@ const G = {
   updateProjectiles(dt) {
     const W = this.W;
     for (const pr of this.projectiles) {
-      if (pr.landed) { pr.t += dt; if (pr.kind === 'noisemaker' && pr.t < 9) { pr.beep = (pr.beep || 0) - dt; if (pr.beep <= 0) { pr.beep = 1.1; AUD.beep(1900, .07, .5, pr.p); AUD.beep(1400, .07, .4, pr.p); this.noise(pr.p, 24, 'gadget'); } } if (pr.kind === 'smoke' && pr.t < 16) { pr.em = (pr.em || 0) - dt; if (pr.em <= 0) { pr.em = .08; this.particles.push({ p: V.add(pr.p, [rnd(-.3, .3), .2, rnd(-.3, .3)]), v: [rnd(-.8, .8), rnd(.3, 1.2), rnd(-.8, .8)], life: 0, max: 6, s: .8, grow: .5, c: [.62, .64, .62], a: .55, drag: .6 }); } if (!pr.smoke) { pr.smoke = { p: V.add(pr.p, [0, 1.2, 0]), r: 0, k: 1 }; this.smokes.push(pr.smoke); AUD.swoosh(.5, pr.p, 500, 3); } pr.smoke.r = Math.min(5.5, pr.t * 1.4); } if (pr.kind === 'smoke' && pr.t > 18 && pr.smoke) { this.smokes.splice(this.smokes.indexOf(pr.smoke), 1); pr.smoke = null; } continue; }
+      if (pr.landed) { pr.t += dt; if (pr.kind === 'emp' && !pr.fired) { pr.fired = true; this.emp(pr.p); } if (pr.kind === 'noisemaker' && pr.t < 9) { pr.beep = (pr.beep || 0) - dt; if (pr.beep <= 0) { pr.beep = 1.1; AUD.beep(1900, .07, .5, pr.p); AUD.beep(1400, .07, .4, pr.p); this.noise(pr.p, 24, 'gadget'); } } if (pr.kind === 'smoke' && pr.t < 16) { pr.em = (pr.em || 0) - dt; if (pr.em <= 0) { pr.em = .08; this.particles.push({ p: V.add(pr.p, [rnd(-.3, .3), .2, rnd(-.3, .3)]), v: [rnd(-.8, .8), rnd(.3, 1.2), rnd(-.8, .8)], life: 0, max: 6, s: .8, grow: .5, c: [.62, .64, .62], a: .55, drag: .6 }); } if (!pr.smoke) { pr.smoke = { p: V.add(pr.p, [0, 1.2, 0]), r: 0, k: 1 }; this.smokes.push(pr.smoke); AUD.swoosh(.5, pr.p, 500, 3); } pr.smoke.r = Math.min(5.5, pr.t * 1.4); } if (pr.kind === 'smoke' && pr.t > 18 && pr.smoke) { this.smokes.splice(this.smokes.indexOf(pr.smoke), 1); pr.smoke = null; } continue; }
       pr.t += dt; pr.v[1] -= 9.8 * dt; const np = V.add(pr.p, V.sc(pr.v, dt)); pr.spin += dt * (pr.kind === 'knife' ? 22 : 9);
       const d = V.sub(np, pr.p); const L = V.len(d); const dir = V.sc(d, 1 / (L || 1));
       if (pr.kind === 'knife') { // hit NPCs
         let hitN = null; for (const n of this.npcs) { if (n.dead) continue; const h = n.hitTest(pr.p, dir); if (h && h.t < L) { hitN = [n, h]; break; } }
-        if (hitN) { const [n, h] = hitN; const was = n.state; n.damage(n.state === 'combat' ? (h.part === 'head' ? 200 : 90) : 999, pr.p, h.part, 'knife'); this.blood(V.add(pr.p, V.sc(dir, h.t)), dir); AUD.impact('flesh', pr.p); if (n.dead) this.stats.knifeKills++; UI.hitmarker(n.dead); const gp = [n.pos[0] + rnd(-.4, .4), 0, n.pos[2] + rnd(-.4, .4)]; gp[1] = W.ground(gp[0], gp[2], n.pos[1] + .5, 1) + .02; W.addItem('knife', gp, Math.random() * 6, { pitch: Math.PI / 2, roll: 0 }); pr.dead = true; continue; }
+        if (hitN) { const [n, h] = hitN; const was = n.state; n.damage(n.state === 'combat' ? (h.part === 'head' ? 200 : (pr.dmg || 90)) : 999, pr.p, h.part, 'knife'); this.blood(V.add(pr.p, V.sc(dir, h.t)), dir); AUD.impact('flesh', pr.p); if (n.dead) this.stats.knifeKills++; UI.hitmarker(n.dead); const gp = [n.pos[0] + rnd(-.4, .4), 0, n.pos[2] + rnd(-.4, .4)]; gp[1] = W.ground(gp[0], gp[2], n.pos[1] + .5, 1) + .02; W.addItem('knife', gp, Math.random() * 6, { pitch: Math.PI / 2, roll: 0 }); pr.dead = true; continue; }
       }
       const h = W.ray(pr.p, dir, L + .05, { bullet: true });
       if (h) {
@@ -455,9 +488,9 @@ const G = {
     for (const n of this.npcs) {
       const d = V.dist2(n.pos, pp); if (d > 3) continue;
       if (n.dead && !n.searched && n.deathT > 1) { if (!n._sit) n._sit = { r: 2.2, wide: true, pos: () => n.rig.bonePos(SK.CH), label: '[E] SEARCH BODY (HOLD)', hold: 1.4, anim: 'search', act: () => this.searchBody(n) }; out.push(n._sit); }
-      if (!n.dead && n.tdT < 0 && n.state !== 'combat' && P.state === 'ground' && d < 1.8) {
+      if (!n.dead && n.tdT < 0 && n.state !== 'combat' && n.state !== 'hostage' && !P.hostage && P.state === 'ground' && d < 1.8) {
         const toP = Math.atan2(-(P.pos[0] - n.pos[0]), -(P.pos[2] - n.pos[2])); const behind = Math.abs(angDiff(n.yaw, toP)) > 1.75 || (n.anim === 'sit' && Math.abs(angDiff(n.yaw, toP)) > 1.4);
-        if (behind) { if (!n._tdit) n._tdit = { key: 'KeyF', r: 2.2, wide: true, pos: () => V.add(n.pos, [0, 1.4, 0]), label: () => P.thrownKnife ? '[F] SILENT TAKEDOWN (CHOKE)' : '[F] SILENT TAKEDOWN', instant: true, act: () => this.startTakedown(n) }; out.push(n._tdit); }
+        if (behind) { if (!n._tdit) n._tdit = { key: 'KeyF', r: 2.2, wide: true, pos: () => V.add(n.pos, [0, 1.4, 0]), label: () => this.canGrab(n) ? '[F] GRAB AS HOSTAGE' : P.thrownKnife ? '[F] SILENT TAKEDOWN (CHOKE)' : '[F] SILENT TAKEDOWN', instant: true, act: () => this.canGrab(n) ? this.startHostage(n) : this.startTakedown(n) }; out.push(n._tdit); }
       }
     }
     return out;
@@ -465,8 +498,8 @@ const G = {
   pickup(it) {
     it.alive = false; this.W.removeDyn(it); const i = this.W.items.indexOf(it); if (i >= 0) this.W.items.splice(i, 1);
     AUD.mech('pickup');
-    if (it.item === 'knife') { P.inv[2] = { k: 'knife' }; P.thrownKnife = false; this.notify('COMBAT KNIFE RECOVERED'); return; }
-    if (it.ammo) { for (const k in P.ammo) P.ammo[k].res += Math.round(WEAPONS[k].mag * 1.5); this.notify('AMMUNITION +'); return; }
+    if (it.item === 'knife') { P.inv[2] = { k: 'knife' }; P.thrownKnife = false; this.notify(P.weps.knife.name + ' RECOVERED'); return; }
+    if (it.ammo) { for (const k in P.ammo) P.ammo[k].res += Math.round(P.weps[k].mag * 1.5); this.notify('AMMUNITION +'); return; }
     if (it.item === 'noisemaker' || it.item === 'smoke') { if (!P.inv[4]) P.inv[4] = { k: it.item, item: true, count: 1 }; else if (P.inv[4].k === it.item) P.inv[4].count++; this.notify(ITEMDEF[it.item].name + ' +1'); return; }
     P.mission.push(it.item); P.missionSel = P.mission.length - 1; this.notify('ACQUIRED: ' + ITEMDEF[it.item].name);
     this.M.onPickup && this.M.onPickup(this, it.item);
@@ -479,31 +512,32 @@ const G = {
   },
   /* ---------------- takedowns ---------------- */
   startTakedown(n) {
-    P.takedown = { n, t: 0, start: V.copy(P.pos), yaw0: P.yaw }; P.anim = { k: 'takedown', t: 0, d: 1.75 }; n.tdT = 0; n.state = 'takedown'; n.path = null; P.ads = 0;
+    P.takedown = { n, t: 0, start: V.copy(P.pos), yaw0: P.yaw }; P.anim = { k: 'takedown', t: 0, d: P.weps.knife.td }; n.tdT = 0; n.state = 'takedown'; n.path = null; P.ads = 0;
     AUD.swoosh(.4, null, 600, .3); this.stats.takedowns++;
     // witness check
-    for (const o of this.npcs) { if (o === n || o.dead) continue; const d = V.dist(o.pos, n.pos); if (d > 24) continue; const to = V.norm(V.sub(n.pos, o.pos)); const f = o.fwd; if (to[0] * f[0] + to[2] * f[2] < .35 && d > 3.5) continue; if (!this.W.los(o.eye, V.add(n.pos, [0, 1.3, 0]))) continue; o.lastKnown = V.copy(P.pos); setTimeout(() => !o.dead && o.state !== 'combat' && o.enterCombat(true), 500); }
+    for (const o of this.npcs) { if (o === n || o.dead) continue; const d = V.dist(o.pos, n.pos); if (d > 24) continue; const to = V.norm(V.sub(n.pos, o.pos)); const f = o.fwd; if (to[0] * f[0] + to[2] * f[2] < .35 && d > 3.5) continue; if (!this.W.los(o.eye, V.add(n.pos, [0, 1.3, 0]))) continue; o.lastKnown = V.copy(P.pos); G.after(() => !o.dead && o.state !== 'combat' && o.enterCombat(true), 500); }
   },
   updateTakedown(dt) {
     const T = P.takedown; if (!T) return; T.t += dt; const n = T.n;
     const behind = [n.pos[0] + Math.sin(n.yaw) * .55, P.pos[1], n.pos[2] + Math.cos(n.yaw) * .55];
     const k = smooth(T.t / .25); P.pos[0] = lerp(T.start[0], behind[0], k); P.pos[2] = lerp(T.start[2], behind[2], k); P.yaw = dampAng(P.yaw, n.yaw, 10, dt); P.pitch = damp(P.pitch, -.25, 6, dt);
     if (T.t > .45 && !T.s1) { T.s1 = 1; if (!P.thrownKnife) { AUD.impact('flesh', null); this.blood(V.add(n.pos, [0, 1.3, 0]), P.fwd()); } AUD.voice('hgk', n.voice * .8, V.add(n.pos, [0, 1.5, 0])); }
-    if (T.t > 1.3 && !n.dead) { n.tdDeath = true; n.tdT = -1; this.killNPC(n, P.pos, 'chest', 'takedown'); n.fallDir = -1; n.deathT = .15; this.noise(n.pos, 4, 'body'); }
-    if (T.t > 1.75) P.takedown = null;
+    if (T.t > P.weps.knife.td * .74 && !n.dead) { n.tdDeath = true; n.tdT = -1; this.killNPC(n, P.pos, 'chest', 'takedown'); n.fallDir = -1; n.deathT = .15; this.noise(n.pos, 4, 'body'); }
+    if (T.t > P.weps.knife.td) P.takedown = null;
   },
   /* ---------------- player death ---------------- */
   playerDie(reason) {
     if (this.state === 'dead' || this.state === 'result') return; P.state = 'dead'; this.state = 'dead'; this.career.deaths++; this.saveCareer();
     const e = P.eye(); P.deathCam = { t: 0, pos: e, yaw: P.yaw, pitch: P.pitch };
     this.cine = { update: dt => { const d = P.deathCam; d.t += dt; const m = M4.create(); const k = smooth(d.t / 1.2); const gy = this.W.ground(d.pos[0], d.pos[2], d.pos[1], 2) + .25; M4.translate(m, m, d.pos[0], lerp(d.pos[1], gy, k), d.pos[2]); M4.rotY(m, m, d.yaw); M4.rotX(m, m, lerp(d.pitch, .2, k)); M4.rotZ(m, m, 1.3 * k); P.camOverride = m; } };
-    setTimeout(() => UI.fail(reason), 2200); AUD.hurt();
+    G.after(() => UI.fail(reason), 2200); AUD.hurt();
   },
+  failMission(reason) { if (this.state !== 'play' && this.state !== 'intro') return; this.state = 'result'; this.cine = null; IN.unlock(); AUD.stopAllLoops(); UI.fail(reason); },
   pause() { if (this.state !== 'play') return; this.state = 'paused'; IN.unlock(); UI.pause(true); },
   resume() { this.state = 'play'; UI.pause(false); IN.lock(); },
   /* ---------------- objectives ---------------- */
   obj(id) { return this.objectives.find(o => o.id === id); },
-  complete(id) { const o = this.obj(id); if (!o || o.done) return; o.done = true; if (o.type === 'hidden') return; this.notify((o.type === 'primary' ? 'OBJECTIVE COMPLETE: ' : 'OPTIONAL COMPLETE: ') + o.text, 'good'); AUD.beep(880, .08, .2); setTimeout(() => AUD.beep(1320, .1, .2), 120); this.updateObjectivesHUD(); },
+  complete(id) { const o = this.obj(id); if (!o || o.done) return; o.done = true; if (o.type === 'hidden') return; this.notify((o.type === 'primary' ? 'OBJECTIVE COMPLETE: ' : 'OPTIONAL COMPLETE: ') + o.text, 'good'); AUD.beep(880, .08, .2); G.after(() => AUD.beep(1320, .1, .2), 120); this.updateObjectivesHUD(); },
   updateObjectivesHUD() { UI.objectives(this.objectives); },
   setPower(on) {
     this.powerOn = on; for (const g of this.W.gens || []) g.hum && g.hum.setOn(on);

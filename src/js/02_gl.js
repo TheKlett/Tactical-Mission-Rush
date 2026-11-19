@@ -178,12 +178,32 @@ void main(){
   else frag=vec4(mix(c,uFog,clamp(f,0.,1.)*.8),a);
 }`;
 
+const VS_POST = `#version 300 es
+precision highp float; layout(location=0) in vec2 aP; out vec2 vUV; void main(){ vUV=aP*.5+.5; gl_Position=vec4(aP,0.,1.); }`;
+const FS_POST = `#version 300 es
+precision highp float; precision highp int; in vec2 vUV; uniform sampler2D uTex; uniform vec2 uRes; uniform float uSlow,uHurt,uTime,uSat,uCon,uVig,uFx; out vec4 frag;
+float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+void main(){
+  vec2 uv=vUV; vec2 c=uv-.5; float r=length(c);
+  // slow-motion lens: radial chromatic aberration + gentle barrel warp
+  float ab=(uSlow*.006+uHurt*.003)*uFx; uv+=c*r*r*uSlow*-.06*uFx;
+  vec3 col; col.r=texture(uTex,uv+c*ab).r; col.g=texture(uTex,uv).g; col.b=texture(uTex,uv-c*ab).b;
+  if(uSlow>0.&&uFx>0.){ vec3 bl=vec3(0.); for(int i=1;i<5;i++){ bl+=texture(uTex,uv-c*float(i)*.006*uSlow).rgb; } col=mix(col,bl*.25,.35*uSlow*smoothstep(.1,.6,r)); }
+  float l=dot(col,vec3(.299,.587,.114));
+  col=mix(vec3(l),col,uSat-uSlow*.35);
+  col=(col-.5)*uCon+.5;
+  col=mix(col,col*vec3(1.25,.55,.5)+vec3(.04,0.,0.),uSlow*.55);
+  col*=1.-smoothstep(.45,.95,r)*uVig;
+  col=mix(col,col*vec3(.6,.05,.05),smoothstep(.35,.9,r)*(uSlow*.6+uHurt*.7));
+  col+=(h(uv*uRes+uTime)-.5)*.018*uFx;
+  frag=vec4(clamp(col,0.,1.),1.);
+}`;
 const R = {
   gl: null, canvas: null, w: 1, h: 1, scale: 1, shadowRes: 2048, shadowsOn: true, drawDist: 380, detailDist: 70,
   stats: { draws: 0, tris: 0 },
   init(canvas) {
     this.canvas = canvas;
-    const gl = this.gl = canvas.getContext('webgl2', { antialias: true, powerPreference: 'high-performance', alpha: false, stencil: false });
+    const gl = this.gl = canvas.getContext('webgl2', { antialias: false, powerPreference: 'high-performance', alpha: false, stencil: false });
     if (!gl) throw new Error('WebGL2 is not supported by this browser.');
     this.pMain = this.prog(VS_MAIN, FS_MAIN); this.pDepth = this.prog(VS_DEPTH, FS_DEPTH); this.pSky = this.prog(VS_SKY, FS_SKY);
     this.pWater = this.prog(VS_WATER, FS_WATER); this.pPart = this.prog(VS_PART, FS_PART);
@@ -197,7 +217,7 @@ const R = {
     this.partBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.partBuf); gl.bufferData(gl.ARRAY_BUFFER, this.partData.byteLength, gl.DYNAMIC_DRAW);
     const S = 40; gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, S, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, S, 12);
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, S, 20); gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 1, gl.FLOAT, false, S, 36); gl.bindVertexArray(null);
-    this.makeShadow(this.shadowRes);
+    this.makeShadow(this.shadowRes); this.pPost = this.prog(VS_POST, FS_POST); this.samples = Math.min(this.aa ?? 4, gl.getParameter(gl.MAX_SAMPLES)); this.post = { slow: 0, hurt: 0, sat: 1.05, con: 1.04, vig: .55, fx: 1 };
     this.vp = M4.create(); this.view = M4.create(); this.proj = M4.create(); this.invVP = M4.create(); this.svp = M4.create();
     this.vmVP = M4.create(); this.vmProj = M4.create(); this.tmp = M4.create();
     this.resize();
@@ -222,6 +242,30 @@ const R = {
     const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
     for (let i = 0; i < n; i++) { const inf = gl.getActiveUniform(p, i); const nm = inf.name.replace(/\[0\]$/, ''); u[nm] = gl.getUniformLocation(p, inf.name); }
     return { p, u };
+  },
+  makeTargets() {
+    const gl = this.gl; const w = this.w, h = this.h; const T = this.tg || (this.tg = {});
+    if (T.w === w && T.h === h && T.s === this.samples) return; T.w = w; T.h = h; T.s = this.samples;
+    for (const k of ['fbo', 'rfbo']) if (T[k]) gl.deleteFramebuffer(T[k]); for (const k of ['crb', 'drb']) if (T[k]) gl.deleteRenderbuffer(T[k]); if (T.tex) gl.deleteTexture(T.tex);
+    T.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, T.fbo);
+    T.crb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, T.crb);
+    if (this.samples > 0) gl.renderbufferStorageMultisample(gl.RENDERBUFFER, this.samples, gl.RGBA8, w, h); else gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, w, h);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, T.crb);
+    T.drb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, T.drb);
+    if (this.samples > 0) gl.renderbufferStorageMultisample(gl.RENDERBUFFER, this.samples, gl.DEPTH_COMPONENT24, w, h); else gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, T.drb);
+    T.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, T.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w, h);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    T.rfbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, T.rfbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, T.tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  },
+  finish() { // resolve MSAA scene and run the post-process grade to the screen
+    const gl = this.gl, T = this.tg, w = this.w, h = this.h;
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, T.fbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, T.rfbo); gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+    const P = this.pPost, q = this.post; gl.useProgram(P.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.tex); gl.uniform1i(P.u.uTex, 0);
+    gl.uniform2f(P.u.uRes, w, h); gl.uniform1f(P.u.uSlow, q.slow); gl.uniform1f(P.u.uHurt, q.hurt); gl.uniform1f(P.u.uTime, (performance.now() / 1000) % 100); gl.uniform1f(P.u.uSat, q.sat); gl.uniform1f(P.u.uCon, q.con); gl.uniform1f(P.u.uVig, q.vig); gl.uniform1f(P.u.uFx, q.fx);
+    gl.bindVertexArray(this.skyVao); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.enable(gl.DEPTH_TEST);
   },
   resize() {
     const c = this.canvas; const w = Math.max(1, (c.clientWidth * this.scale * Math.min(devicePixelRatio, 2)) | 0), h = Math.max(1, (c.clientHeight * this.scale * Math.min(devicePixelRatio, 2)) | 0);
@@ -262,8 +306,8 @@ const R = {
         this.setObj(P, d); this.drawMesh(d.mesh);
       }
       gl.disable(gl.POLYGON_OFFSET_FILL); gl.colorMask(true, true, true, true);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
+    this.makeTargets(); gl.bindFramebuffer(gl.FRAMEBUFFER, this.tg.fbo);
     gl.viewport(0, 0, this.w, this.h);
     gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     // ---------------- sky ----------------
@@ -314,7 +358,7 @@ const R = {
       for (const d of S.vm) { if (d.hidden) continue; this.setObj(P, d); gl.uniform4fv(P.u.uTint, d.tint || [1, 1, 1, 0]); this.drawMesh(d.mesh); }
       if (S.vmParticles) this.drawParticles({ particles: S.vmParticles, env }, cam, this.vmVP);
     }
-    gl.bindVertexArray(null);
+    this.finish(); gl.bindVertexArray(null);
   },
   setMainUniforms(P, S, cp, shadowOn, vp) {
     const gl = this.gl, env = S.env;

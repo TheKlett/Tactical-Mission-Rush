@@ -23,11 +23,11 @@ const IN = {
 };
 
 const EYE = 1.62, CEYE = 1.08, PR = .32;
-const GADGETS = { noisemaker: { name: 'NOISE MAKER', count: 2 }, smoke: { name: 'SMOKE GRENADE', count: 2 } };
+const GADGETS = GEAR;
 const ITEMDEF = {
   ledger: { name: 'CARTEL LEDGER', desc: 'Financial records — intel' }, drive: { name: 'MANIFEST DRIVE', desc: 'Encrypted arms manifest' },
   keycard: { name: 'VAULT KEYCARD', desc: 'Opens the station vault' }, charge: { name: 'DEMO CHARGE', desc: 'Plant at target' },
-  codes: { name: 'LAUNCH CODES', desc: 'Uplink authentication codes' }, dossier: { name: 'BUYER DOSSIER', desc: 'Intelligence on the buyer network' }, noisemaker: { name: 'NOISE MAKER' }, smoke: { name: 'SMOKE GRENADE' }, knife: { name: 'COMBAT KNIFE' },
+  codes: { name: 'LAUNCH CODES', desc: 'Uplink authentication codes' }, dossier: { name: 'BUYER DOSSIER', desc: 'Intelligence on the buyer network' }, noisemaker: { name: 'NOISE MAKER' }, smoke: { name: 'SMOKE GRENADE' }, emp: { name: 'EMP CHARGE' }, medkit: { name: 'FIELD MEDKIT' }, knife: { name: 'COMBAT KNIFE' },
 };
 
 const P = {
@@ -42,31 +42,39 @@ const P = {
   },
   buildWeaponMeshes(cfg) {
     const mk = f => { const B = new MB(6000); f(B); return B.mesh(); };
-    this.vmMeshes.pistol = mk(B => buildPistolVM(B));
-    this.vmMeshes.rifle = mk(B => buildRifleVM(B, cfg.rifle, cfg.optic));
-    this.vmMeshes.knife = mk(B => buildKnifeVM(B, VB.KNIFE));
+    for (const k of ['pistol', 'rifle', 'knife']) if (this.vmMeshes[k]) this.vmMeshes[k].dispose();
+    this.vmMeshes.pistol = mk(B => buildPistolVM(B, cfg.pistol || 'pistol'));
+    this.vmMeshes.rifle = mk(B => buildRifleVM(B, cfg.rifle, cfg.optic, cfg.muzzle));
+    this.vmMeshes.knife = mk(B => buildKnifeVM(B, VB.KNIFE, cfg.knife || 'knife'));
     this.vmMeshes.items = {};
-    for (const k of ['ledger', 'drive', 'keycard', 'charge', 'noisemaker', 'smoke', 'codes', 'ammo', 'knife', 'dossier']) this.vmMeshes.items[k] = buildItemMesh(k);
+    for (const k of ['ledger', 'drive', 'keycard', 'charge', 'noisemaker', 'smoke', 'codes', 'ammo', 'knife', 'dossier', 'emp', 'medkit', 'evidence', 'usb']) this.vmMeshes.items[k] = buildItemMesh(k);
   },
   reset(cfg) {
     this.buildWeaponMeshes(cfg);
     this.pos = [0, 0, 0]; this.vel = [0, 0, 0]; this.yaw = 0; this.pitch = 0; this.roll = 0; this.onGround = false; this.state = 'ground';
     this.crouch = 0; this.crouchHeld = false; this.sprinting = false; this.health = 100; this.regenT = 0; this.dead = false;
-    this.rifleKey = cfg.rifle;
-    this.inv = [{ k: 'pistol' }, { k: cfg.rifle }, { k: 'knife' }, null, null];
+    this.rifleKey = 'rifle'; this.cfg = cfg;
+    this.weps = { pistol: effWeapon(cfg.pistol || 'pistol', cfg), rifle: effWeapon(cfg.rifle || 'ar7', cfg), knife: effWeapon(cfg.knife || 'knife', cfg) };
+    this.inv = [{ k: 'pistol' }, { k: 'rifle' }, { k: 'knife' }, null, null];
     this.mission = []; this.missionSel = 0; // mission bag in slot 4
     if (cfg.gadget) this.inv[4] = { k: cfg.gadget, item: true, count: GADGETS[cfg.gadget].count };
-    this.ammo = {}; for (const k of ['pistol', cfg.rifle]) this.ammo[k] = { mag: WEAPONS[k].mag, res: WEAPONS[k].reserve + (cfg.extraMags ? WEAPONS[k].mag * 2 : 0) };
+    this.ammo = {}; for (const k of ['pistol', 'rifle']) { const w = this.weps[k]; this.ammo[k] = { mag: w.mag, res: w.reserve + (cfg.extraMags ? w.mag * 2 : 0) }; }
     this.cur = 0; this.next = -1; this.anim = { k: 'draw', t: 0, d: .5 }; this.fireCd = 0; this.ads = 0; this.adsHeld = false;
     this.bob = 0; this.bobAmt = 0; this.swayX = 0; this.swayY = 0; this.kickP = 0; this.kickZ = 0; this.kickR = 0; this.land = 0; this.shake = 0;
     this.stepAcc = 0; this.lastSurf = 'mud'; this.inWater = 0; this.noiseLevel = 0; this.visibility = 1; this.speed = 0;
     this.interactTarget = null; this.holdT = 0; this.prompt = ''; this.chute = null; this.chuteOpen = 0; this.freefallT = 0; this.vehicle = null;
-    this.takedown = null; this.local = null; this.fov = 72; this.camRollT = 0; this.altitude = 0; this.thrownKnife = false; this.recoilYaw = 0;
+    this.takedown = null; this.local = null; this.hostage = null; this.holstered = false; this.stun = 0; this.fov = 72; this.camRollT = 0; this.altitude = 0; this.thrownKnife = false; this.recoilYaw = 0;
     this.slideBack = 0; this.burstShots = 0; this.lastShot = -10; this.hurtDir = null; this.lastHurt = -10; this.camOverride = null;
   },
+  applyLook(M) {
+    const op = (typeof OPERATORS !== 'undefined' && OPERATORS[G.loadout.operator]) || null;
+    const app = Object.assign({}, this.baseApp || (this.baseApp = Object.assign({}, this.app)), op ? op.app : {}, M && M.playerApp ? M.playerApp : {});
+    const key = JSON.stringify(app) + (M && M.armSleeve);
+    if (key !== this._lookKey) { this._lookKey = key; this.rig.mesh.dispose(); this.rig.mesh = buildCharacter(app); this.vmArms.dispose(); this.vmArms = buildArms({ sleeve: (M && M.armSleeve) || (op && op.sleeve) || 0x4a5038, glove: (M && M.armGlove) || (op && op.glove) || 0x1c1c1a, plain: !!(M && M.armSleeve) }); }
+  },
   get weapon() { const s = this.inv[this.cur]; return s ? s.k : null; },
-  get wdef() { return WEAPONS[this.weapon] || null; },
-  isGun() { const w = this.wdef; return w && (w.type === 'pistol' || w.type === 'rifle'); },
+  get wdef() { return (this.weps && this.weps[this.weapon]) || null; },
+  isGun() { const w = this.wdef; return !this.holstered && w && (w.type === 'pistol' || w.type === 'rifle'); },
   eye() { return [this.pos[0], this.pos[1] + lerp(EYE, CEYE, this.crouch) - this.land * .12, this.pos[2]]; },
   fwd() { const cp = Math.cos(this.pitch); return [-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp]; },
   busy() { const k = this.anim && this.anim.k; return k === 'reload' || k === 'holster' || k === 'draw' || k === 'melee' || k === 'interact' || k === 'takedown' || k === 'throw' || k === 'hold' || k === 'gadget' || k === 'stab'; },
@@ -74,7 +82,8 @@ const P = {
   update(dt) {
     const W = G.W; const S = G.settings;
     // look
-    if (this.state !== 'dead' && !this.camOverride && !this.takedown) {
+    this.stun = Math.max(0, (this.stun || 0) - dt);
+    if (this.state !== 'dead' && !this.camOverride && !this.takedown && !(this.stun > 0) && !(this.hostage && this.hostage.phase === 'grab')) {
       const sens = S.sens * .0022 * (this.ads > .5 ? .65 : 1);
       this.yaw -= IN.mdx * sens; this.pitch -= IN.mdy * sens * (S.invert ? -1 : 1);
       this.pitch = clamp(this.pitch, -1.5, 1.5);
@@ -84,7 +93,7 @@ const P = {
     else if (this.state === 'fall' || this.state === 'chute') this.updateAir(dt);
     else if (this.state === 'ground') this.updateGround(dt);
     else if (this.state === 'vehicle') G.updateDriving(dt);
-    else if (this.state === 'boatride' || this.state === 'heliride') this.updateRide(dt);
+    else if (this.state === 'boatride' || this.state === 'heliride' || this.state === 'truckride') this.updateRide(dt);
     if (this.state !== 'dead' && this.state !== 'vehicle') this.updateWeapons(dt);
     if (this.state !== 'dead') this.updateInteract(dt);
     // health regen
@@ -106,8 +115,9 @@ const P = {
     this.crouch = damp(this.crouch, this.crouchHeld ? 1 : 0, 10, dt);
     this.sprinting = IN.k('ShiftLeft') && f > .3 && this.crouch < .3 && this.ads < .3 && !(this.anim.k === 'reload' && this.wdef && this.wdef.type === 'rifle' && false);
     const water = W.waterY > -50 ? clamp((W.waterY - this.pos[1]) / .9, 0, 1) : 0; this.inWater = water;
-    let spd = this.sprinting ? 6.4 : this.crouch > .5 ? 1.9 : 3.7; if (this.ads > .5) spd *= .6; spd *= 1 - water * .45;
-    if (this.weapon && WEAPONS[this.weapon] && WEAPONS[this.weapon].type === 'rifle') spd *= .96;
+    if (this.hostage || this.stun > 0) { this.sprinting = false; this.crouchHeld = false; }
+    let spd = this.sprinting ? 6.4 : this.crouch > .5 ? 1.9 : 3.7; if (this.hostage) spd = 1.7; if (this.stun > 0) spd = 0; if (this.ads > .5) spd *= .6; spd *= 1 - water * .45;
+    if (this.wdef && this.wdef.type === 'rifle') spd *= .96;
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const tx = (-sy * f + cy * s) * spd, tz = (-cy * f - sy * s) * spd;
     const acc = this.onGround ? 12 : 2;
@@ -137,7 +147,7 @@ const P = {
       if (this.stepAcc > stride) {
         this.stepAcc = 0; const surf = water > .05 ? 'water' : W.surfAt(this.pos[0], this.pos[2], this.pos[1]); this.lastSurf = surf;
         const v = this.sprinting ? .5 : this.crouch > .5 ? .1 : .26; AUD.step(surf, null, v);
-        const nr = (this.sprinting ? 11 : this.crouch > .5 ? 1.6 : 4.5) * (surf === 'water' ? 1.5 : surf === 'metal' || surf === 'wood' ? 1.3 : surf === 'grass' || surf === 'snow' ? .8 : 1);
+        const nr = (this.cfg.boots ? .6 : 1) * (this.sprinting ? 11 : this.crouch > .5 ? 1.6 : 4.5) * (surf === 'water' ? 1.5 : surf === 'metal' || surf === 'wood' ? 1.3 : surf === 'grass' || surf === 'snow' ? .8 : 1);
         G.noise(this.pos, nr, 'step');
         if (surf === 'water') G.splash([this.pos[0], W.waterY, this.pos[2]], 6);
       }
@@ -214,7 +224,7 @@ const P = {
   },
   deployChute() {
     this.state = 'chute'; this.chuteOpen = 0; this.chuteYaw = this.yaw; this.chute = { m: M4.create() };
-    AUD.swoosh(.9, null, 300, 1.2); setTimeout(() => { AUD.impact('wood', null); this.shake = 1; this.land = .6; }, 900);
+    AUD.swoosh(.9, null, 300, 1.2); G.after(() => { AUD.impact('wood', null); this.shake = 1; this.land = .6; }, 900);
     this.anim = { k: 'chutepull', t: 0, d: .9 };
   },
   updateRide(dt) { /* position driven by cinematic (boat / heli insertion) */ this.speed = 0; this.bobAmt = damp(this.bobAmt, 0, 5, dt); },
@@ -224,7 +234,8 @@ const P = {
     const W = this.wdef; const S = G.settings;
     const canAct = this.state === 'ground' && !this.takedown;
     // slot switching
-    if (canAct) for (let i = 0; i < 5; i++) if (IN.hit('Digit' + (i + 1))) this.selectSlot(i);
+    if (canAct && !this.hostage) for (let i = 0; i < 5; i++) if (IN.hit('Digit' + (i + 1))) this.selectSlot(i);
+    if (canAct && this.holstered && (IN.mbHit[0] || IN.mbHit[2])) { this.holstered = false; this.anim = { k: 'draw', t: 0, d: .45 }; AUD.mech('draw'); }
     if (canAct && IN.wheel) { let n = this.cur; for (let k = 0; k < 5; k++) { n = (n + (IN.wheel > 0 ? 1 : 4)) % 5; if (this.inv[n] || (n === 3 && this.mission.length)) break; } if (n !== this.cur) this.selectSlot(n); }
     // anim completion
     if (A.t >= A.d) this.animDone(A);
@@ -243,22 +254,24 @@ const P = {
       if (!firing) this.burstShots = 0;
     } else if (this.weapon === 'knife') {
       if (!this.busy() && firingHit) { if (this.adsHeld) this.throwKnife(); else this.knifeAttack(); }
-    } else if (this.inv[this.cur] && this.inv[this.cur].item && (this.inv[this.cur].k === 'noisemaker' || this.inv[this.cur].k === 'smoke')) {
+    } else if (this.inv[this.cur] && this.inv[this.cur].item && ['noisemaker', 'smoke', 'emp', 'medkit'].includes(this.inv[this.cur].k)) {
       if (!this.busy() && firingHit) this.anim = { k: 'gadget', t: 0, d: .75, fired: false };
     }
-    if (IN.hit('KeyQ') && !this.busy()) { this.anim = { k: 'melee', t: 0, d: .6, hit: false }; AUD.swoosh(.3, null, 900, .3); }
+    if (IN.hit('KeyQ') && !this.busy() && !this.hostage && !this.holstered) { this.anim = { k: 'melee', t: 0, d: .6, hit: false }; AUD.swoosh(.3, null, 900, .3); }
   },
   selectSlot(i) {
     if (i === 3 && this.mission.length) { if (this.cur === 3) this.missionSel = (this.missionSel + 1) % this.mission.length; }
     else if (!this.inv[i]) return;
+    if (i === this.cur && i !== 3 && i < 3) { if (this.busy()) return; this.holstered = !this.holstered; this.anim = { k: this.holstered ? 'holster' : 'draw', t: 0, d: this.holstered ? .3 : .45, keep: true }; AUD.mech('draw'); return; }
     if (i === this.cur && i !== 3) return;
+    this.holstered = false;
     if (this.busy() && this.anim.k !== 'draw') return;
     this.next = i; this.anim = { k: 'holster', t: 0, d: .28 }; AUD.mech('draw');
   },
   curItemKind() { if (this.cur === 3) return this.mission[this.missionSel] || null; const s = this.inv[this.cur]; return s && s.item ? s.k : null; },
   animDone(A) {
     const k = A.k;
-    if (k === 'holster') { if (this.next >= 0) { this.cur = this.next; this.next = -1; } this.anim = { k: 'draw', t: 0, d: .45 }; return; }
+    if (k === 'holster') { if (A.keep) { this.anim = { k: 'idle', t: 0, d: 1e9 }; return; } if (this.next >= 0) { this.cur = this.next; this.next = -1; } this.anim = { k: 'draw', t: 0, d: .45 }; return; }
     if (k === 'reload') { const am = this.ammo[this.weapon]; const W = this.wdef; const need = W.mag - am.mag; const take = Math.min(need, am.res); am.mag += take; am.res -= take; }
     if (k === 'throw') { // knife left the hand
       this.inv[2] = null; this.thrownKnife = true; this.next = this.inv[0] ? 0 : 1; this.anim = { k: 'holster', t: .27, d: .28 }; return;
@@ -284,7 +297,7 @@ const P = {
     const dir = V.norm(V.add(f, V.add(V.sc(r, Math.cos(a) * m), V.sc(u, Math.sin(a) * m))));
     G.stats.shots++;
     G.fireRay(eye, dir, W.dmg, 'player', this.weapon);
-    AUD.shot(W.sound, null);
+    AUD.shot(W.sound === 'riflS' ? 'pistolS' : W.sound, null);
     G.noise(eye, W.noise, W.suppressed ? 'shot_s' : 'shot');
     const kick = W.recoil * (this.ads > .5 ? .55 : 1) * (this.crouch > .5 ? .8 : 1);
     this.pitch += kick * .55; this.yaw += (Math.random() - .5) * kick * .5; this.kickP += kick * 3.2; this.kickZ += W.type === 'pistol' ? .035 : .028; this.kickR += (Math.random() - .5) * kick * 4;
@@ -293,7 +306,7 @@ const P = {
     if (am.mag === 0) AUD.mech('dry');
   },
   knifeAttack() {
-    this.anim = { k: 'stab', t: 0, d: .5, hit: false, side: Math.random() < .5 ? 1 : -1 }; AUD.swoosh(.35, null, 1300, .25);
+    const K = this.weps.knife; this.anim = { k: 'stab', t: 0, d: K.swing, hit: false, side: Math.random() < .5 ? 1 : -1 }; AUD.swoosh(.35, null, 1300, .25);
   },
   throwKnife() { this.anim = { k: 'throw', t: 0, d: .5, fired: false }; },
   /* ======================= INTERACTION ======================= */
@@ -303,9 +316,10 @@ const P = {
     if (A.k === 'melee' && !A.hit && A.t > .22) { A.hit = true; G.meleeHit(this.isGun() ? 45 : 150, 2.0, this.weapon === 'knife'); }
     if (A.k === 'stab' && !A.hit && A.t > .18) { A.hit = true; G.meleeHit(110, 2.0, true); }
     if (A.k === 'throw' && !A.fired && A.t > .3) { A.fired = true; G.spawnThrownKnife(); AUD.swoosh(.4, null, 1500, .3); }
-    if (A.k === 'gadget' && !A.fired && A.t > .42) { A.fired = true; const s = this.inv[this.cur]; s.count--; G.throwGadget(s.k); AUD.swoosh(.3, null, 700, .35); }
+    if (A.k === 'gadget' && !A.fired && A.t > .42) { A.fired = true; const s = this.inv[this.cur]; s.count--; if (s.k === 'medkit') { this.health = Math.min(100, this.health + 70); AUD.mech('pickup'); AUD.swoosh(.3, null, 2000, .4); G.notify('MEDKIT APPLIED +70'); } else { G.throwGadget(s.k); AUD.swoosh(.3, null, 700, .35); } }
     if (A.k === 'interact' && !A.fired && A.t > A.d * A.at) { A.fired = true; A.act && A.act(); }
-    if (this.state !== 'ground' && this.state !== 'plane' && this.state !== 'boatride' && this.state !== 'heliride') { this.prompt = ''; this.interactTarget = null; return; }
+    if (this.state !== 'ground' && this.state !== 'plane' && this.state !== 'boatride' && this.state !== 'heliride' && this.state !== 'truckride') { this.prompt = ''; this.interactTarget = null; return; }
+    if (this.hostage) { this.prompt = this.hostage.phase === 'hold' ? '[F] ELIMINATE   ·   [E] RELEASE' : ''; this.interactTarget = null; return; }
     const eye = this.state === 'plane' ? M4.pt(G.plane.m, this.local[0], this.local[1] + lerp(EYE, CEYE, this.crouch), this.local[2]) : this.camPos || this.eye();
     const fwd = this.camFwd || this.fwd();
     let best = null, bs = 1e9;
@@ -338,7 +352,7 @@ const P = {
   cancelHold() { this.holdT = 0; if (this.anim.k === 'hold') { const it = this.anim.it; it && it.onCancel && it.onCancel(); this.anim = { k: 'idle', t: 0, d: 1e9 }; } },
   hurt(dmg, from) {
     if (this.state === 'dead' || G.state !== 'play' || G.god) return;
-    this.health -= dmg; this.regenT = 5.5; this.shake = Math.max(this.shake, .3); AUD.hurt(); this.lastHurt = G.time;
+    if (this.cfg && this.cfg.armor) dmg *= .7; this.health -= dmg; this.regenT = 5.5; this.shake = Math.max(this.shake, .3); AUD.hurt(); this.lastHurt = G.time;
     if (from) this.hurtDir = Math.atan2(from[0] - this.pos[0], from[2] - this.pos[2]);
     G.stats.damage += dmg;
     if (this.health <= 0) { this.health = 0; G.playerDie('KILLED IN ACTION'); }

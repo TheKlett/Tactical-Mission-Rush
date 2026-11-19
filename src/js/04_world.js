@@ -265,6 +265,7 @@ class World {
         this.B.col(fc, MAT.WOOD); this.B.box(cx, oy0 + .03, cz, alongX ? op.w + .1 : t + .08, .06, alongX ? t + .08 : op.w + .1);
         this.B.box(cx, oy1 - .03, cz, alongX ? op.w : t + .04, .06, alongX ? t + .04 : op.w);
         this.B.box(cx, (oy0 + oy1) / 2, cz, alongX ? .04 : t + .03, op.h, alongX ? t + .03 : .04);
+        this.B.col(o.trim ?? 0x8a8478, MAT.CONC); this.B.box(cx, oy0 - .025, cz, alongX ? op.w + .2 : t + .14, .05, alongX ? t + .14 : op.w + .2); this.B.box(cx, oy1 + .06, cz, alongX ? op.w + .24 : t + .06, .12, alongX ? t + .06 : op.w + .24);
         if (!o.noGlass) this.addGlass(cx, (oy0 + oy1) / 2, cz, alongX ? op.w - .02 : .02, op.h - .1, alongX ? .02 : op.w - .02);
         else this.colBox(cx, (oy0 + oy1) / 2, cz, fw, op.h, fd, { sight: false, bullet: false, surf: 'wood' });
         this.mline(a[0], a[1], b[0], b[1]);
@@ -335,7 +336,8 @@ class World {
     const wc = o.wallCol ?? 0x9a9488, wm = o.wallMat ?? MAT.CONC, surf = o.surf || (wm === MAT.WOOD ? 'wood' : wm === MAT.CORR ? 'metal' : 'concrete');
     const x0 = x - w / 2, x1 = x + w / 2, z0 = z - d / 2, z1 = z + d / 2;
     // foundation / stilts
-    if (o.stilts) {
+    if (o.noFound) { }
+    else if (o.stilts) {
       this.B.col(0x4a3a2a, MAT.WOOD); for (let px = x0 + .2; px <= x1 - .1; px += Math.max(1.5, (w - .4) / Math.round((w - .4) / 2.2))) for (let pz = z0 + .2; pz <= z1 - .1; pz += Math.max(1.5, (d - .4) / Math.round((d - .4) / 2.2))) { const gy = this.th(px, pz) - .6; this.B.box(px, (gy + fy) / 2, pz, .2, fy - gy, .2); this.colBox(px, (gy + fy) / 2, pz, .2, fy - gy, .2, { surf: 'wood' }); }
     } else { this.B.col(0x6a665e, MAT.CONC); this.B.box(x, fy - .4, z, w + .3, .8, d + .3); }
     this.slab(x0, z0, x1, z1, fy, .2, o.floorCol ?? 0x6e5a44, o.floorMat ?? MAT.WOOD, o.floorSurf || (o.floorMat === MAT.CONC || o.floorMat === MAT.TILE ? 'concrete' : 'wood'), o.holes || []);
@@ -352,6 +354,13 @@ class World {
     }
     // interior wall finish (paint) on inside faces – thin inner skin for color variety
     if (o.inCol !== undefined && !o.noSkin) { this.D.col(o.inCol, MAT.PAINT); const e = t / 2 + .005; this.D.box(x, fy + h / 2, z0 + e, w - t * 2, h - .02, .01); this.D.box(x, fy + h / 2, z1 - e, w - t * 2, h - .02, .01); this.D.box(x0 + e, fy + h / 2, z, .01, h - .02, d - t * 2); this.D.box(x1 - e, fy + h / 2, z, .01, h - .02, d - t * 2); }
+    // trims: baseboards, cornice, exterior door steps and wall lamps
+    this.D.col(o.baseCol ?? 0x3a3028, MAT.WOOD); const bi = t / 2 + .012;
+    this.D.box(x, fy + .05, z0 + bi, w - t * 2, .1, .02).box(x, fy + .05, z1 - bi, w - t * 2, .1, .02).box(x0 + bi, fy + .05, z, .02, .1, d - t * 2).box(x1 - bi, fy + .05, z, .02, .1, d - t * 2);
+    if (!o.stilts && !o.noFound) { this.B.col(o.trim ?? lin(wc).map(v => v * .8), wm === MAT.CORR ? MAT.METAL : MAT.CONC); this.B.box(x, fy + h - .06, z0 - .07, w + .14, .12, .06).box(x, fy + h - .06, z1 + .07, w + .14, .12, .06).box(x0 - .07, fy + h - .06, z, .06, .12, d + .14).box(x1 + .07, fy + h - .06, z, .06, .12, d + .14); this.B.box(x, fy + .02, z0 - .06, w + .1, .3, .08).box(x, fy + .02, z1 + .06, w + .1, .3, .08).box(x0 - .06, fy + .02, z, .08, .3, d + .1).box(x1 + .06, fy + .02, z, .08, .3, d + .1); }
+    for (const dr of o.doors || []) { if (dr.w > 3) continue; const sd = dr.side; const along = (sd === 'n' || sd === 's'); const off = dr.at || 0; const ex = along ? x + off : (sd === 'e' ? x1 + .5 : x0 - .5), ez = along ? (sd === 's' ? z1 + .5 : z0 - .5) : z + off;
+      if (!o.stilts) { this.B.col(0x7a766c, MAT.CONC).box(ex, fy - .08, ez, along ? (dr.w || 1) + .6 : .9, .16, along ? .9 : (dr.w || 1) + .6); this.col(ex - (along ? .8 : .45), fy - .16, ez - (along ? .45 : .8), ex + (along ? .8 : .45), fy - .02, ez + (along ? .45 : .8), { walk: true, surf: 'concrete' }); }
+      if (o.lamps !== false) { const lx = along ? ex + (dr.w || 1) / 2 + .35 : (sd === 'e' ? x1 + .1 : x0 - .1), lz = along ? (sd === 's' ? z1 + .1 : z0 - .1) : ez + (dr.w || 1) / 2 + .35; this.D.col(0x1a1a1a, MAT.METAL).box(lx, fy + 2.3, lz, .14, .22, .14); this.D.col(0xffe0a0, MAT.EMIT).box(lx, fy + 2.26, lz, .1, .14, .15); this.light([lx, fy + 2.2, lz], 0xffc880, 1.2, 6, { group: o.power || 'power', glow: .25 }); } }
     // ceiling + roof
     const rc = o.roofCol ?? 0x4a4440, rt = o.roof || 'flat';
     if (!o.noCeil) { this.B.col(o.ceilCol ?? 0xa8a096, MAT.PAINT).box(x, fy + h + .04, z, w, .08, d); this.col(x0, fy + h, z0, x1, fy + h + .3, z1, { walk: true, surf: 'metal' }); }
@@ -433,7 +442,7 @@ class World {
       case 'empty': break;
     }
   }
-  chairGeo(B) { B.col(0x3a2a1e, MAT.WOOD).box(0, .44, 0, .44, .05, .44); for (const [a, b] of [[-.19, -.19], [.19, -.19], [-.19, .19], [.19, .19]]) B.box(a, .21, b, .04, .42, .04); B.box(0, .75, .2, .44, .5, .04); B.box(0, .62, .2, .38, .04, .03); }
+  chairGeo(B) { B.col(0x3a2a1e, MAT.WOOD).box(0, .44, 0, .44, .05, .44); for (const [a, b] of [[-.19, -.19], [.19, -.19], [-.19, .19], [.19, .19]]) B.tbox(a, .21, b, .03, .42, .03, .042, .042); B.box(0, .15, -.19, .36, .025, .025).box(0, .15, .19, .36, .025, .025); B.tube([-.19, .45, .2], [-.19, 1, .2], .022).tube([.19, .45, .2], [.19, 1, .2], .022); for (let i = 0; i < 3; i++) B.box(0, .62 + i * .13, .2, .38, .05, .025); B.col(0x6a2a20, MAT.CLOTH).box(0, .48, 0, .4, .04, .4); }
   chair(x, z, fy, q, tag) { const B = this.B; B.push().t(x, fy, z).ry(q * Math.PI / 2); this.chairGeo(B); B.pop(); this.colRot(x, fy, z, q, 0, 0, .46, .5, .46, { surf: 'wood', sight: false }); const fwd = q * Math.PI / 2; if (tag) this.anchor(tag + '_seat', { pos: [x - Math.sin(fwd) * .05, fy, z - Math.cos(fwd) * .05], yaw: fwd, kind: 'sit' }); }
   table(x, z, fy, w, d, tag, chairs = 0) {
     const B = this.B; B.col(0x6a4a30, MAT.WOOD).box(x, fy + .76, z, w, .05, d); for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B.box(x + a * (w / 2 - .06), fy + .37, z + b * (d / 2 - .06), .06, .74, .06);
