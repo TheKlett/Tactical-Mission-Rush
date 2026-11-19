@@ -4170,7 +4170,7 @@ const G = {
     P.reset(this.loadout); P.applyLook(M); this.env = M.env; this.computeEnv(); this.civTotal = this.npcs.filter(n => n.civ).length; this.camFeedOff = false; this._civReported = false;
     for (const it of M.startItems || []) P.mission.push(it);
     AUD.init(); AUD.stopAllLoops(); this.ambLoop = AUD.ambience(M.ambience); this.musicLoop = AUD.music();
-    for (const h of this.W.sounds) if (h.kind === 'hum' && Math.random() < .3) this.hums.push(AUD.humAt(h.pos, h.f, h.vol));
+    { let n = 0; for (const h of this.W.sounds) if (h.kind === 'hum' && Math.random() < .3 && n++ < 6) this.hums.push(AUD.humAt(h.pos, h.f, h.vol)); }
     for (const g of this.W.gens || []) { g.hum = AUD.humAt(g.pos, 48, .35); this.hums.push(g.hum); }
     if (M.musicPos) AUD.partyMusic(M.musicPos);
     this.windLoop = AUD.loop(C => { const n = AUD.mkNoiseLoop('pink', 'bandpass', 700, .6, 0, AUD.amb); return { set(f, v) { n.f.frequency.setTargetAtTime(300 + f * 900, AUD.t, .2); n.g.gain.setTargetAtTime(v, AUD.t, .2); }, stop() { try { n.s.stop(); } catch (e) { } } }; });
