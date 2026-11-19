@@ -127,7 +127,7 @@ Object.assign(G, {
   },
   releaseHostage(escaped) {
     const H = P.hostage; if (!H) return; const n = H.n; P.hostage = null; UI.hint('');
-    n.state = 'calm'; n.setState('released'); n.relAlerted = false; n.warned = true;
+    n._freeing = true; n.state = 'calm'; n.setState('released'); n._freeing = false; n.relAlerted = false; n.warned = true;
     const away = [n.pos[0] - Math.sin(P.yaw) * 18 + rnd(-4, 4), 0, n.pos[2] - Math.cos(P.yaw) * 18 + rnd(-4, 4)]; const fp = this.W.nearestFree(away[0], away[2], 8); n.goTo([fp[0], 0, fp[1]], true);
     if (escaped) { n.say(n.civ ? 'Get away from me!' : 'Ha! Now you\'re finished!'); if (!n.civ) { n.relAlerted = true; n.lastKnown = V.copy(P.pos); this.after(() => { if (!n.dead) { n.setState('combat'); n.enterCombat(true); } }, 1200); } else n.panic(P.pos, true); }
     else { n.say(n.civ ? 'Thank you, thank you…' : 'You\'re making a mistake.'); this.notify('HOSTAGE RELEASED'); }

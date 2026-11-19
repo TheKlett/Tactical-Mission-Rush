@@ -21,7 +21,7 @@ const MIS4 = {
   ],
   playerApp: { top: 'waiter', bottom: 'slacks', feet: 'shoes', head: 'none', hairStyle: 'slick', gloves: false, vest: 'none', camo: false, topCol: 0xeeeeea, botCol: 0x111114 }, armSleeve: 0xeeeeea, armGlove: 0xd8b090,
   exits: [[-2, -40], [60, 0], [0, 70]], musicPos: [-37, 6.5, -2],
-  env: { sunDir: [-.3, .7, .4], sunCol: 0x8090c0, sunI: .28, sky: 0x1a2236, skyI: .4, gnd: 0x141210, gndI: .35, fog: 0x141a26, fogI: 1, fogD: .006, fogH: 6, expo: 1.3, zen: 0x05070e, hor: 0x1a2030, cloud: .3, night: 1, vis: .4, wind: .5, skyFog: .5 },
+  env: { sunDir: [-.3, .7, .4], sunCol: 0x8090c0, sunI: .28, sky: 0x1e2840, skyI: .6, gnd: 0x1a1612, gndI: .5, fog: 0x161c2a, fogI: 1, fogD: .006, fogH: 6, expo: 1.5, zen: 0x05070e, hor: 0x1a2030, cloud: .3, night: 1, vis: .4, wind: .5, skyFog: .5 },
   build(W, G) {
     const R = W.rng; const FY = 4.65, FY2 = 9.05;
     const H = (x, z) => {

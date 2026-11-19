@@ -142,7 +142,7 @@ class NPC {
       else if (this.state === 'investigate' && (!this.suspPt || V.dist2(this.suspPt, pos) > 3)) { this.suspPt = V.copy(pos); this.goTo(pos, false); }
     }
   }
-  setState(s) { this.state = s; this.stT = 0; if (s === 'combat' || s === 'search') this.weaponMode = s === 'combat' ? 'aim' : 'low'; if (s !== 'calm') { this.seat = null; } }
+  setState(s) { if (this.state === 'hostage' && !this._freeing) return; this.state = s; this.stT = 0; if (s === 'combat' || s === 'search') this.weaponMode = s === 'combat' ? 'aim' : 'low'; if (s !== 'calm') { this.seat = null; } }
   setSuspicious(pt, voice) { if (this.state === 'calm') { this.setState('suspicious'); if (voice) this.say('susp'); } this.suspPt = pt; this.path = null; }
   enterCombat(spotted) {
     if (this.civ) { this.panic(P.pos, true); return; }
