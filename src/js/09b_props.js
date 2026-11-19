@@ -130,7 +130,7 @@ Object.assign(G, {
   },
   callElevator(ev, i) { if (ev.moving || ev.cur === i && ev.doorOpen > .9) return; ev.target = i; ev.phase = 'close'; ev.moving = true; AUD.beep(1200, .06, .2, [ev.x, ev.y + 1, ev.z]); },
   updateElevator(ev, dt) {
-    const inside = Math.abs(P.pos[0] - ev.x) < ev.w / 2 && Math.abs(P.pos[2] - ev.z) < ev.d / 2 && Math.abs(P.pos[1] - ev.y) < .6;
+    const inside = !!P.pos && Math.abs(P.pos[0] - ev.x) < ev.w / 2 && Math.abs(P.pos[2] - ev.z) < ev.d / 2 && Math.abs(P.pos[1] - ev.y) < .6;
     if (ev.moving) {
       if (ev.phase === 'close') { ev.doorOpen = Math.max(0, ev.doorOpen - dt * 1.4); if (ev.doorOpen <= 0) { ev.phase = 'move'; if (!ev.snd && AUD.ready) ev.snd = AUD.engineLoop('car', [ev.x, ev.y, ev.z]); } }
       else if (ev.phase === 'move') { const ty = ev.floors[ev.target]; const dy = ty - ev.y; const st = Math.sign(dy) * Math.min(Math.abs(dy), dt * 1.8); ev.y += st; if (inside) { P.pos[1] += st; P.vel[1] = 0; } if (ev.snd) ev.snd.set(.15, .12, [ev.x, ev.y, ev.z]); if (Math.abs(dy) < .005) { ev.y = ty; ev.cur = ev.target; ev.phase = 'open'; AUD.beep(900, .12, .3, [ev.x, ev.y + 1, ev.z]); if (ev.snd) { ev.snd.stop(); ev.snd = null; } } }
