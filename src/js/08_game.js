@@ -19,7 +19,7 @@ const G = {
     const cv = document.getElementById('gl'); R.init(cv); IN.init(cv); P.init();
     this.applySettings();
     let last = performance.now();
-    const loop = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; this.frame(dt); requestAnimationFrame(loop); };
+    const loop = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; try { this.frame(dt); } catch (e) { if (!this._errShown) { this._errShown = true; console.error(e); } try { IN.end(); } catch (e2) { } } requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
   },
   saveSettings() { try { localStorage.setItem('redline_settings', JSON.stringify(this.settings)); localStorage.setItem('redline_loadout', JSON.stringify(this.loadout)); } catch (e) { } },

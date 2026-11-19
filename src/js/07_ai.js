@@ -76,7 +76,7 @@ class NPC {
     const e = this.eye; const d = V.dist(e, pc);
     const alertLvl = this.state === 'combat' || this.state === 'search' || G.alarm > 0;
     const night = G.env.night || 0;
-    let maxD = lerp(46, 28, night) * (alertLvl ? 1.35 : 1); if (P.state === 'vehicle') maxD *= 1.4;
+    let maxD = lerp(46, 28, night) * (alertLvl ? 1.35 : 1); if (P.state === 'vehicle') maxD *= 1.4; if (P.crouch > .5 && P.state === 'ground') maxD *= .72;
     this.canSee = false; let rate = 0;
     if (d < maxD && P.state !== 'plane' && P.state !== 'fall' && P.state !== 'chute' && P.state !== 'truckride' && P.state !== 'boatride' && P.state !== 'heliride' || (P.state === 'chute' && d < maxD * 1.4)) {
       const to = V.sc(V.sub(pc, e), 1 / d); const look = this.yaw + this.headYaw; const f = [-Math.sin(look), 0, -Math.cos(look)];
@@ -89,9 +89,11 @@ class NPC {
             this.canSee = true;
             let vis = P.visibility; if (this.flashlight && ang < .35 && d < 22) vis = Math.max(vis, .85);
             const distF = Math.pow(clamp(1 - d / maxD, 0, 1), 1.1);
-            const stance = P.crouch > .5 ? .55 : 1; const motion = P.speed < .3 ? .55 : P.sprinting ? 1.5 : 1;
+            const cr = P.crouch > .5; const stance = cr ? .3 : 1; const motion = P.speed < .3 ? (cr ? .35 : .55) : P.sprinting ? 1.5 : cr ? .7 : 1;
             const periph = ang > .6 ? .45 : 1;
-            rate = 2.4 * distF * (.15 + .85 * vis) * stance * motion * periph * (1 - fol) * (alertLvl ? 2.2 : 1) * G.diffMul;
+            const shade = cr ? Math.pow(vis, 1.6) : vis; const folK = cr ? Math.min(1, fol * 1.6) : fol;
+            rate = 2.4 * distF * (.1 + .9 * shade) * stance * motion * periph * (1 - folK) * (alertLvl ? 2.2 : 1) * G.diffMul;
+            if (cr && d > maxD * .6 && !alertLvl) rate *= .5;
             if (P.state === 'vehicle') rate *= 1.6; if (d < 3.5) rate += 3; if (P.lastShot > G.time - .5) rate += 1.5;
             rate *= G.socialFactor(this, d); if (P.hostage && P.hostage.n !== this) rate += 4;
           }
@@ -368,7 +370,7 @@ class SecCam {
     const to = V.sc(V.sub(pe, this.pos), 1 / d); const f = [-Math.sin(this.yaw), 0, -Math.cos(this.yaw)]; const fl = Math.hypot(to[0], to[2]) || 1;
     const ca = (to[0] * f[0] + to[2] * f[2]) / fl; const seen = ca > .78 && G.W.los(this.pos, pe) && G.smokeBlock(this.pos, pe) < .9;
     const social = G.socialFactor(null, d);
-    if (seen) this.susp += dt * (.8 + P.visibility) * (1 - d / 27) * 1.3 * G.diffMul * Math.max(social, P.holstered ? 0 : .5); else this.susp = Math.max(0, this.susp - dt * .25);
+    if (seen) this.susp += dt * (.8 + P.visibility) * (P.crouch > .5 ? .5 : 1) * (1 - d / 27) * 1.3 * G.diffMul * Math.max(social, P.holstered ? 0 : .5); else this.susp = Math.max(0, this.susp - dt * .25);
     this.seeing = seen && this.susp > .05;
     if (this.susp > 1 && this.cool <= 0) { this.cool = 20; this.susp = 0; G.camAlert(this, V.copy(P.pos)); }
   }

@@ -275,7 +275,7 @@ const AUD = {
       const h = {
         kind, g, pan, rpm: 0, vol: 0,
         set(rpm, vol, p) {
-          const tt = AUD.t; this.rpm = rpm; for (const [o, m] of oscs) o.frequency.setTargetAtTime(base * m * (.5 + rpm), tt, .08);
+          const tt = AUD.t; if (!isFinite(rpm) || !isFinite(vol) || (p && !isFinite(p[0] + p[1] + p[2]))) return; this.rpm = rpm; for (const [o, m] of oscs) o.frequency.setTargetAtTime(base * m * (.5 + rpm), tt, .08);
           lp.frequency.setTargetAtTime((kind === 'car' ? 500 : 400) + rpm * 1400, tt, .1);
           if (chop) chop.frequency.setTargetAtTime((kind === 'heli' ? 19 : 28) * clamp(rpm, .05, 1.2), tt, .2);
           g.gain.setTargetAtTime(vol, tt, .1);

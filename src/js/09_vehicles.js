@@ -31,6 +31,7 @@ Object.assign(G, {
     b.set(ZERO_M, 6 * 16);
   },
   enterVehicle(v) {
+    v.throttle = 0; v.steerIn = 0; v.hand = false; if (!isFinite(v.steer)) v.steer = 0;
     P.state = 'vehicle'; P.vehicle = v; v.driver = true; v.col.on = false; P.yaw = 0; P.pitch = -.08; P.ads = 0; this.stats.vehicles++;
     if (!v.engine) { v.engine = true; AUD.click(400, .6, v.pos); G.after(() => AUD.click(300, .5, v.pos), 150); v.sound = AUD.engineLoop(v.kind === 'truck' ? 'car' : 'car', v.pos); this.noise(v.pos, 35, 'vehicle'); }
     UI.hint('W/S — THROTTLE / BRAKE · A/D — STEER · SPACE — HANDBRAKE · C — CAMERA · E — EXIT');
@@ -82,6 +83,7 @@ Object.assign(G, {
       v.pitch = damp(v.pitch, Math.atan2(hf - hb, d.L * .62) - v.accelP * .006, 8, dt); v.roll = damp(v.roll, Math.atan2(hr - hl, d.W * .8) * -1 + v.steer * v.speed * .006, 6, dt);
       v.wheelRot += v.speed / d.wr * dt;
       v.rpm = damp(v.rpm, clamp(Math.abs(v.speed) / max * .9 + Math.abs(th) * .25, .08, 1.2), 4, dt);
+      if (!isFinite(v.pos[0] + v.pos[1] + v.pos[2] + v.yaw + v.speed + v.steer)) { v.pos = V.copy(v.lastGood || v.pos.map(x => isFinite(x) ? x : 0)); v.yaw = isFinite(v.yaw) ? v.yaw : 0; v.speed = 0; v.steer = 0; v.rpm = .1; v.pitch = 0; v.roll = 0; } else v.lastGood = V.copy(v.pos);
       if (v.sound) v.sound.set(v.rpm, .35 + v.rpm * .3, V.add(v.pos, [0, 1, 0]));
       v.noiseT -= dt; if (v.noiseT <= 0) { v.noiseT = 1.2; this.noise(v.pos, 20 + Math.abs(v.speed) * 1.5, 'vehicle'); }
       if (Math.abs(v.speed) > 6 && W.waterY > -50 && W.th(v.pos[0], v.pos[2]) < W.waterY && Math.random() < .5) this.splash([v.pos[0], W.waterY, v.pos[2]], 4);
