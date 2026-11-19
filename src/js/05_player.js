@@ -115,7 +115,7 @@ const P = {
     const l = Math.hypot(f, s) || 1; return [f / l * (f || s ? 1 : 0), s / l * (f || s ? 1 : 0)];
   },
   updateGround(dt) {
-    const W = G.W; const [f, s] = this.moveInput();
+    const W = G.W; if (this.mantle) return this.updateMantle(dt); const [f, s] = this.moveInput();
     this.crouchHeld = IN.k('ControlLeft') || IN.k('ControlRight') || IN.k('KeyC');
     // can stand up?
     if (!this.crouchHeld && this.crouch > .5) { const c = W.ceiling(this.pos[0], this.pos[2], this.pos[1] + 1.1); if (c < this.pos[1] + 1.85) this.crouchHeld = true; }
@@ -129,6 +129,7 @@ const P = {
     const tx = (-sy * f + cy * s) * spd, tz = (-cy * f - sy * s) * spd;
     const acc = this.onGround ? 12 : 2;
     this.vel[0] = damp(this.vel[0], tx, acc, dt); this.vel[2] = damp(this.vel[2], tz, acc, dt);
+    if (IN.hit('Space') && !this.hostage && this.tryMantle()) return;
     if (this.onGround && IN.hit('Space') && this.crouch < .5 && water < .6) { this.vel[1] = 5.2; this.onGround = false; AUD.step(this.lastSurf, null, .25); }
     this.vel[1] -= 18 * dt;
     const np = [this.pos[0] + this.vel[0] * dt, this.pos[1], this.pos[2] + this.vel[2] * dt];
@@ -161,6 +162,28 @@ const P = {
     }
     this.bobAmt = damp(this.bobAmt, this.onGround ? clamp(this.speed / 4, 0, 1.4) : 0, 8, dt); this.bob += this.speed * dt * (this.sprinting ? 1.55 : 1.9);
     this.noiseLevel = this.speed < .2 ? 0 : this.sprinting ? 1 : this.crouch > .5 ? .15 : .45;
+  },
+  /* ---- ledge climb: Space at a wall / ledge (also mid-jump) pulls the operator up onto it ---- */
+  tryMantle() {
+    const W = G.W; const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw); const reach = this.onGround ? 2.15 : 2.35; const p = this.pos;
+    // is there something solid directly in front of the chest/legs?
+    const o = [p[0], p[1] + .6, p[2]]; const h1 = W.ray(o, [fx, 0, fz], .9, { bullet: true }), h2 = W.ray([p[0], p[1] + 1.4, p[2]], [fx, 0, fz], .9, { bullet: true });
+    const hit = h1 || h2; if (!hit || (hit.c && hit.c.ref && hit.c.ref.kind === 'door')) return false;
+    const d = hit.t + .38; const tx = p[0] + fx * d, tz = p[2] + fz * d;
+    const top = W.ground(tx, tz, p[1] + reach, 0, .12); const rise = top - p[1];
+    if (rise < .45 || rise > reach) return false;
+    const room = W.ceiling(tx, tz, top + .05, .25) - top; if (room < 1.05) return false;
+    const q = [tx, top, tz]; W.collide(q, PR * .8, room < 1.7 ? 1 : 1.7, .3); if (Math.hypot(q[0] - tx, q[2] - tz) > .25) return false;
+    this.mantle = { from: V.copy(p), to: [tx, top, tz], ledge: [p[0] + fx * (hit.t + .05), top, p[2] + fz * (hit.t + .05)], t: 0, d: .45 + rise * .2, rise, low: room < 1.7 };
+    this.vel = [0, 0, 0]; this.ads = 0; AUD.swoosh(.3, null, 500, .4); AUD.step('wood', null, .25); G.noise(p, 3, 'step'); return true;
+  },
+  updateMantle(dt) {
+    const M = this.mantle; M.t += dt; const k = clamp(M.t / M.d, 0, 1);
+    const up = smooth(k / .65), fw = smooth((k - .45) / .55);
+    this.pos = [lerp(M.from[0], M.to[0], fw), lerp(M.from[1], M.to[1], up) + Math.sin(Math.min(1, k / .65) * Math.PI) * .12, lerp(M.from[2], M.to[2], fw)];
+    this.crouch = damp(this.crouch, M.low || k < .8 ? .55 : 0, 8, dt); this.land = Math.max(this.land, bump(k, .55, 1) * .35); this.shake = Math.max(this.shake, .05);
+    this.bobAmt = 0; this.speed = 0;
+    if (k >= 1) { this.pos = V.copy(M.to); this.mantle = null; this.onGround = true; this.vel = [0, 0, 0]; this.crouchHeld = M.low; AUD.step(G.W.surfAt(this.pos[0], this.pos[2], this.pos[1]), null, .35); }
   },
   updatePlane(dt) {
     const pl = G.plane; const [f, s] = this.moveInput();
@@ -409,7 +432,8 @@ const P = {
     else if (this.state === 'vehicle') { G.vehicleSeat(r); }
     else M4.translate(r, r, this.pos[0], this.pos[1], this.pos[2]);
     const by = this.state === 'chute' ? this.chuteYaw : this.state === 'vehicle' ? 0 : this.yaw;
-    M4.rotY(r, r, by); M4.translate(r, r, 0, 0, back);
+    M4.rotY(r, r, by); M4.translate(r, r, 0, 0, back + this.crouch * .34);
+    rig.hide = (rig.hide & ~(1 << SK.CH)) | (this.crouch > .3 && this.pitch > -.75 ? (1 << SK.CH) : 0);
     rig.solve(null, false);
   },
 };

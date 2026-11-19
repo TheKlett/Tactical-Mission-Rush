@@ -36,7 +36,7 @@ const VM = {
     if (A.k === 'reload') { const k = isR ? smooth(seg(u, 0, .12)) * (1 - smooth(seg(u, .88, 1))) : smooth(seg(u, 0, .1)) * (1 - smooth(seg(u, .9, 1))); rz += (isR ? .5 : .35) * k; rx += .18 * k; pos[0] -= .03 * k; pos[1] += .02 * k; ry -= .15 * k; }
     if (A.k === 'melee') { const w1 = smooth(seg(u, 0, .3)), w2 = smooth(seg(u, .3, .48)), w3 = smooth(seg(u, .55, 1)); const k = w1 * (1 - w3); ry += (.6 * w1 - 1.5 * w2) * (1 - w3); pos[0] += (.1 * w1 - .18 * w2) * (1 - w3); pos[2] -= .15 * w2 * (1 - w3); rz += .5 * k; pos[1] += .04 * k; }
     // lower the weapon for interactions
-    const lowT = (A.k === 'interact' || A.k === 'hold' || A.k === 'takedown' || st === 'fall' || st === 'chute' || st === 'vehicle' || st === 'boatride' || st === 'heliride' || A.k === 'chutepull') ? 1 : 0;
+    const lowT = (P.mantle || A.k === 'interact' || A.k === 'hold' || A.k === 'takedown' || st === 'fall' || st === 'chute' || st === 'vehicle' || st === 'boatride' || st === 'heliride' || A.k === 'chutepull') ? 1 : 0;
     this.low = damp(this.low, lowT, 8, dt);
     pos[1] -= .35 * this.low; rx -= .9 * this.low; pos[0] += .06 * this.low;
     const Wm = M4.trs(L[VB.WPN], M4.create(), pos[0], pos[1], pos[2], rx, ry, rz);
@@ -139,6 +139,13 @@ const VM = {
       const k1 = smooth(seg(u, 0, .35)), k2 = smooth(seg(u, .35, .7));
       const rc = [.1, -.32, -.22]; RT = V.lerp(V.lerp(this.restR, rc, k1), [.32, .18, -.3], k2); RB = this.reachBasis(shR, RT, false); wpnShow = 0; knifeShow = 0;
       LT = V.lerp(this.restL, [-.45, -.05, -.3], k1); LB = this.reachBasis(shL, LT, true);
+    }
+    // ledge climb: both hands plant on the ledge and push the body up
+    if (P.mantle) {
+      const M = P.mantle; const k = clamp(M.t / M.d, 0, 1); const rr = [Math.cos(P.yaw), 0, -Math.sin(P.yaw)];
+      const lw = toCam(V.add(M.ledge, V.sc(rr, -.28))), rw = toCam(V.add(M.ledge, V.sc(rr, .28))); const push = smooth((k - .5) / .5);
+      const lt = V.add(lw, [0, -push * .35, push * .15]), rt = V.add(rw, [0, -push * .35, push * .15]); const g = 1 - smooth((k - .85) / .15);
+      LT = V.lerp(LT, lt, g); RT = V.lerp(RT, rt, g); LB = this.reachBasis(shL, LT, true); RB = this.reachBasis(shR, RT, false); wpnShow = 0; knifeShow = 0;
     }
     // hostage hold: left arm locks around the hostage, pistol stays raised one-handed
     if (P.hostage) {

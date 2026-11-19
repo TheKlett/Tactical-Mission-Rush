@@ -10,7 +10,19 @@ class World {
     this.doors = []; this.interact = []; this.lights = []; this.dyn = []; this.destr = []; this.items = [];
     this.veg = []; this.interiors = []; this.mapLines = []; this.mapRects = []; this.roads = []; this.trees = []; this.anchors = {}; this.pois = [];
     this.water = null; this.waterY = -100; this.sounds = []; this.cams = []; this.vehicles = []; this.windows = [];
-    this.meshCache = {};
+    this.meshCache = {}; this.doorZones = [];
+    // furniture placement is transactional: anything whose collider would block a doorway is rolled back
+    for (const name of ['chair', 'table', 'desk', 'officeChair', 'shelf', 'cabinet', 'bed', 'bunk', 'footlocker', 'locker', 'counter', 'fridge', 'sofa', 'armchair', 'tableLow', 'tv', 'wardrobe', 'nightstand', 'plant', 'safe', 'rack', 'crate', 'crateStack', 'barrel', 'sacks', 'workbench', 'tires', 'oil', 'toolchest', 'serverRack', 'monitors', 'toilet', 'radioDesk', 'bench', 'bigPlant', 'roundTable', 'piano', 'barCounter', 'barShelves', 'depositBoxes']) {
+      const orig = this[name]; if (!orig) continue;
+      this[name] = (...args) => {
+        if (this._tx) return orig.apply(this, args);
+        const bn = this.B ? this.B.n : 0, dn = this.D ? this.D.n : 0, cn = this.cols.length, ln = this.lights.length, yn = this.dyn.length, sn = this.destr.length, an = {}; for (const k in this.anchors) an[k] = this.anchors[k].length;
+        this._tx = true; let r; try { r = orig.apply(this, args); } finally { this._tx = false; }
+        const added = this.cols.slice(cn); const blocks = added.some(c => c.on && this.doorZones.some(z => c.mn[0] < z[2] && c.mx[0] > z[0] && c.mn[2] < z[3] && c.mx[2] > z[1] && c.mx[1] > z[4] + .25 && c.mn[1] < z[4] + 2));
+        if (blocks) { this.B.n = bn; this.D.n = dn; for (const c of added) this.hashRem(c); this.cols.length = cn; this.lights.length = ln; this.dyn.length = yn; this.destr.length = sn; for (const k in this.anchors) this.anchors[k].length = an[k] || 0; for (const k in this.anchors) if (!(k in an)) delete this.anchors[k]; }
+        return r;
+      };
+    }
   }
   R() { return this.rng(); }
   /* ---------------- terrain ---------------- */
@@ -251,6 +263,7 @@ class World {
       if (s1 - s0 < .01 || py1 - py0 < .01) return; const a = P(s0), b = P(s1); const cx = (a[0] + b[0]) / 2, cz = (a[1] + b[1]) / 2;
       const w = alongX ? s1 - s0 : t, d = alongX ? t : s1 - s0;
       this.box(cx, (py0 + py1) / 2, cz, w, py1 - py0, d, col, mat, { surf: o.surf || 'concrete', jit: .02 });
+      if (o.skin !== undefined) { const e = t / 2 + .015; this.D.col(o.skin, MAT.PAINT); this.D.box(cx + (alongX ? 0 : o.skinDir * e), (py0 + py1) / 2, cz + (alongX ? o.skinDir * e : 0), alongX ? s1 - s0 : .01, py1 - py0 - .01, alongX ? .01 : s1 - s0); }
     };
     const ops = openings.slice().sort((a, b) => a.at - b.at); let cur = 0;
     for (const op of ops) {
@@ -259,6 +272,7 @@ class World {
       if (op.y0) piece(s0, s1, y0, oy0); piece(s0, s1, oy1, y0 + h);
       const a = P(s0), b = P(s1); const cx = (a[0] + b[0]) / 2, cz = (a[1] + b[1]) / 2;
       const fc = o.frame || 0x2a2622;
+      if (op.kind !== 'window') { const dz = 1.25; this.doorZones.push(alongX ? [Math.min(a[0], b[0]) - .1, cz - dz, Math.max(a[0], b[0]) + .1, cz + dz, oy0] : [cx - dz, Math.min(a[1], b[1]) - .1, cx + dz, Math.max(a[1], b[1]) + .1, oy0]); }
       if (op.kind === 'window') {
         // frame + mullions + glass (destructible)
         const fw = alongX ? op.w : t + .02, fd = alongX ? t + .02 : op.w;
@@ -339,21 +353,21 @@ class World {
     if (o.noFound) { }
     else if (o.stilts) {
       this.B.col(0x4a3a2a, MAT.WOOD); for (let px = x0 + .2; px <= x1 - .1; px += Math.max(1.5, (w - .4) / Math.round((w - .4) / 2.2))) for (let pz = z0 + .2; pz <= z1 - .1; pz += Math.max(1.5, (d - .4) / Math.round((d - .4) / 2.2))) { const gy = this.th(px, pz) - .6; this.B.box(px, (gy + fy) / 2, pz, .2, fy - gy, .2); this.colBox(px, (gy + fy) / 2, pz, .2, fy - gy, .2, { surf: 'wood' }); }
-    } else { this.B.col(0x6a665e, MAT.CONC); this.B.box(x, fy - .4, z, w + .3, .8, d + .3); }
+    } else { this.B.col(0x6a665e, MAT.CONC); this.B.box(x, fy - .43, z, w + .3, .8, d + .3); }
     this.slab(x0, z0, x1, z1, fy, .2, o.floorCol ?? 0x6e5a44, o.floorMat ?? MAT.WOOD, o.floorSurf || (o.floorMat === MAT.CONC || o.floorMat === MAT.TILE ? 'concrete' : 'wood'), o.holes || []);
     const ops = { n: [], s: [], e: [], w: [] };
     for (const dr of o.doors || []) ops[dr.side].push({ at: (dr.side === 'n' || dr.side === 's' ? w : d) / 2 + (dr.at || 0), w: dr.w || 1, h: dr.h || 2.1, kind: dr.open ? 'gap' : 'door', door: dr.none ? false : dr });
     for (const wi of o.windows || []) ops[wi.side].push({ at: (wi.side === 'n' || wi.side === 's' ? w : d) / 2 + (wi.at || 0), w: wi.w || 1.2, h: wi.h || 1.1, y0: wi.y0 || 1, kind: 'window' });
-    const wo = { surf, frame: o.frame, noGlass: o.noGlass };
-    this.wall(x0, z0, x1, z0, fy, h, t, wc, wm, ops.n, wo); this.wall(x0, z1, x1, z1, fy, h, t, wc, wm, ops.s, wo);
-    this.wall(x0, z0 + t / 2, x0, z1 - t / 2, fy, h, t, wc, wm, ops.w, wo); this.wall(x1, z0 + t / 2, x1, z1 - t / 2, fy, h, t, wc, wm, ops.e, wo);
+    const wo = { surf, frame: o.frame, noGlass: o.noGlass, trim: o.trim }; const sk = o.inCol !== undefined && !o.noSkin ? o.inCol : undefined;
+    this.wall(x0, z0, x1, z0, fy, h, t, wc, wm, ops.n, Object.assign({ skin: sk, skinDir: 1 }, wo)); this.wall(x0, z1, x1, z1, fy, h, t, wc, wm, ops.s, Object.assign({ skin: sk, skinDir: -1 }, wo));
+    this.wall(x0, z0 + t / 2, x0, z1 - t / 2, fy, h, t, wc, wm, ops.w, Object.assign({ skin: sk, skinDir: 1 }, wo)); this.wall(x1, z0 + t / 2, x1, z1 - t / 2, fy, h, t, wc, wm, ops.e, Object.assign({ skin: sk, skinDir: -1 }, wo));
     // interior partitions [{x0,z0,x1,z1, door:{at}|null}] local coords
     for (const p of o.parts || []) {
       const L = Math.hypot(p[2] - p[0], p[3] - p[1]); const op = p[4] !== undefined && p[4] !== null ? [{ at: L / 2 + p[4], w: p[5] || .95, h: 2.1, kind: p[6] ? 'gap' : 'door', door: p[7] || {} }] : [];
       this.wall(x + p[0], z + p[1], x + p[2], z + p[3], fy, h, .12, o.inCol ?? 0xb8b0a0, MAT.PAINT, op, { surf });
     }
     // interior wall finish (paint) on inside faces – thin inner skin for color variety
-    if (o.inCol !== undefined && !o.noSkin) { this.D.col(o.inCol, MAT.PAINT); const e = t / 2 + .005; this.D.box(x, fy + h / 2, z0 + e, w - t * 2, h - .02, .01); this.D.box(x, fy + h / 2, z1 - e, w - t * 2, h - .02, .01); this.D.box(x0 + e, fy + h / 2, z, .01, h - .02, d - t * 2); this.D.box(x1 - e, fy + h / 2, z, .01, h - .02, d - t * 2); }
+
     // trims: baseboards, cornice, exterior door steps and wall lamps
     this.D.col(o.baseCol ?? 0x3a3028, MAT.WOOD); const bi = t / 2 + .012;
     this.D.box(x, fy + .05, z0 + bi, w - t * 2, .1, .02).box(x, fy + .05, z1 - bi, w - t * 2, .1, .02).box(x0 + bi, fy + .05, z, .02, .1, d - t * 2).box(x1 - bi, fy + .05, z, .02, .1, d - t * 2);
@@ -484,7 +498,7 @@ class World {
   wardrobe(x, z, fy, q) { const B = this.B; B.push().t(x, fy, z).ry(q * Math.PI / 2); B.col(0x4a3220, MAT.WOOD).box(0, 1, 0, 1.2, 2, .6); B.col(0x3a2416, MAT.WOOD).box(0, 1, -.305, .01, 1.9, .01); B.col(0xbbaa77, MAT.METAL).box(-.06, 1.1, -.31, .02, .15, .02).box(.06, 1.1, -.31, .02, .15, .02); B.pop(); this.colRot(x, fy, z, q, 0, 0, 1.2, 2, .6, { surf: 'wood' }); }
   nightstand(x, z, fy) { this.B.col(0x4a3220, MAT.WOOD).box(x, fy + .28, z, .45, .56, .4); this.lamp(x, z, fy + .56); this.colBox(x, fy + .28, z, .45, .56, .4, { surf: 'wood', sight: false }); }
   lamp(x, z, y) { this.D.col(0x222222, MAT.METAL).cyl(x, y, z, .07, .07, .03, 8).cyl(x, y + .03, z, .012, .012, .3, 5); this.D.col(0xf0e0b0, MAT.EMIT).cyl(x, y + .28, z, .12, .07, .16, 10, 0); }
-  rug(x, z, fy, w, d, c) { this.D.col(c, MAT.CLOTH).box(x, fy + .008, z, w, .012, d); this.D.col(lin(c).map(v => v * .6), MAT.CLOTH).box(x, fy + .01, z, w * .85, .012, d * .8); }
+  rug(x, z, fy, w, d, c) { this.D.col(c, MAT.CLOTH).box(x, fy + .012, z, w, .012, d); this.D.col(lin(c).map(v => v * .6), MAT.CLOTH).box(x, fy + .022, z, w * .85, .006, d * .8); }
   plant(x, z, fy) { const B = this.D; B.col(0x6a3a22, MAT.PAINT).cyl(x, fy, z, .16, .2, .35, 10); B.col(0x2a1a10, MAT.MUD).cyl(x, fy + .3, z, .18, .18, .04, 10); B.col(0x2e5a26, MAT.LEAF); for (let i = 0; i < 9; i++) { const a = i / 9 * TAU; B.beam([x, fy + .32, z], [x + Math.cos(a) * .35, fy + .8 + this.R() * .4, z + Math.sin(a) * .35], .06, .01); } this.colBox(x, fy + .3, z, .35, .6, .35, { surf: 'wood', sight: false }); }
   poster(x, y, z, q, kind) { const B = this.D; B.push().t(x, y, z).ry(q * Math.PI / 2); if (kind === 'map') { B.col(0xc8c0a0, MAT.PAINT).box(0, 0, 0, 1.2, .8, .01); B.col(0x6a8a5a, MAT.PAINT).box(-.2, .1, .006, .5, .3, .002); B.col(0x4a6a8a, MAT.PAINT).box(.3, -.15, .006, .4, .25, .002); B.col(0xc02020, MAT.PAINT).box(.1, .05, .008, .04, .04, .002).box(-.3, -.2, .008, .04, .04, .002); } else if (kind === 'flag') { B.col(0x1a1a1a, MAT.CLOTH).box(0, 0, 0, 1.4, .9, .01); B.col(0xc9a23a, MAT.PAINT).box(0, 0, .006, .3, .3, .002); B.col(0x8a1010, MAT.CLOTH).box(0, -.35, .006, 1.4, .15, .002); } else { B.col(0x2a2a2a, MAT.PAINT).box(0, 0, 0, 1, .5, .02); B.col(0xc02020, MAT.PAINT).box(0, 0, .011, .8, .08, .002); } B.pop(); }
   safe(x, z, fy) { const B = this.B; B.col(0x2a2c2e, MAT.METAL).box(x, fy + .45, z, .7, .9, .6); B.col(0x888888, MAT.METAL).cylZ(x, fy + .55, z + .31, .07, .03, 14); B.box(x + .2, fy + .45, z + .31, .03, .2, .03); this.colBox(x, fy + .45, z, .7, .9, .6, { surf: 'metal' }); }
@@ -522,7 +536,7 @@ class World {
   sink(x, z, fy) { this.B.col(0xe8e8e0, MAT.PLASTIC).box(x, fy + .8, z, .5, .15, .4).box(x, fy + .4, z, .15, .8, .15); this.D.col(0x8aa0b0, MAT.GLASS).box(x, fy + 1.5, z - .17, .5, .6, .02); }
   radioDesk(x, z, fy) { const B = this.B; B.col(0x4a4a42, MAT.METAL).box(x, fy + .4, z, .7, .8, 1.2); B.col(0x222222, MAT.METAL).box(x, fy + 1, z, .5, .4, .9); B.col(0x30ff60, MAT.EMIT).box(x - .26, fy + 1.05, z - .2, .01, .08, .2); B.col(0xffaa20, MAT.EMIT).box(x - .26, fy + 1.05, z + .2, .01, .06, .1); B.col(0x111111, MAT.PLASTIC).cyl(x, fy + 1.2, z + .3, .005, .005, .5, 4); this.colBox(x, fy + .6, z, .7, 1.2, 1.2, { surf: 'metal' }); }
   bench(x, z, fy, q) { const B = this.B; B.push().t(x, fy, z).ry(q * Math.PI / 2); B.col(0x5a4a30, MAT.WOOD).box(0, .45, 0, 1.6, .06, .4).box(-.7, .22, 0, .06, .44, .35).box(.7, .22, 0, .06, .44, .35); B.pop(); this.colRot(x, fy, z, q, 0, 0, 1.6, .5, .4, { surf: 'wood', sight: false }); }
-  decal(x, y, z, w, d, c) { this.D.col(c, MAT.MUD).box(x, y + .006, z, w, .005, d); }
+  decal(x, y, z, w, d, c) { this.D.col(c, MAT.MUD).box(x, y + .012, z, w, .005, d); }
   clutter(x, z, y, kind) {
     const D = this.D, R = () => this.R();
     if (kind === 'meal') { for (let i = 0; i < 4; i++) { const a = i / 4 * TAU; D.col(0xeeeeee, MAT.PLASTIC).cyl(x + Math.cos(a) * .45, y, z + Math.sin(a) * .25, .11, .1, .015, 10); D.col(0x8a5a2a, MAT.PAINT).cyl(x + Math.cos(a) * .45, y + .015, z + Math.sin(a) * .25, .07, .06, .015, 8); } D.col(0x2a5a2a, MAT.GLASS).cyl(x, y, z, .035, .035, .28, 8); }

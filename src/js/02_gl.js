@@ -328,7 +328,7 @@ const R = {
       const dist = Math.hypot(dx, dz); if (dist > dd) continue;
       if (!aabbInFrustum(planes, ch.mn, ch.mx)) continue;
       if (ch.mesh) this.drawMesh(ch.mesh);
-      if (ch.detail && dist < this.detailDist) this.drawMesh(ch.detail);
+      if (ch.detail && dist < this.detailDist) { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -2); this.drawMesh(ch.detail); gl.disable(gl.POLYGON_OFFSET_FILL); }
     }
     for (const d of S.dyn) {
       if (d.hidden) continue;
