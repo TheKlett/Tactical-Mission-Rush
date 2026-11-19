@@ -3292,17 +3292,34 @@ const P = {
     const o = [p[0], p[1] + .6, p[2]]; const h1 = W.ray(o, [fx, 0, fz], .9, { bullet: true }), h2 = W.ray([p[0], p[1] + 1.4, p[2]], [fx, 0, fz], .9, { bullet: true });
     const hit = h1 || h2; if (!hit || (hit.c && hit.c.ref && hit.c.ref.kind === 'door')) return false;
     const d = hit.t + .38; const tx = p[0] + fx * d, tz = p[2] + fz * d;
-    const top = W.ground(tx, tz, p[1] + reach, 0, .12); const rise = top - p[1];
+    // top of the obstacle right behind its front face (works for thin walls / railings too)
+    const ex0 = p[0] + fx * (hit.t + .08), ez0 = p[2] + fz * (hit.t + .08);
+    const top = Math.max(W.ground(ex0, ez0, p[1] + reach, 0, .04), W.ground(tx, tz, p[1] + reach, 0, .12)); const rise = top - p[1];
     if (rise < .45 || rise > reach) return false;
-    const room = W.ceiling(tx, tz, top + .05, .25) - top; if (room < 1.05) return false;
-    const q = [tx, top, tz]; W.collide(q, PR * .8, room < 1.7 ? 1 : 1.7, .3); if (Math.hypot(q[0] - tx, q[2] - tz) > .25) return false;
-    this.mantle = { from: V.copy(p), to: [tx, top, tz], ledge: [p[0] + fx * (hit.t + .05), top, p[2] + fz * (hit.t + .05)], t: 0, d: .45 + rise * .2, rise, low: room < 1.7 };
+    const room = W.ceiling(ex0, ez0, top + .05, .1) - top; if (room < 1.05) return false;
+    let to = [tx, top, tz];
+    const q = [tx, top, tz]; W.collide(q, PR * .8, room < 1.7 ? 1 : 1.7, .3);
+    const standY = W.ground(tx, tz, top + .1, 0, .12);
+    if (Math.hypot(q[0] - tx, q[2] - tz) > .25 || standY < top - .2) {
+      // too narrow to stand on (railing, low wall, fence): vault over it if there is free floor behind
+      if (rise > 1.35) return false;
+      let ok = false;
+      for (const ex of [.75, 1.05, 1.4]) {
+        const vx = p[0] + fx * (hit.t + ex), vz = p[2] + fz * (hit.t + ex); const vy = W.ground(vx, vz, top + .1, 0, .12);
+        if (vy > top + .05 || top - vy > 1.6) continue;
+        const r = [vx, vy, vz]; W.collide(r, PR * .8, 1.7, .3); if (Math.hypot(r[0] - vx, r[2] - vz) > .15) continue;
+        if (W.ray([p[0], top + .45, p[2]], [fx, 0, fz], hit.t + ex, { bullet: true })) continue;
+        to = [vx, vy, vz]; ok = true; break;
+      }
+      if (!ok) return false;
+    }
+    this.mantle = { from: V.copy(p), to, ledge: [p[0] + fx * (hit.t + .05), top, p[2] + fz * (hit.t + .05)], t: 0, d: .45 + rise * .2 + (to[1] < top - .05 ? .25 : 0), rise, peak: top + .08, low: room < 1.7 };
     this.vel = [0, 0, 0]; this.ads = 0; AUD.swoosh(.3, null, 500, .4); AUD.step('wood', null, .25); G.noise(p, 3, 'step'); return true;
   },
   updateMantle(dt) {
     const M = this.mantle; M.t += dt; const k = clamp(M.t / M.d, 0, 1);
     const up = smooth(k / .65), fw = smooth((k - .45) / .55);
-    this.pos = [lerp(M.from[0], M.to[0], fw), lerp(M.from[1], M.to[1], up) + Math.sin(Math.min(1, k / .65) * Math.PI) * .12, lerp(M.from[2], M.to[2], fw)];
+    this.pos = [lerp(M.from[0], M.to[0], fw), (k < .65 ? lerp(M.from[1], M.peak, up) : lerp(M.peak, M.to[1], smooth((k - .65) / .35))) + Math.sin(Math.min(1, k / .65) * Math.PI) * .12, lerp(M.from[2], M.to[2], fw)];
     this.crouch = damp(this.crouch, M.low || k < .8 ? .55 : 0, 8, dt); this.land = Math.max(this.land, bump(k, .55, 1) * .35); this.shake = Math.max(this.shake, .05);
     this.bobAmt = 0; this.speed = 0;
     if (k >= 1) { this.pos = V.copy(M.to); this.mantle = null; this.onGround = true; this.vel = [0, 0, 0]; this.crouchHeld = M.low; AUD.step(G.W.surfAt(this.pos[0], this.pos[2], this.pos[1]), null, .35); }
