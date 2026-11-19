@@ -1,0 +1,394 @@
+/* =====================================================================
+   INPUT + PLAYER — movement, stances, freefall/parachute, weapons,
+   inventory, interactions, takedowns, health.
+   ===================================================================== */
+const IN = {
+  keys: {}, hits: {}, mdx: 0, mdy: 0, mb: [0, 0, 0], mbHit: [0, 0, 0], mbUp: [0, 0, 0], wheel: 0, locked: false,
+  init(cv) {
+    addEventListener('keydown', e => { if (e.repeat) { if (G.state === 'play') e.preventDefault(); return; } this.keys[e.code] = 1; this.hits[e.code] = 1; if (G.state === 'play' && !['F5', 'F11', 'F12'].includes(e.code)) e.preventDefault(); G.onKey && G.onKey(e); });
+    addEventListener('keyup', e => { this.keys[e.code] = 0; });
+    addEventListener('mousemove', e => { if (this.locked) { this.mdx += e.movementX; this.mdy += e.movementY; } });
+    cv.addEventListener('mousedown', e => { this.mb[e.button] = 1; this.mbHit[e.button] = 1; if (!this.locked && G.wantsLock()) this.lock(); });
+    addEventListener('mouseup', e => { this.mb[e.button] = 0; this.mbUp[e.button] = 1; });
+    addEventListener('contextmenu', e => e.preventDefault());
+    addEventListener('wheel', e => { this.wheel += Math.sign(e.deltaY); }, { passive: true });
+    document.addEventListener('pointerlockchange', () => { this.locked = document.pointerLockElement === cv; if (!this.locked && G.state === 'play' && !G.noPauseOnUnlock) G.pause(); });
+    addEventListener('blur', () => { this.keys = {}; this.mb = [0, 0, 0]; });
+    this.cv = cv;
+  },
+  lock() { try { const p = this.cv.requestPointerLock({ unadjustedMovement: false }); if (p && p.catch) p.catch(() => { }); } catch (e) { } },
+  unlock() { if (document.pointerLockElement) document.exitPointerLock(); },
+  k(c) { return !!this.keys[c]; }, hit(c) { return !!this.hits[c]; },
+  end() { this.hits = {}; this.mdx = 0; this.mdy = 0; this.mbHit = [0, 0, 0]; this.mbUp = [0, 0, 0]; this.wheel = 0; },
+};
+
+const EYE = 1.62, CEYE = 1.08, PR = .32;
+const GADGETS = { noisemaker: { name: 'NOISE MAKER', count: 2 }, smoke: { name: 'SMOKE GRENADE', count: 2 } };
+const ITEMDEF = {
+  ledger: { name: 'CARTEL LEDGER', desc: 'Financial records — intel' }, drive: { name: 'MANIFEST DRIVE', desc: 'Encrypted arms manifest' },
+  keycard: { name: 'VAULT KEYCARD', desc: 'Opens the station vault' }, charge: { name: 'DEMO CHARGE', desc: 'Plant at target' },
+  codes: { name: 'LAUNCH CODES', desc: 'Uplink authentication codes' }, dossier: { name: 'BUYER DOSSIER', desc: 'Intelligence on the buyer network' }, noisemaker: { name: 'NOISE MAKER' }, smoke: { name: 'SMOKE GRENADE' }, knife: { name: 'COMBAT KNIFE' },
+};
+
+const P = {
+  init() {
+    this.app = { skin: 0xc89670, shirt: 0x4a5038, pants: 0x3f4430, boots: 0x231c15, head: 'helmet', hair: 0x1a1410, vest: true, vestCol: 0x3a3e2c, camo: true, gloves: true, bulk: 1.02, helmetCol: 0x3a3f2e };
+    this.rig = new Rig(buildCharacter(this.app)); this.rig.hide = (1 << SK.HD) | (1 << SK.UAL) | (1 << SK.FAL) | (1 << SK.HL) | (1 << SK.UAR) | (1 << SK.FAR) | (1 << SK.HR) | (1 << SK.WPN) | (1 << SK.PROP);
+    this.vmArms = buildArms({ sleeve: 0x4a5038, glove: 0x1c1c1a });
+    this.vmMeshes = {};
+    this.vmBones = new Float32Array(VB.N * 16); this.vmL = []; for (let i = 0; i < VB.N; i++) this.vmL.push(M4.create());
+    this.camM = M4.create(); this.view = M4.create();
+    this.chuteMesh = buildParachute(); this.chuteM = M4.create();
+  },
+  buildWeaponMeshes(cfg) {
+    const mk = f => { const B = new MB(6000); f(B); return B.mesh(); };
+    this.vmMeshes.pistol = mk(B => buildPistolVM(B));
+    this.vmMeshes.rifle = mk(B => buildRifleVM(B, cfg.rifle, cfg.optic));
+    this.vmMeshes.knife = mk(B => buildKnifeVM(B, VB.KNIFE));
+    this.vmMeshes.items = {};
+    for (const k of ['ledger', 'drive', 'keycard', 'charge', 'noisemaker', 'smoke', 'codes', 'ammo', 'knife', 'dossier']) this.vmMeshes.items[k] = buildItemMesh(k);
+  },
+  reset(cfg) {
+    this.buildWeaponMeshes(cfg);
+    this.pos = [0, 0, 0]; this.vel = [0, 0, 0]; this.yaw = 0; this.pitch = 0; this.roll = 0; this.onGround = false; this.state = 'ground';
+    this.crouch = 0; this.crouchHeld = false; this.sprinting = false; this.health = 100; this.regenT = 0; this.dead = false;
+    this.rifleKey = cfg.rifle;
+    this.inv = [{ k: 'pistol' }, { k: cfg.rifle }, { k: 'knife' }, null, null];
+    this.mission = []; this.missionSel = 0; // mission bag in slot 4
+    if (cfg.gadget) this.inv[4] = { k: cfg.gadget, item: true, count: GADGETS[cfg.gadget].count };
+    this.ammo = {}; for (const k of ['pistol', cfg.rifle]) this.ammo[k] = { mag: WEAPONS[k].mag, res: WEAPONS[k].reserve + (cfg.extraMags ? WEAPONS[k].mag * 2 : 0) };
+    this.cur = 0; this.next = -1; this.anim = { k: 'draw', t: 0, d: .5 }; this.fireCd = 0; this.ads = 0; this.adsHeld = false;
+    this.bob = 0; this.bobAmt = 0; this.swayX = 0; this.swayY = 0; this.kickP = 0; this.kickZ = 0; this.kickR = 0; this.land = 0; this.shake = 0;
+    this.stepAcc = 0; this.lastSurf = 'mud'; this.inWater = 0; this.noiseLevel = 0; this.visibility = 1; this.speed = 0;
+    this.interactTarget = null; this.holdT = 0; this.prompt = ''; this.chute = null; this.chuteOpen = 0; this.freefallT = 0; this.vehicle = null;
+    this.takedown = null; this.local = null; this.fov = 72; this.camRollT = 0; this.altitude = 0; this.thrownKnife = false; this.recoilYaw = 0;
+    this.slideBack = 0; this.burstShots = 0; this.lastShot = -10; this.hurtDir = null; this.lastHurt = -10; this.camOverride = null;
+  },
+  get weapon() { const s = this.inv[this.cur]; return s ? s.k : null; },
+  get wdef() { return WEAPONS[this.weapon] || null; },
+  isGun() { const w = this.wdef; return w && (w.type === 'pistol' || w.type === 'rifle'); },
+  eye() { return [this.pos[0], this.pos[1] + lerp(EYE, CEYE, this.crouch) - this.land * .12, this.pos[2]]; },
+  fwd() { const cp = Math.cos(this.pitch); return [-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp]; },
+  busy() { const k = this.anim && this.anim.k; return k === 'reload' || k === 'holster' || k === 'draw' || k === 'melee' || k === 'interact' || k === 'takedown' || k === 'throw' || k === 'hold' || k === 'gadget' || k === 'stab'; },
+  /* ======================= UPDATE ======================= */
+  update(dt) {
+    const W = G.W; const S = G.settings;
+    // look
+    if (this.state !== 'dead' && !this.camOverride && !this.takedown) {
+      const sens = S.sens * .0022 * (this.ads > .5 ? .65 : 1);
+      this.yaw -= IN.mdx * sens; this.pitch -= IN.mdy * sens * (S.invert ? -1 : 1);
+      this.pitch = clamp(this.pitch, -1.5, 1.5);
+      this.swayX = damp(this.swayX, clamp(-IN.mdx * .0006, -.03, .03), 8, dt); this.swayY = damp(this.swayY, clamp(IN.mdy * .0006, -.03, .03), 8, dt);
+    }
+    if (this.state === 'plane') this.updatePlane(dt);
+    else if (this.state === 'fall' || this.state === 'chute') this.updateAir(dt);
+    else if (this.state === 'ground') this.updateGround(dt);
+    else if (this.state === 'vehicle') G.updateDriving(dt);
+    else if (this.state === 'boatride' || this.state === 'heliride') this.updateRide(dt);
+    if (this.state !== 'dead' && this.state !== 'vehicle') this.updateWeapons(dt);
+    if (this.state !== 'dead') this.updateInteract(dt);
+    // health regen
+    this.regenT -= dt; if (this.regenT < 0 && this.health < 100 && this.health > 0) this.health = Math.min(100, this.health + 9 * dt);
+    this.land = damp(this.land, 0, 6, dt); this.shake = damp(this.shake, 0, 5, dt);
+    this.kickP = damp(this.kickP, 0, 12, dt); this.kickZ = damp(this.kickZ, 0, 14, dt); this.kickR = damp(this.kickR, 0, 10, dt);
+    this.slideBack = damp(this.slideBack, 0, 22, dt);
+    this.updateCamera(dt);
+  },
+  moveInput() {
+    let f = 0, s = 0; if (IN.k('KeyW')) f += 1; if (IN.k('KeyS')) f -= 1; if (IN.k('KeyD')) s += 1; if (IN.k('KeyA')) s -= 1;
+    const l = Math.hypot(f, s) || 1; return [f / l * (f || s ? 1 : 0), s / l * (f || s ? 1 : 0)];
+  },
+  updateGround(dt) {
+    const W = G.W; const [f, s] = this.moveInput();
+    this.crouchHeld = IN.k('ControlLeft') || IN.k('ControlRight') || IN.k('KeyC');
+    // can stand up?
+    if (!this.crouchHeld && this.crouch > .5) { const c = W.ceiling(this.pos[0], this.pos[2], this.pos[1] + 1.1); if (c < this.pos[1] + 1.85) this.crouchHeld = true; }
+    this.crouch = damp(this.crouch, this.crouchHeld ? 1 : 0, 10, dt);
+    this.sprinting = IN.k('ShiftLeft') && f > .3 && this.crouch < .3 && this.ads < .3 && !(this.anim.k === 'reload' && this.wdef && this.wdef.type === 'rifle' && false);
+    const water = W.waterY > -50 ? clamp((W.waterY - this.pos[1]) / .9, 0, 1) : 0; this.inWater = water;
+    let spd = this.sprinting ? 6.4 : this.crouch > .5 ? 1.9 : 3.7; if (this.ads > .5) spd *= .6; spd *= 1 - water * .45;
+    if (this.weapon && WEAPONS[this.weapon] && WEAPONS[this.weapon].type === 'rifle') spd *= .96;
+    const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    const tx = (-sy * f + cy * s) * spd, tz = (-cy * f - sy * s) * spd;
+    const acc = this.onGround ? 12 : 2;
+    this.vel[0] = damp(this.vel[0], tx, acc, dt); this.vel[2] = damp(this.vel[2], tz, acc, dt);
+    if (this.onGround && IN.hit('Space') && this.crouch < .5 && water < .6) { this.vel[1] = 5.2; this.onGround = false; AUD.step(this.lastSurf, null, .25); }
+    this.vel[1] -= 18 * dt;
+    const np = [this.pos[0] + this.vel[0] * dt, this.pos[1], this.pos[2] + this.vel[2] * dt];
+    const h = lerp(1.8, 1.2, this.crouch);
+    W.collide(np, PR, h, this.onGround ? .45 : .2);
+    // vehicles as dynamic obstacles
+    for (const v of G.vehicles) G.collideVehicle(v, np, PR);
+    np[1] = this.pos[1] + this.vel[1] * dt;
+    const gy = W.ground(np[0], np[2], Math.max(this.pos[1], np[1]), this.onGround ? .45 : .25, PR * .6);
+    const wasGround = this.onGround;
+    if (np[1] <= gy) {
+      if (!wasGround && this.vel[1] < -7) { this.land = clamp(-this.vel[1] / 14, .2, 1); AUD.step(W.surfAt(np[0], np[2], gy), null, .6); if (this.vel[1] < -14) this.hurt((-this.vel[1] - 14) * 8, null); G.noise(np, 7, 'land'); }
+      np[1] = this.onGround && gy - this.pos[1] > .05 ? damp(this.pos[1], gy, 25, dt) : gy; this.vel[1] = 0; this.onGround = true;
+      if (np[1] < gy - .01) np[1] = gy - .0;
+    } else if (this.onGround && np[1] - gy < .35 && this.vel[1] <= 0) { np[1] = gy; this.vel[1] = 0; } // stick to slopes / steps down
+    else this.onGround = false;
+    const c = W.ceiling(np[0], np[2], np[1] + .3); if (np[1] + h > c) { np[1] = Math.min(np[1], c - h); if (this.vel[1] > 0) this.vel[1] = 0; }
+    this.pos = np;
+    this.speed = Math.hypot(this.vel[0], this.vel[2]);
+    // footsteps
+    if (this.onGround) {
+      this.stepAcc += this.speed * dt; const stride = this.sprinting ? 1.9 : this.crouch > .5 ? .85 : 1.45;
+      if (this.stepAcc > stride) {
+        this.stepAcc = 0; const surf = water > .05 ? 'water' : W.surfAt(this.pos[0], this.pos[2], this.pos[1]); this.lastSurf = surf;
+        const v = this.sprinting ? .5 : this.crouch > .5 ? .1 : .26; AUD.step(surf, null, v);
+        const nr = (this.sprinting ? 11 : this.crouch > .5 ? 1.6 : 4.5) * (surf === 'water' ? 1.5 : surf === 'metal' || surf === 'wood' ? 1.3 : surf === 'grass' || surf === 'snow' ? .8 : 1);
+        G.noise(this.pos, nr, 'step');
+        if (surf === 'water') G.splash([this.pos[0], W.waterY, this.pos[2]], 6);
+      }
+    }
+    this.bobAmt = damp(this.bobAmt, this.onGround ? clamp(this.speed / 4, 0, 1.4) : 0, 8, dt); this.bob += this.speed * dt * (this.sprinting ? 1.55 : 1.9);
+    this.noiseLevel = this.speed < .2 ? 0 : this.sprinting ? 1 : this.crouch > .5 ? .15 : .45;
+  },
+  updatePlane(dt) {
+    const pl = G.plane; const [f, s] = this.moveInput();
+    this.crouchHeld = IN.k('ControlLeft'); this.crouch = damp(this.crouch, this.crouchHeld ? 1 : 0, 10, dt);
+    const spd = IN.k('ShiftLeft') ? 4.5 : 2.6; const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    const L = this.local; // local position in plane frame
+    L[0] += (-sy * f + cy * s) * spd * dt; L[2] += (-cy * f - sy * s) * spd * dt;
+    // interior bounds
+    const rampOpen = pl.ramp > .9;
+    L[0] = clamp(L[0], -1.3, 1.3);
+    for (const z of [-8, -4.5]) if (L[2] > z - 1.25 && L[2] < z + 1.25 && Math.abs(L[0]) < 1.25) { if (L[2] < z) L[2] = z - 1.25; else L[2] = z + 1.25; }
+    L[2] = clamp(L[2], -11.3, rampOpen ? 16 : 8.6);
+    let fy = .4; if (L[2] > 9) fy = .4 - (L[2] - 9) * Math.sin(pl.rampAng);
+    this.vel[1] = (this.vel[1] || 0); L[1] = fy;
+    this.bobAmt = damp(this.bobAmt, Math.hypot(f, s) * .8, 8, dt); this.bob += spd * Math.hypot(f, s) * dt * 1.9; this.speed = Math.hypot(f, s) * spd;
+    this.stepAcc += this.speed * dt; if (this.stepAcc > 1.4) { this.stepAcc = 0; AUD.step('metal', null, .2); }
+    if (L[2] > 14.2) { // jumped out
+      const wp = M4.pt(pl.m, L[0], L[1] + .1, L[2]);
+      this.pos = wp; this.state = 'fall'; this.vel = V.add(V.sc(pl.vel, .25), M4.dir(pl.m, 0, -1, 3)); this.yaw += pl.yaw; this.freefallT = 0; this.local = null;
+      G.onJump && G.onJump();
+    }
+  },
+  updateAir(dt) {
+    const W = G.W; const [f, s] = this.moveInput(); const g = W.th(this.pos[0], this.pos[2]); const wy = Math.max(g, W.waterY > -50 ? W.waterY - .6 : -99);
+    // ground objects (roofs)
+    const gy = Math.max(wy, W.ground(this.pos[0], this.pos[2], this.pos[1], .1, .3));
+    this.altitude = this.pos[1] - gy;
+    const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    if (this.state === 'fall') {
+      this.freefallT += dt;
+      this.vel[1] -= 9.8 * dt; this.vel[1] = Math.max(this.vel[1], -54);
+      const hx = (-sy * f + cy * s) * 14, hz = (-cy * f - sy * s) * 14;
+      this.vel[0] = damp(this.vel[0], hx, .9, dt); this.vel[2] = damp(this.vel[2], hz, .9, dt);
+      this.shake = Math.max(this.shake, .25 + clamp(-this.vel[1] / 54, 0, 1) * .35);
+      if (IN.hit('Space') && this.altitude > 3) this.deployChute();
+      if (this.altitude < 25 && !this.warnedLow) { this.warnedLow = true; }
+    } else {
+      this.chuteOpen = Math.min(1, this.chuteOpen + dt / 1.3);
+      const dive = IN.k('KeyW'), flare = IN.k('KeyS'); const turn = (IN.k('KeyD') ? 1 : 0) - (IN.k('KeyA') ? 1 : 0);
+      this.chuteYaw = (this.chuteYaw ?? this.yaw) - turn * .7 * dt; this.roll = damp(this.roll, -turn * .22, 3, dt);
+      const fwdS = dive ? 11 : flare ? 3.5 : 7.5, vy = dive ? -7.5 : flare ? -3.2 : -5;
+      const open = smooth(this.chuteOpen);
+      const tvx = -Math.sin(this.chuteYaw) * fwdS, tvz = -Math.cos(this.chuteYaw) * fwdS;
+      this.vel[0] = damp(this.vel[0], tvx, 1.6 * open + .2, dt); this.vel[2] = damp(this.vel[2], tvz, 1.6 * open + .2, dt);
+      this.vel[1] = damp(this.vel[1], lerp(-40, vy, open), 2.5 + open * 2, dt);
+      // keep camera yaw roughly following the canopy heading but allow free look
+      const rel = angDiff(this.chuteYaw, this.yaw); if (Math.abs(rel) > 1.4) this.yaw = this.chuteYaw + Math.sign(rel) * 1.4;
+      this.yaw += -turn * .7 * dt * .8;
+      this.shake = Math.max(this.shake, .05);
+      if (this.chute) { this.chute.sound && this.chute.sound.set(.4 + Math.hypot(this.vel[0], this.vel[2]) * .02, .12, null); }
+    }
+    const np = V.add(this.pos, V.sc(this.vel, dt));
+    W.collide(np, PR, 1.8, .2);
+    if (np[1] <= gy + .02) { // touchdown
+      np[1] = gy; this.pos = np;
+      if (this.state === 'fall' && this.vel[1] < -16) { G.playerDie('PARACHUTE NOT DEPLOYED — IMPACT AT ' + Math.round(-this.vel[1]) + ' M/S'); return; }
+      const hard = -this.vel[1];
+      this.land = clamp(hard / 7, .5, 1); this.state = 'ground'; this.onGround = true; this.roll = 0;
+      if (gy < W.waterY) this.pos[1] = gy;
+      AUD.step(W.surfAt(np[0], np[2], np[1]), null, .8); AUD.swoosh(.3, null, 400, .6); G.noise(np, 9, 'land');
+      if (this.chute) G.dropChute(this.chute, np, this.chuteYaw);
+      this.chute = null; this.vel = [this.vel[0] * .3, 0, this.vel[2] * .3];
+      G.onLanded && G.onLanded();
+      return;
+    }
+    this.pos = np;
+    if (G.windLoop) G.windLoop.set(.3 + clamp(V.len(this.vel) / 50, 0, 1), this.state === 'fall' ? .35 + clamp(-this.vel[1] / 54, 0, 1) * .5 : .08, null);
+  },
+  deployChute() {
+    this.state = 'chute'; this.chuteOpen = 0; this.chuteYaw = this.yaw; this.chute = { m: M4.create() };
+    AUD.swoosh(.9, null, 300, 1.2); setTimeout(() => { AUD.impact('wood', null); this.shake = 1; this.land = .6; }, 900);
+    this.anim = { k: 'chutepull', t: 0, d: .9 };
+  },
+  updateRide(dt) { /* position driven by cinematic (boat / heli insertion) */ this.speed = 0; this.bobAmt = damp(this.bobAmt, 0, 5, dt); },
+  /* ======================= WEAPONS ======================= */
+  updateWeapons(dt) {
+    const A = this.anim; A.t += dt;
+    const W = this.wdef; const S = G.settings;
+    const canAct = this.state === 'ground' && !this.takedown;
+    // slot switching
+    if (canAct) for (let i = 0; i < 5; i++) if (IN.hit('Digit' + (i + 1))) this.selectSlot(i);
+    if (canAct && IN.wheel) { let n = this.cur; for (let k = 0; k < 5; k++) { n = (n + (IN.wheel > 0 ? 1 : 4)) % 5; if (this.inv[n] || (n === 3 && this.mission.length)) break; } if (n !== this.cur) this.selectSlot(n); }
+    // anim completion
+    if (A.t >= A.d) this.animDone(A);
+    const firing = IN.mb[0]; const firingHit = IN.mbHit[0];
+    this.adsHeld = !!IN.mb[2] && canAct;
+    const allowAds = this.isGun() && !this.busy() && this.adsHeld && !this.sprinting;
+    this.ads = damp(this.ads, allowAds ? 1 : 0, 14, dt);
+    this.fireCd -= dt;
+    if (!canAct) return;
+    if (this.isGun()) {
+      const am = this.ammo[this.weapon];
+      if (IN.hit('KeyR') && !this.busy() && am.mag < W.mag && am.res > 0) this.startReload();
+      if (!this.busy() && this.fireCd <= 0 && ((W.auto && firing) || firingHit) && !this.sprinting) {
+        if (am.mag > 0) this.fire(); else { AUD.mech('dry'); this.fireCd = .25; if (am.res > 0) this.startReload(); }
+      }
+      if (!firing) this.burstShots = 0;
+    } else if (this.weapon === 'knife') {
+      if (!this.busy() && firingHit) { if (this.adsHeld) this.throwKnife(); else this.knifeAttack(); }
+    } else if (this.inv[this.cur] && this.inv[this.cur].item && (this.inv[this.cur].k === 'noisemaker' || this.inv[this.cur].k === 'smoke')) {
+      if (!this.busy() && firingHit) this.anim = { k: 'gadget', t: 0, d: .75, fired: false };
+    }
+    if (IN.hit('KeyQ') && !this.busy()) { this.anim = { k: 'melee', t: 0, d: .6, hit: false }; AUD.swoosh(.3, null, 900, .3); }
+  },
+  selectSlot(i) {
+    if (i === 3 && this.mission.length) { if (this.cur === 3) this.missionSel = (this.missionSel + 1) % this.mission.length; }
+    else if (!this.inv[i]) return;
+    if (i === this.cur && i !== 3) return;
+    if (this.busy() && this.anim.k !== 'draw') return;
+    this.next = i; this.anim = { k: 'holster', t: 0, d: .28 }; AUD.mech('draw');
+  },
+  curItemKind() { if (this.cur === 3) return this.mission[this.missionSel] || null; const s = this.inv[this.cur]; return s && s.item ? s.k : null; },
+  animDone(A) {
+    const k = A.k;
+    if (k === 'holster') { if (this.next >= 0) { this.cur = this.next; this.next = -1; } this.anim = { k: 'draw', t: 0, d: .45 }; return; }
+    if (k === 'reload') { const am = this.ammo[this.weapon]; const W = this.wdef; const need = W.mag - am.mag; const take = Math.min(need, am.res); am.mag += take; am.res -= take; }
+    if (k === 'throw') { // knife left the hand
+      this.inv[2] = null; this.thrownKnife = true; this.next = this.inv[0] ? 0 : 1; this.anim = { k: 'holster', t: .27, d: .28 }; return;
+    }
+    if (k === 'gadget') { const s = this.inv[this.cur]; if (s && s.count <= 0) { this.inv[this.cur] = null; this.next = 0; this.anim = { k: 'holster', t: .27, d: .28 }; return; } }
+    if (k === 'interact' && A.done) A.done();
+    if (k === 'takedown') { this.takedown = null; }
+    if (k === 'hold') return; // managed by interaction
+    this.anim = { k: 'idle', t: 0, d: 1e9 };
+  },
+  startReload() {
+    const W = this.wdef; this.anim = { k: 'reload', t: 0, d: W.reload, s: 0, type: W.type }; this.ads = 0;
+  },
+  spread() {
+    const W = this.wdef; const mv = clamp(this.speed / 4, 0, 1.6); let s = lerp(W.spread, W.adsSpread, this.ads) * (1 + mv * (this.ads > .5 ? 1.2 : .9));
+    if (this.crouch > .5) s *= .7; if (!this.onGround) s *= 2.2; s *= 1 + Math.min(this.burstShots, 8) * .08; return s;
+  },
+  fire() {
+    const W = this.wdef; const am = this.ammo[this.weapon]; am.mag--; this.fireCd = 60 / W.rpm; this.burstShots++; this.lastShot = G.time;
+    const eye = this.eye(); const f = this.fwd(); const sp = this.spread();
+    const r = [Math.cos(this.yaw), 0, -Math.sin(this.yaw)], u = V.cross(r, f);
+    const a = Math.random() * TAU, m = Math.sqrt(Math.random()) * sp;
+    const dir = V.norm(V.add(f, V.add(V.sc(r, Math.cos(a) * m), V.sc(u, Math.sin(a) * m))));
+    G.stats.shots++;
+    G.fireRay(eye, dir, W.dmg, 'player', this.weapon);
+    AUD.shot(W.sound, null);
+    G.noise(eye, W.noise, W.suppressed ? 'shot_s' : 'shot');
+    const kick = W.recoil * (this.ads > .5 ? .55 : 1) * (this.crouch > .5 ? .8 : 1);
+    this.pitch += kick * .55; this.yaw += (Math.random() - .5) * kick * .5; this.kickP += kick * 3.2; this.kickZ += W.type === 'pistol' ? .035 : .028; this.kickR += (Math.random() - .5) * kick * 4;
+    this.slideBack = 1; this.shake = Math.max(this.shake, W.type === 'rifle' ? .1 : .04);
+    G.muzzleFlash(W);
+    if (am.mag === 0) AUD.mech('dry');
+  },
+  knifeAttack() {
+    this.anim = { k: 'stab', t: 0, d: .5, hit: false, side: Math.random() < .5 ? 1 : -1 }; AUD.swoosh(.35, null, 1300, .25);
+  },
+  throwKnife() { this.anim = { k: 'throw', t: 0, d: .5, fired: false }; },
+  /* ======================= INTERACTION ======================= */
+  updateInteract(dt) {
+    const A = this.anim;
+    // anim event triggers
+    if (A.k === 'melee' && !A.hit && A.t > .22) { A.hit = true; G.meleeHit(this.isGun() ? 45 : 150, 2.0, this.weapon === 'knife'); }
+    if (A.k === 'stab' && !A.hit && A.t > .18) { A.hit = true; G.meleeHit(110, 2.0, true); }
+    if (A.k === 'throw' && !A.fired && A.t > .3) { A.fired = true; G.spawnThrownKnife(); AUD.swoosh(.4, null, 1500, .3); }
+    if (A.k === 'gadget' && !A.fired && A.t > .42) { A.fired = true; const s = this.inv[this.cur]; s.count--; G.throwGadget(s.k); AUD.swoosh(.3, null, 700, .35); }
+    if (A.k === 'interact' && !A.fired && A.t > A.d * A.at) { A.fired = true; A.act && A.act(); }
+    if (this.state !== 'ground' && this.state !== 'plane' && this.state !== 'boatride' && this.state !== 'heliride') { this.prompt = ''; this.interactTarget = null; return; }
+    const eye = this.state === 'plane' ? M4.pt(G.plane.m, this.local[0], this.local[1] + lerp(EYE, CEYE, this.crouch), this.local[2]) : this.camPos || this.eye();
+    const fwd = this.camFwd || this.fwd();
+    let best = null, bs = 1e9;
+    if (!this.busy() || A.k === 'hold') {
+      for (const it of G.interactables()) {
+        if (it.enabled && !it.enabled()) continue;
+        const p = typeof it.pos === 'function' ? it.pos() : it.pos; const d = V.dist(p, eye); if (d > (it.r || 1.8)) continue;
+        const to = V.sc(V.sub(p, eye), 1 / (d || 1)); const ang = Math.acos(clamp(V.dot(to, fwd), -1, 1));
+        const lim = it.wide ? 1.2 : d < .9 ? .9 : .45; if (ang > lim) continue;
+        const score = ang + d * .05; if (score < bs) { bs = score; best = it; }
+      }
+    }
+    this.interactTarget = best;
+    this.prompt = best ? (typeof best.label === 'function' ? best.label() : best.label) : '';
+    if (!best || !this.prompt) { this.interactTarget = null; if (A.k === 'hold') this.cancelHold(); return; }
+    const key = best.key || 'KeyE';
+    if (best.hold) {
+      if (IN.k(key) && (A.k === 'hold' && A.it === best || !this.busy())) {
+        if (A.k !== 'hold') { this.anim = { k: 'hold', t: 0, d: 1e9, it: best, kind: best.anim || 'hotwire' }; best.onStart && best.onStart(); }
+        this.holdT += dt; if (best.onHold) best.onHold(dt);
+        if (this.holdT >= best.hold) { this.holdT = 0; const it = best; this.anim = { k: 'idle', t: 0, d: 1e9 }; it.act(); }
+      } else if (A.k === 'hold') this.cancelHold();
+    } else if (IN.hit(key) && !this.busy()) {
+      if (best.instant) { best.act(); return; }
+      const p = typeof best.pos === 'function' ? best.pos() : best.pos;
+      this.anim = { k: 'interact', t: 0, d: best.dur || .75, at: best.at || .5, target: V.copy(p), kind: best.anim || 'reach', act: () => best.act(), fired: false, item: best.item || null };
+      if (best.onStart) best.onStart();
+    }
+  },
+  cancelHold() { this.holdT = 0; if (this.anim.k === 'hold') { const it = this.anim.it; it && it.onCancel && it.onCancel(); this.anim = { k: 'idle', t: 0, d: 1e9 }; } },
+  hurt(dmg, from) {
+    if (this.state === 'dead' || G.state !== 'play' || G.god) return;
+    this.health -= dmg; this.regenT = 5.5; this.shake = Math.max(this.shake, .3); AUD.hurt(); this.lastHurt = G.time;
+    if (from) this.hurtDir = Math.atan2(from[0] - this.pos[0], from[2] - this.pos[2]);
+    G.stats.damage += dmg;
+    if (this.health <= 0) { this.health = 0; G.playerDie('KILLED IN ACTION'); }
+  },
+  /* ======================= CAMERA ======================= */
+  updateCamera(dt) {
+    const m = this.camM;
+    if (this.camOverride) { M4.copy(m, this.camOverride); }
+    else {
+      M4.ident(m);
+      if (this.state === 'plane') { M4.mul(m, m, G.plane.m); M4.translate(m, m, this.local[0], this.local[1] + lerp(EYE, CEYE, this.crouch), this.local[2]); }
+      else if (this.state === 'vehicle') { G.vehicleCam(m); }
+      else { const e = this.eye(); M4.translate(m, m, e[0], e[1], e[2]); }
+      // head bob
+      const b = this.bob, a = this.bobAmt * (this.state === 'ground' ? 1 : 0);
+      const bx = Math.sin(b) * .03 * a, by = -Math.abs(Math.cos(b)) * .035 * a;
+      if (this.state !== 'vehicle') { M4.rotY(m, m, this.yaw); M4.rotX(m, m, this.pitch + this.kickP * .05); M4.rotZ(m, m, this.roll + Math.sin(b) * .006 * a + this.kickR * .02); M4.translate(m, m, bx, by, 0); }
+      if (this.shake > .01) { const s = this.shake * .012, t = G.time * 40; M4.rotX(m, m, Math.sin(t) * s); M4.rotY(m, m, Math.cos(t * 1.3) * s); }
+    }
+    M4.invert(this.view, m);
+    this.camPos = M4.pos(m); this.camFwd = V.norm(M4.dir(m, 0, 0, -1)); this.camRight = V.norm(M4.dir(m, 1, 0, 0)); this.camUp = V.norm(M4.dir(m, 0, 1, 0));
+    // fov
+    const W = this.wdef; let fov = G.settings.fov;
+    if (this.isGun()) fov = lerp(fov, W.adsFov * (G.loadout.optic === 'holo' && W.type === 'rifle' ? .82 : 1), this.ads);
+    if (this.sprinting) fov += 4; if (this.state === 'fall') fov += 8;
+    this.fov = damp(this.fov, fov, 10, dt);
+  },
+  /* body pose for the world-space player model */
+  updateBody(dt) {
+    const rig = this.rig; const j = P_(); let py = 0;
+    if (this.state === 'ground') {
+      if (this.crouch > .5) { poseCrouch(j, this.bob * .5, this.speed > .3); py = -.36 * this.crouch; }
+      else if (this.speed > .3) py = -poseWalk(j, this.bob * .5, clamp(this.speed / 3.5, .3, 1.2), this.sprinting, true);
+      else poseIdle(j, G.time, 'idle', 0);
+      if (!this.onGround) { pj(j, SK.THL, .6, 0, 0); pj(j, SK.THR, .2, 0, 0); pj(j, SK.SHL, -.9, 0, 0); pj(j, SK.SHR, -.5, 0, 0); }
+      py -= this.land * .25;
+      pj(j, SK.CH, j[SK.CH * 3] + this.pitch * .25, 0, 0);
+    } else if (this.state === 'fall') { pj(j, SK.THL, .3, 0, -.25); pj(j, SK.THR, .3, 0, .25); pj(j, SK.SHL, -1.1, 0, 0); pj(j, SK.SHR, -1.1, 0, 0); }
+    else if (this.state === 'chute' || this.state === 'heliride') { const sw = Math.sin(G.time * 1.3) * .1; pj(j, SK.THL, .25 + sw, 0, -.08); pj(j, SK.THR, .2 - sw, 0, .08); pj(j, SK.SHL, -.3, 0, 0); pj(j, SK.SHR, -.35, 0, 0); pj(j, SK.FTL, .5, 0, 0); pj(j, SK.FTR, .5, 0, 0); if (this.state === 'heliride') { pj(j, SK.THL, 1.5, 0, -.1); pj(j, SK.THR, 1.5, 0, .1); pj(j, SK.SHL, -1.2, 0, 0); pj(j, SK.SHR, -1.3, 0, 0); py = -.5; } }
+    else if (this.state === 'vehicle' || this.state === 'boatride') { poseSit(j, G.time, 0, false); py = -.48; pj(j, SK.THL, 1.4, .1, -.05); pj(j, SK.THR, 1.4, -.1, .05); pj(j, SK.SHL, -1.1, 0, 0); pj(j, SK.SHR, -1.2, 0, 0); }
+    else if (this.state === 'plane') { if (this.speed > .3) py = -poseWalk(j, this.bob * .5, .8, false, true); else poseIdle(j, G.time, 'idle', 0); if (this.crouch > .5) { poseCrouch(j, 0, false); py = -.36; } }
+    rig.tj.set(j); rig.tpy = py; rig.blend(14, dt);
+    // root transform: feet, pushed back so the camera doesn't sit inside the chest when looking down
+    const r = rig.root; M4.ident(r);
+    const back = .16 + Math.max(0, -this.pitch) * .12;
+    if (this.state === 'plane') { M4.mul(r, r, G.plane.m); M4.translate(r, r, this.local[0], this.local[1], this.local[2]); }
+    else if (this.state === 'vehicle') { G.vehicleSeat(r); }
+    else M4.translate(r, r, this.pos[0], this.pos[1], this.pos[2]);
+    const by = this.state === 'chute' ? this.chuteYaw : this.state === 'vehicle' ? 0 : this.yaw;
+    M4.rotY(r, r, by); M4.translate(r, r, 0, 0, back);
+    rig.solve(null, false);
+  },
+};
