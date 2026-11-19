@@ -5,13 +5,17 @@
 const G = {
   state: 'menu', time: 0, W: null, M: null, npcs: [], vehicles: [], cams: [], particles: [], vmParticles: [], dlights: [], groups: {}, projectiles: [], smokes: [], decals: [],
   alarm: 0, searchT: 0, powerOn: true, diffMul: 1, dmgMul: 1, cineLock: false, god: false, missionTime: 0, stats: null, objectives: [], subs: [],
-  settings: { sens: 1, fov: 72, invert: false, master: .8, music: .5, amb: .8, quality: 'high', shadows: true, markers: true, subtitles: true, scale: 1, difficulty: 'normal' },
+  settings: { sens: 1, sensPct: 48, accel: false, hud: 'full', detection: true, minimap: true, mmRotate: true, mmZoom: 2.2, prompts: true, effects: true, aa: '4x', drawDist: 380, sfx: 1, voice: 1, fov: 72, invert: false, master: .8, music: .5, amb: .8, quality: 'high', shadows: true, markers: true, subtitles: true, scale: 1, difficulty: 'normal' },
   loadout: { pistol: 'pistol', rifle: 'ar7', knife: 'knife', optic: 'iron', muzzle: 'none', mag: 'std', laser: 'off', gadget: 'noisemaker', extraMags: false, armor: false, boots: false, operator: 'viper' },
   init() {
     try { Object.assign(this.settings, JSON.parse(localStorage.getItem('redline_settings') || '{}')); } catch (e) { }
     try { Object.assign(this.loadout, JSON.parse(localStorage.getItem('redline_loadout') || '{}')); } catch (e) { }
     try { this.career = JSON.parse(localStorage.getItem('redline_career') || 'null'); } catch (e) { }
     this.career = this.career || { completed: {}, best: {}, kills: 0, headshots: 0, takedowns: 0, shots: 0, hits: 0, detected: 0, missions: 0, deaths: 0, playtime: 0, ghosts: 0, ratings: {} };
+    const C = this.career; if (C.credits === undefined) C.credits = 2000; C.owned = C.owned || SHOP_DEFAULT_OWNED.slice(); for (const k of SHOP_DEFAULT_OWNED) if (!C.owned.includes(k)) C.owned.push(k); C.earned = C.earned || 0; C.civSaved = C.civSaved || 0; C.civLost = C.civLost || 0; C.slowmo = C.slowmo || 0;
+    if (this.loadout.optic === 'reddot' && !C.owned.includes('reddot')) C.owned.push('reddot');
+    for (const k of ['pistol', 'rifle', 'knife', 'gadget', 'operator']) if (!C.owned.includes(this.loadout[k])) this.loadout[k] = { pistol: 'pistol', rifle: 'ar7', knife: 'knife', gadget: 'noisemaker', operator: 'viper' }[k];
+    if (this.settings.sensPct === undefined) this.settings.sensPct = 48;
     const cv = document.getElementById('gl'); R.init(cv); IN.init(cv); P.init();
     this.applySettings();
     let last = performance.now();
@@ -24,7 +28,10 @@ const G = {
     const s = this.settings; R.shadowsOn = s.shadows; R.scale = s.scale;
     const q = { low: [1024, 220, 40], medium: [2048, 300, 60], high: [2048, 380, 75], ultra: [4096, 480, 100] }[s.quality] || [2048, 380, 75];
     if (R.gl && R.shadowRes !== q[0]) R.makeShadow(q[0]); R.drawDist = q[1]; R.detailDist = q[2];
-    AUD.vol.master = s.master; AUD.vol.music = s.music; AUD.vol.amb = s.amb; AUD.applyVol();
+    AUD.vol.master = s.master; AUD.vol.music = s.music; AUD.vol.amb = s.amb; AUD.vol.sfx = s.sfx ?? 1; AUD.vol.voice = s.voice ?? 1; AUD.applyVol();
+    if (s.drawDist) R.drawDist = s.drawDist; R.post.fx = s.effects === false ? 0 : 1; const sm = { off: 0, '2x': 2, '4x': 4 }[s.aa || '4x']; if (R.gl) R.samples = Math.min(sm, R.gl.getParameter(R.gl.MAX_SAMPLES)); else R.aa = sm;
+    s.sens = Math.pow(2, ((s.sensPct ?? 48) - 48) / 20); IN.binds = s.binds || {}; IN.remap = null;
+    const hud = document.getElementById('hud'); if (hud) { hud.classList.toggle('minimal', s.hud === 'minimal'); hud.classList.toggle('nohud', s.hud === 'off'); hud.classList.toggle('nodet', s.detection === false); hud.classList.toggle('nomm', s.minimap === false); hud.classList.toggle('noprompt', s.prompts === false); }
     const d = { easy: [.65, .55], normal: [1, 1], hard: [1.35, 1.5] }[s.difficulty] || [1, 1]; this.diffMul = d[0]; this.dmgMul = d[1];
   },
   wantsLock() { return this.state === 'play' || this.state === 'intro'; },
@@ -39,6 +46,7 @@ const G = {
     this.disposeWorld();
     const M = MISSIONS.find(m => m.id === id); this.M = M;
     const W = new World(M.size, M.seed); this.W = W;
+    { const pk = operatorPerks(); this.SLOW_DUR = pk.slowDur || 15; this.SLOW_RECHARGE = 40 * (pk.slowRe || 1); }
     this.timers = []; this.wtime = 0; this.slow = { on: false, t: 0, charge: 1, k: 0 }; this.timeScale = 1; R.post.slow = 0;
     this.npcs = []; this.vehicles = []; this.cams = []; this.groups = {}; this.particles = []; this.projectiles = []; this.smokes = []; this.decals = []; this.extras = []; this.hums = [];
     this.plane = null; this.heli = null; this.boat = null; this.chuteDrops = []; this.drops = []; this.extraUpdaters = []; this.exHeli = null; this.fires = []; this.marker = null; this._outF = 0; this.siren = null;
@@ -51,7 +59,7 @@ const G = {
   },
   begin() {
     const M = this.M; this.state = 'intro'; this.time = 0; this.missionTime = 0; this.alarm = 0; this.searchT = 0; this.powerOn = true; this.cineLock = false;
-    this.stats = { kills: 0, headshots: 0, takedowns: 0, shots: 0, hits: 0, detected: false, bodies: 0, alarms: 0, damage: 0, knifeKills: 0, stealthKills: 0, vehicles: 0, startT: performance.now() };
+    this.stats = { slowmo: 0, civKilled: 0, kills: 0, headshots: 0, takedowns: 0, shots: 0, hits: 0, detected: false, bodies: 0, alarms: 0, damage: 0, knifeKills: 0, stealthKills: 0, vehicles: 0, startT: performance.now() };
     this.objectives = M.objectives.map(o => Object.assign({ done: false, failed: false }, o));
     this.radioT = 70 + Math.random() * 30; this.lastEye = 0; this.subs = []; this.notifs = [];
     P.reset(this.loadout); P.applyLook(M); this.env = M.env; this.computeEnv(); this.civTotal = this.npcs.filter(n => n.civ).length; this.camFeedOff = false; this._civReported = false;
@@ -116,7 +124,7 @@ const G = {
     if (this.searchT > 0) { this.searchT -= dt; if (this.searchT <= 0 && !this.npcs.some(n => n.state === 'combat')) { this.alarm = 0; if (this.siren) { this.siren.stop(); this.siren = null; } } }
     if (this.alarm >= 2 && !this.npcs.some(n => !n.dead && n.state === 'combat') && this.searchT <= 0) this.searchT = 50;
     // visibility (light level)
-    this.visT = (this.visT || 0) - dt; if (this.visT <= 0) { this.visT = .15; P.visibility = this.computeVisibility(); }
+    this.visT = (this.visT || 0) - dt; if (this.visT <= 0) { this.visT = .15; P.visibility = this.computeVisibility() * (operatorPerks().vis || 1); }
     // animation (LOD: only nearby / visible characters are re-solved every frame)
     for (const n of this.npcs) { const d = n.distP ?? 0; n.animSkip = (n.animSkip || 0) - 1; if (d > 70 && n.animSkip > 0) continue; n.animSkip = d > 120 ? 6 : d > 70 ? 3 : 0; n.animate(dt * (n.animSkip + 1)); }
     VM.update(dt); P.updateBody(dt);

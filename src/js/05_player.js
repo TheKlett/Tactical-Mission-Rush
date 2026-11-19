@@ -2,11 +2,16 @@
    INPUT + PLAYER — movement, stances, freefall/parachute, weapons,
    inventory, interactions, takedowns, health.
    ===================================================================== */
+const ACTIONS = [['forward', 'MOVE FORWARD', 'KeyW'], ['back', 'MOVE BACK', 'KeyS'], ['left', 'STRAFE LEFT', 'KeyA'], ['right', 'STRAFE RIGHT', 'KeyD'], ['jump', 'JUMP / PARACHUTE', 'Space'], ['sprint', 'SPRINT', 'ShiftLeft'], ['crouch', 'CROUCH', 'ControlLeft'],
+  ['interact', 'INTERACT', 'KeyE'], ['takedown', 'TAKEDOWN / HOSTAGE', 'KeyF'], ['melee', 'MELEE', 'KeyQ'], ['reload', 'RELOAD', 'KeyR'], ['slow', 'SLOW MOTION', 'KeyG'], ['s1', 'SLOT 1 — PISTOL', 'Digit1'], ['s2', 'SLOT 2 — RIFLE', 'Digit2'], ['s3', 'SLOT 3 — KNIFE', 'Digit3'], ['s4', 'SLOT 4 — MISSION', 'Digit4'], ['s5', 'SLOT 5 — EQUIPMENT', 'Digit5'], ['vcam', 'VEHICLE CAMERA', 'KeyC']];
 const IN = {
+  binds: {}, remap: null,
+  buildRemap() { const r = {}; const blocked = new Set(); for (const [id, , def] of ACTIONS) { const b = this.binds[id] || def; r[b] = def; if (b !== def) blocked.add(def); } for (const k of blocked) if (!(k in r)) r[k] = null; this.remap = r; },
+  canon(code) { if (!this.remap) this.buildRemap(); return code in this.remap ? this.remap[code] : code; },
   keys: {}, hits: {}, mdx: 0, mdy: 0, mb: [0, 0, 0], mbHit: [0, 0, 0], mbUp: [0, 0, 0], wheel: 0, locked: false,
   init(cv) {
-    addEventListener('keydown', e => { if (e.repeat) { if (G.state === 'play') e.preventDefault(); return; } this.keys[e.code] = 1; this.hits[e.code] = 1; if (G.state === 'play' && !['F5', 'F11', 'F12'].includes(e.code)) e.preventDefault(); G.onKey && G.onKey(e); });
-    addEventListener('keyup', e => { this.keys[e.code] = 0; });
+    addEventListener('keydown', e => { if (UI.capture) { e.preventDefault(); UI.capture(e.code); return; } if (e.repeat) { if (G.state === 'play') e.preventDefault(); return; } const c = this.canon(e.code); if (c) { this.keys[c] = 1; this.hits[c] = 1; } if (G.state === 'play' && !['F5', 'F11', 'F12'].includes(e.code)) e.preventDefault(); G.onKey && G.onKey(e); });
+    addEventListener('keyup', e => { const c = this.canon(e.code); if (c) this.keys[c] = 0; });
     addEventListener('mousemove', e => { if (this.locked) { this.mdx += e.movementX; this.mdy += e.movementY; } });
     cv.addEventListener('mousedown', e => { this.mb[e.button] = 1; this.mbHit[e.button] = 1; if (!this.locked && G.wantsLock()) this.lock(); });
     addEventListener('mouseup', e => { this.mb[e.button] = 0; this.mbUp[e.button] = 1; });
@@ -52,7 +57,8 @@ const P = {
   reset(cfg) {
     this.buildWeaponMeshes(cfg);
     this.pos = [0, 0, 0]; this.vel = [0, 0, 0]; this.yaw = 0; this.pitch = 0; this.roll = 0; this.onGround = false; this.state = 'ground';
-    this.crouch = 0; this.crouchHeld = false; this.sprinting = false; this.health = 100; this.regenT = 0; this.dead = false;
+    const pk = operatorPerks(); this.maxHealth = pk.hp || 100; this.regenMul = pk.regen || 1;
+    this.crouch = 0; this.crouchHeld = false; this.sprinting = false; this.health = this.maxHealth; this.regenT = 0; this.dead = false;
     this.rifleKey = 'rifle'; this.cfg = cfg;
     this.weps = { pistol: effWeapon(cfg.pistol || 'pistol', cfg), rifle: effWeapon(cfg.rifle || 'ar7', cfg), knife: effWeapon(cfg.knife || 'knife', cfg) };
     this.inv = [{ k: 'pistol' }, { k: 'rifle' }, { k: 'knife' }, null, null];
@@ -85,7 +91,8 @@ const P = {
     this.stun = Math.max(0, (this.stun || 0) - dt);
     if (this.state !== 'dead' && !this.camOverride && !this.takedown && !(this.stun > 0) && !(this.hostage && this.hostage.phase === 'grab')) {
       const sens = S.sens * .0022 * (this.ads > .5 ? .65 : 1);
-      this.yaw -= IN.mdx * sens; this.pitch -= IN.mdy * sens * (S.invert ? -1 : 1);
+      let ax = IN.mdx, ay = IN.mdy; if (S.accel) { const m = 1 + Math.min(1, Math.hypot(ax, ay) / 40) * .9; ax *= m; ay *= m; }
+      this.yaw -= ax * sens; this.pitch -= ay * sens * (S.invert ? -1 : 1);
       this.pitch = clamp(this.pitch, -1.5, 1.5);
       this.swayX = damp(this.swayX, clamp(-IN.mdx * .0006, -.03, .03), 8, dt); this.swayY = damp(this.swayY, clamp(IN.mdy * .0006, -.03, .03), 8, dt);
     }
@@ -97,7 +104,7 @@ const P = {
     if (this.state !== 'dead' && this.state !== 'vehicle') this.updateWeapons(dt);
     if (this.state !== 'dead') this.updateInteract(dt);
     // health regen
-    this.regenT -= dt; if (this.regenT < 0 && this.health < 100 && this.health > 0) this.health = Math.min(100, this.health + 9 * dt);
+    this.regenT -= dt; if (this.regenT < 0 && this.health < this.maxHealth && this.health > 0) this.health = Math.min(this.maxHealth, this.health + 9 * this.regenMul * dt);
     this.land = damp(this.land, 0, 6, dt); this.shake = damp(this.shake, 0, 5, dt);
     this.kickP = damp(this.kickP, 0, 12, dt); this.kickZ = damp(this.kickZ, 0, 14, dt); this.kickR = damp(this.kickR, 0, 10, dt);
     this.slideBack = damp(this.slideBack, 0, 22, dt);
@@ -147,7 +154,7 @@ const P = {
       if (this.stepAcc > stride) {
         this.stepAcc = 0; const surf = water > .05 ? 'water' : W.surfAt(this.pos[0], this.pos[2], this.pos[1]); this.lastSurf = surf;
         const v = this.sprinting ? .5 : this.crouch > .5 ? .1 : .26; AUD.step(surf, null, v);
-        const nr = (this.cfg.boots ? .6 : 1) * (this.sprinting ? 11 : this.crouch > .5 ? 1.6 : 4.5) * (surf === 'water' ? 1.5 : surf === 'metal' || surf === 'wood' ? 1.3 : surf === 'grass' || surf === 'snow' ? .8 : 1);
+        const nr = (this.cfg.boots ? .6 : 1) * (operatorPerks().quiet || 1) * (this.sprinting ? 11 : this.crouch > .5 ? 1.6 : 4.5) * (surf === 'water' ? 1.5 : surf === 'metal' || surf === 'wood' ? 1.3 : surf === 'grass' || surf === 'snow' ? .8 : 1);
         G.noise(this.pos, nr, 'step');
         if (surf === 'water') G.splash([this.pos[0], W.waterY, this.pos[2]], 6);
       }
@@ -316,7 +323,7 @@ const P = {
     if (A.k === 'melee' && !A.hit && A.t > .22) { A.hit = true; G.meleeHit(this.isGun() ? 45 : 150, 2.0, this.weapon === 'knife'); }
     if (A.k === 'stab' && !A.hit && A.t > .18) { A.hit = true; G.meleeHit(110, 2.0, true); }
     if (A.k === 'throw' && !A.fired && A.t > .3) { A.fired = true; G.spawnThrownKnife(); AUD.swoosh(.4, null, 1500, .3); }
-    if (A.k === 'gadget' && !A.fired && A.t > .42) { A.fired = true; const s = this.inv[this.cur]; s.count--; if (s.k === 'medkit') { this.health = Math.min(100, this.health + 70); AUD.mech('pickup'); AUD.swoosh(.3, null, 2000, .4); G.notify('MEDKIT APPLIED +70'); } else { G.throwGadget(s.k); AUD.swoosh(.3, null, 700, .35); } }
+    if (A.k === 'gadget' && !A.fired && A.t > .42) { A.fired = true; const s = this.inv[this.cur]; s.count--; if (s.k === 'medkit') { this.health = Math.min(this.maxHealth, this.health + 70); AUD.mech('pickup'); AUD.swoosh(.3, null, 2000, .4); G.notify('MEDKIT APPLIED +70'); } else { G.throwGadget(s.k); AUD.swoosh(.3, null, 700, .35); } }
     if (A.k === 'interact' && !A.fired && A.t > A.d * A.at) { A.fired = true; A.act && A.act(); }
     if (this.state !== 'ground' && this.state !== 'plane' && this.state !== 'boatride' && this.state !== 'heliride' && this.state !== 'truckride') { this.prompt = ''; this.interactTarget = null; return; }
     if (this.hostage) { this.prompt = this.hostage.phase === 'hold' ? '[F] ELIMINATE   ·   [E] RELEASE' : ''; this.interactTarget = null; return; }

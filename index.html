@@ -27,18 +27,10 @@ h1,h2,h3{font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 .back{margin-left:auto;font-family:var(--m);font-size:12px;letter-spacing:.2em;color:var(--dim);padding:8px 14px;border:1px solid var(--line)}
 .back:hover{color:#fff;border-color:var(--red)}
 /* main menu */
-#main{align-items:center;padding-left:9vw}
-#main .logo{position:absolute;left:9vw;top:13vh}
 .logo .rl{font-size:clamp(54px,8vw,108px);font-weight:800;letter-spacing:.16em;line-height:.9;color:#e8e8e8;text-shadow:0 0 40px rgba(0,0,0,.8)}
 .logo .rl i{color:var(--red);font-style:normal}
 .logo .sub{margin-top:14px;font-size:14px;letter-spacing:.62em;color:var(--dim)}
 .logo .sub b{color:var(--red2);font-weight:600}
-#main nav{margin-top:18vh}
-#main .foot{position:absolute;left:9vw;bottom:5vh;right:5vw;display:flex;justify-content:space-between;font-family:var(--m);font-size:11px;color:#5d6166;letter-spacing:.15em}
-#main .side{position:absolute;right:6vw;top:50%;transform:translateY(-50%);width:330px;padding:22px;font-family:var(--m);font-size:11px;line-height:1.9;color:var(--dim)}
-#main .side h3{font-family:var(--f);color:var(--txt);font-size:13px;margin-bottom:10px}
-#main .side .kv{display:flex;justify-content:space-between;border-bottom:1px dashed rgba(255,255,255,.06)}
-#main .side .kv b{color:#cfd2d4;font-weight:400}
 .redline{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--red),transparent);opacity:.5}
 /* missions */
 #missions,#armory,#settings,#stats{flex-direction:column}
@@ -205,6 +197,71 @@ h1,h2,h3{font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 #slowmo svg{width:44px;height:44px;transform:rotate(-90deg)}#slowmo circle{fill:none;stroke-width:3}#slowmo circle.b{stroke:rgba(255,255,255,.15)}#slowmo circle.p{stroke:#ddd;stroke-dasharray:100;transition:stroke .3s}
 #slowmo b{position:absolute;left:0;width:44px;text-align:center;font-size:15px;color:#fff}#slowmo span{font-size:11px;letter-spacing:.3em;color:#bbb}#slowmo i{font-style:normal;font-size:10px;color:#888;letter-spacing:.15em}
 #slowmo.ready circle.p{stroke:var(--red2)}#slowmo.ready span{color:#fff}#slowmo.active circle.p{stroke:var(--red2);filter:drop-shadow(0 0 4px #e0243a)}#slowmo.active span{color:var(--red2);animation:blink .8s infinite}
+/* ===================== v2 MAIN MENU ===================== */
+#main{display:none;background:linear-gradient(90deg,rgba(6,7,8,.94) 0%,rgba(6,7,8,.55) 28%,rgba(6,7,8,0) 42%,rgba(6,7,8,0) 62%,rgba(6,7,8,.6) 74%,rgba(6,7,8,.94) 100%)}
+#main.on{display:grid;grid-template-columns:minmax(360px,30vw) 1fr minmax(330px,25vw)}
+.mm-left{padding:7vh 0 0 5vw;position:relative;display:flex;flex-direction:column}
+.mm-left .logo{position:static}.logo .sub em{font-style:normal;color:#fff;background:var(--red);padding:1px 7px;margin-left:8px;letter-spacing:.2em;font-size:11px;vertical-align:middle}
+#mainNav{margin-top:6vh;display:flex;flex-direction:column;gap:4px}
+.nbtn{position:relative;display:grid;grid-template-columns:44px 1fr;grid-template-rows:auto auto;align-items:center;text-align:left;padding:13px 18px 12px 14px;width:min(370px,26vw);border-left:2px solid #2c2f32;background:linear-gradient(90deg,rgba(255,255,255,.035),rgba(255,255,255,0));transition:all .22s cubic-bezier(.2,.8,.2,1);overflow:hidden;animation:navin .5s backwards}
+.nbtn:nth-child(1){animation-delay:.05s}.nbtn:nth-child(2){animation-delay:.1s}.nbtn:nth-child(3){animation-delay:.15s}.nbtn:nth-child(4){animation-delay:.2s}.nbtn:nth-child(5){animation-delay:.25s}.nbtn:nth-child(6){animation-delay:.3s}
+@keyframes navin{from{opacity:0;transform:translateX(-30px)}}
+.nbtn .ix{grid-row:1/3;font-family:var(--m);font-size:11px;color:#5a5e62;letter-spacing:.1em}
+.nbtn .nt{font-size:19px;font-weight:700;letter-spacing:.32em;color:#e8eaec}
+.nbtn small{font-family:var(--m);font-size:9.5px;letter-spacing:.22em;color:#6e7276;margin-top:3px}
+.nbtn:before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(179,18,27,.45),rgba(179,18,27,0));transform:translateX(-101%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.nbtn:hover:before{transform:none}.nbtn:hover{border-left-color:var(--red2);padding-left:22px}.nbtn:hover .ix{color:var(--red2)}.nbtn>*{position:relative}
+.nbtn.red{border-left-color:var(--red)}.nbtn.red:before{transform:none;background:linear-gradient(90deg,rgba(179,18,27,.38),rgba(179,18,27,0))}.nbtn.red .ix{color:var(--red2)}
+.nbtn:after{content:'';position:absolute;right:14px;top:50%;width:8px;height:8px;border-top:1.5px solid #fff;border-right:1.5px solid #fff;transform:translateY(-50%) rotate(45deg);opacity:0;transition:all .2s}
+.nbtn:hover:after{opacity:.8;right:10px}
+.mm-foot{margin-top:auto;padding:0 0 4vh;display:flex;gap:30px;font-family:var(--m);font-size:10px;letter-spacing:.2em;color:#4e5256}
+.blinkdot{color:#46c85a;animation:blink 2s infinite}
+.mm-center{position:relative;pointer-events:none}
+.opname{position:absolute;bottom:13vh;left:50%;transform:translateX(-50%);font-size:42px;font-weight:800;letter-spacing:.5em;color:rgba(255,255,255,.92);text-shadow:0 4px 30px #000;white-space:nowrap}
+.oprole{position:absolute;bottom:10vh;left:50%;transform:translateX(-50%);font-family:var(--m);font-size:11px;letter-spacing:.4em;color:var(--red2);white-space:nowrap}
+.mm-reticle{position:absolute;left:50%;top:50%;width:min(36vw,520px);height:min(70vh,640px);transform:translate(-50%,-52%);border:1px solid rgba(255,255,255,.05)}
+.mm-reticle:before,.mm-reticle:after{content:'';position:absolute;width:26px;height:26px;border:2px solid rgba(224,36,58,.6)}.mm-reticle:before{left:-2px;top:-2px;border-right:none;border-bottom:none}.mm-reticle:after{right:-2px;bottom:-2px;border-left:none;border-top:none}
+.mm-right{padding:7vh 3.5vw 0 0;display:flex;flex-direction:column;gap:12px}
+.rpanel{background:linear-gradient(180deg,rgba(24,26,28,.88),rgba(14,15,16,.88));border:1px solid rgba(255,255,255,.07);border-left:2px solid #3a3d40;padding:14px 16px;animation:panin .55s backwards}
+.rpanel:nth-child(2){animation-delay:.1s}.rpanel:nth-child(3){animation-delay:.18s}.rpanel:nth-child(4){animation-delay:.26s}
+@keyframes panin{from{opacity:0;transform:translateX(30px)}}
+.rh{font-family:var(--m);font-size:10px;letter-spacing:.32em;color:#7a7e82;margin-bottom:8px;display:flex;justify-content:space-between}
+.rpanel.credits{border-left-color:var(--red)}.cr{display:flex;align-items:baseline;gap:8px}.cr span{color:var(--red2);font-size:22px}.cr b{font-size:36px;font-weight:700;letter-spacing:.05em;font-variant-numeric:tabular-nums}
+.mmm-name{font-size:18px;font-weight:700;letter-spacing:.2em}.mmm-sub{font-family:var(--m);font-size:10.5px;color:#8a8e92;letter-spacing:.12em;margin-top:3px;line-height:1.6}
+.eqrow{display:flex;justify-content:space-between;font-size:12px;letter-spacing:.12em;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,.06)}.eqrow span{font-family:var(--m);font-size:10px;color:#6e7276}
+.prog{display:flex;gap:6px;margin-top:4px}.prog i{flex:1;height:30px;background:#1e2124;border:1px solid #2c2f32;display:flex;align-items:center;justify-content:center;font-style:normal;font-family:var(--m);font-size:11px;color:#6e7276}.prog i.done{background:rgba(179,18,27,.3);border-color:var(--red);color:#fff}
+.mm-ticker{position:absolute;left:0;right:0;bottom:0;height:24px;background:rgba(0,0,0,.6);border-top:1px solid rgba(255,255,255,.06);overflow:hidden;font-family:var(--m);font-size:10.5px;letter-spacing:.18em;color:#777;line-height:24px;white-space:nowrap}
+#mmTicker{display:inline-block;padding-left:100%;animation:tick 60s linear infinite}@keyframes tick{to{transform:translateX(-100%)}}
+/* ===================== ARMORY / OPERATORS ===================== */
+#armory.on,#operators.on{display:grid}
+#armory{grid-template-columns:minmax(340px,28vw) 1fr minmax(300px,24vw);grid-template-rows:auto 1fr;background:linear-gradient(90deg,rgba(8,9,10,.95) 0,rgba(8,9,10,.6) 30%,rgba(8,9,10,0) 45%,rgba(8,9,10,0) 65%,rgba(8,9,10,.8) 78%)}
+.sh-top{grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:20px 34px;border-bottom:1px solid var(--line);background:rgba(8,9,10,.85)}
+.sh-top h2{font-size:22px}.sh-top .bar{width:4px;height:26px;background:var(--red)}.sh-top .back{margin-left:0}.crd{margin-left:auto;font-size:20px;color:var(--red2)}.crd b{color:#fff;font-variant-numeric:tabular-nums}
+.tabs{display:flex;gap:2px;margin-left:16px}.tabs button{padding:8px 14px;font-family:var(--m);font-size:11px;letter-spacing:.18em;color:#8a8e92;border-bottom:2px solid transparent;transition:all .18s}.tabs button:hover{color:#fff}.tabs button.on{color:#fff;border-bottom-color:var(--red)}
+.ar-list{padding:16px 24px;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.item{padding:12px 14px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.025);cursor:pointer;transition:all .18s;display:grid;grid-template-columns:1fr auto;gap:2px 10px;animation:panin .35s backwards}
+.item:hover{border-color:rgba(224,36,58,.6);background:rgba(179,18,27,.08);transform:translateX(3px)}.item.sel{border-color:var(--red);background:rgba(179,18,27,.16)}
+.item .in{font-size:14px;font-weight:700;letter-spacing:.14em}.item .id{grid-column:1/2;font-family:var(--m);font-size:10.5px;color:#8a8e92}.item .st{grid-row:1/3;grid-column:2;align-self:center;font-family:var(--m);font-size:11px;letter-spacing:.14em;padding:5px 10px;border:1px solid #3a3d40;color:#aaa}
+.item .st.eq{border-color:#46c85a;color:#7fe08f}.item .st.own{color:#ddd}.item .st.buy{border-color:var(--red);color:#fff}.item .st.no{color:#666;border-color:#2a2a2a}
+.ar-detail{position:relative;pointer-events:none;padding:30px}.ar-detail .dn{position:absolute;bottom:40px;left:0;right:0;text-align:center;font-size:26px;font-weight:800;letter-spacing:.3em}.ar-detail .dd{position:absolute;bottom:20px;left:0;right:0;text-align:center;font-family:var(--m);font-size:11px;color:#9a9ea2;letter-spacing:.12em}
+.ar-load{padding:20px 24px;overflow:auto;background:rgba(10,11,12,.7);border-left:1px solid var(--line)}
+.ar-load h4,.ar-list h4{font-size:11px;letter-spacing:.32em;color:var(--dim);margin:10px 0 8px;font-weight:600}
+.lrow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;letter-spacing:.1em}.lrow span{font-family:var(--m);font-size:9.5px;color:#6e7276;letter-spacing:.2em}
+#operators{grid-template-rows:auto 1fr;background:linear-gradient(180deg,rgba(8,9,10,.6),rgba(8,9,10,0) 30%,rgba(8,9,10,0) 60%,rgba(8,9,10,.92))}
+.op-list{align-self:end;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 4vw 5vh}
+.opc{padding:16px;border:1px solid rgba(255,255,255,.08);background:rgba(14,15,16,.85);cursor:pointer;transition:all .2s;animation:panin .4s backwards;position:relative}
+.opc:hover{border-color:rgba(224,36,58,.6);transform:translateY(-4px)}.opc.sel{border-color:var(--red);box-shadow:0 0 0 1px var(--red) inset}
+.opc .on{font-size:22px;font-weight:800;letter-spacing:.3em}.opc .or{font-family:var(--m);font-size:10px;color:var(--red2);letter-spacing:.3em;margin:3px 0 10px}.opc .op{font-size:12px;color:#b8bcc0;line-height:1.5;min-height:36px}.opc .st{margin-top:12px;display:inline-block}
+/* ===================== SETTINGS ===================== */
+#settings .tabs{margin-left:24px}.setrow .hint{font-family:var(--m);font-size:10px;color:#666;margin-left:auto}
+.kb{min-width:130px;padding:6px 12px;border:1px solid var(--grey);font-family:var(--m);font-size:11px;letter-spacing:.14em;color:#ddd}.kb.wait{border-color:var(--red);color:var(--red2);animation:blink .6s infinite}
+/* ===================== RESULTS PAYOUT ===================== */
+.rcols{display:grid;grid-template-columns:1.4fr 1fr;gap:24px}.pay h4{font-size:11px;letter-spacing:.32em;color:var(--dim);border-bottom:1px solid var(--line);padding-bottom:6px;margin:16px 0 10px}
+.prow{display:flex;justify-content:space-between;font-family:var(--m);font-size:11.5px;letter-spacing:.1em;padding:5px 0;color:#bbb;animation:panin .4s backwards}.prow b{color:#fff;font-weight:400}.prow.tot{border-top:1px solid var(--red);margin-top:8px;padding-top:10px;font-size:15px;color:#fff}.prow.tot b{color:var(--red2);font-size:22px;font-family:var(--f);font-weight:700}
+/* HUD toggles */
+#hud.nodet #det,#hud.nomm #mm,#hud.noprompt #prompt,#hud.nohud #det,#hud.nohud #mm,#hud.nohud #objs,#hud.nohud #slots,#hud.nohud #ammo,#hud.nohud #slowmo{display:none}#hud.minimal #objs,#hud.minimal #visBar,#hud.minimal #visLbl{display:none}
+#social{margin:6px 0 0 10px;font-family:var(--m);font-size:9.5px;letter-spacing:.24em;color:#9a9ea2}#social.pub{color:#7fbf8a}#social.res{color:var(--amber)}#social.arm{color:var(--red2)}
+#hpbar{position:absolute;right:30px;bottom:112px;width:150px;height:3px;background:rgba(255,255,255,.12)}#hpbar i{display:block;height:100%;background:#ddd;transition:width .2s}
 
 </style>
 </head>
@@ -215,7 +272,7 @@ h1,h2,h3{font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 
 <!-- ======================= HUD ======================= -->
 <div id="hud">
-  <div id="det"><canvas id="eye" width="120" height="64"></canvas><div id="detLbl">UNDETECTED</div><div id="visBar"><i></i></div><div id="visLbl">EXPOSURE</div></div>
+  <div id="det"><canvas id="eye" width="120" height="64"></canvas><div id="detLbl">UNDETECTED</div><div id="visBar"><i></i></div><div id="visLbl">EXPOSURE</div><div id="social"></div></div>
   <div id="mm"><canvas id="mini" width="220" height="220"></canvas></div>
   <ul id="objs"></ul>
   <div id="notifs"></div>
@@ -227,6 +284,7 @@ h1,h2,h3{font-weight:700;letter-spacing:.18em;text-transform:uppercase}
   <div id="alt"></div>
   <div id="subs"></div>
   <div id="slowmo"><svg viewBox="0 0 44 44"><circle class="b" cx="22" cy="22" r="19"/><circle class="p" cx="22" cy="22" r="19" pathLength="100"/></svg><b>G</b><span>SLOW-MO</span><i></i></div>
+  <div id="hpbar"><i></i></div>
   <div id="ammo"><div class="wn"></div><div class="am"><b></b><span></span></div></div>
   <div id="slots"></div>
   <div id="hurt"></div>
@@ -239,34 +297,41 @@ h1,h2,h3{font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 
 <!-- ======================= MAIN MENU ======================= -->
 <div id="main" class="screen">
-  <div class="logo"><div class="rl">RED<i>/</i>LINE</div><div class="sub">TACTICAL <b>MISSION</b> RUSH</div></div>
-  <nav>
-    <button class="btn red" id="btnDeploy">DEPLOY<small>CONTINUE CAMPAIGN</small></button>
-    <button class="btn" data-go="missions">MISSIONS<small>SELECT AREA OF OPERATIONS</small></button>
-    <button class="btn" data-go="armory">ARMORY<small>CONFIGURE LOADOUT</small></button>
-    <button class="btn" data-go="settings">SETTINGS<small>CONTROLS · AUDIO · GRAPHICS</small></button>
-    <button class="btn" data-go="stats">STATISTICS<small>SERVICE RECORD</small></button>
-  </nav>
-  <div class="side panel"><h3>OPERATOR STATUS</h3>
-    <div class="kv"><span>CALLSIGN</span><b>REDLINE-1</b></div><div class="kv"><span>UNIT</span><b>TASK FORCE ODIN</b></div><div class="kv"><span>CAMPAIGN</span><b id="mCamp">0 / 3</b></div><div class="kv"><span>CLEARANCE</span><b>BLACK</b></div><div class="kv"><span>COMMS</span><b style="color:#46c85a">SECURE</b></div>
-    <p style="margin-top:14px;color:#6a6e72">Three targets. Three theatres. One operator. Choose your approach: silent, or loud.</p>
+  <div class="mm-left">
+    <div class="logo"><div class="rl">RED<i>/</i>LINE</div><div class="sub">TACTICAL <b>MISSION</b> RUSH <em>2.0</em></div></div>
+    <nav id="mainNav">
+      <button class="nbtn red" id="btnDeploy"><span class="ix">01</span><span class="nt">DEPLOY</span><small id="deploySub">CONTINUE CAMPAIGN</small></button>
+      <button class="nbtn" data-go="missions"><span class="ix">02</span><span class="nt">MISSIONS</span><small>SELECT AREA OF OPERATIONS</small></button>
+      <button class="nbtn" data-go="armory"><span class="ix">03</span><span class="nt">ARMORY</span><small>WEAPONS · ATTACHMENTS · GEAR</small></button>
+      <button class="nbtn" data-go="operators"><span class="ix">04</span><span class="nt">OPERATORS</span><small>SELECT YOUR OPERATIVE</small></button>
+      <button class="nbtn" data-go="stats"><span class="ix">05</span><span class="nt">STATISTICS</span><small>SERVICE RECORD</small></button>
+      <button class="nbtn" data-go="settings"><span class="ix">06</span><span class="nt">SETTINGS</span><small>GAMEPLAY · CONTROLS · GRAPHICS · AUDIO</small></button>
+    </nav>
+    <div class="mm-foot"><span>v2.0 · PC · KEYBOARD &amp; MOUSE</span><span class="blinkdot">● SECURE UPLINK</span></div>
   </div>
-  <div class="foot"><span>BUILD 1.0 · PC · KEYBOARD &amp; MOUSE</span><span>HEADPHONES RECOMMENDED</span></div>
+  <div class="mm-center"><div class="opname" id="mmOpName"></div><div class="oprole" id="mmOpRole"></div><div class="mm-reticle"></div></div>
+  <div class="mm-right">
+    <div class="rpanel credits"><div class="rh">FUNDS</div><div class="cr"><span>₵</span><b id="mmCredits">0</b></div><div class="tag" id="mmEarned"></div></div>
+    <div class="rpanel"><div class="rh">NEXT OPERATION</div><div id="mmMission"></div></div>
+    <div class="rpanel"><div class="rh">EQUIPMENT</div><div id="mmEquip"></div></div>
+    <div class="rpanel"><div class="rh">CAMPAIGN PROGRESS</div><div id="mmProgress"></div></div>
+  </div>
+  <div class="mm-ticker"><div id="mmTicker"></div></div>
 </div>
 
 <!-- ======================= MISSIONS ======================= -->
-<div id="missions" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>MISSION SELECT</h2><span class="tag">CAMPAIGN · OPERATION ODIN</span><button class="back" data-go="main">ESC · BACK</button></div><div id="mList"></div></div></div>
+<div id="missions" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>MISSION SELECT</h2><span class="tag">CAMPAIGN · OPERATION ODIN · FIVE THEATRES</span><button class="back" data-go="main">ESC · BACK</button></div><div id="mList"></div></div></div>
 
 <!-- ======================= BRIEFING ======================= -->
 <div id="brief" class="screen">
   <div class="left">
     <div id="bNum"></div><div id="bName"></div><div id="bCode"></div>
-    <div class="bmeta"><span>LOCATION</span><b id="bLoc"></b><span>TIME</span><b id="bTime"></b><span>WEATHER</span><b id="bWeather"></b><span>THREAT</span><b id="bDiff"></b></div>
+    <div class="bmeta"><span>LOCATION</span><b id="bLoc"></b><span>TIME</span><b id="bTime"></b><span>WEATHER</span><b id="bWeather"></b><span>THREAT</span><b id="bDiff"></b><span>PAYMENT</span><b id="bPay"></b></div>
     <div class="sect"><h4>BRIEFING</h4><p id="bText"></p></div>
     <div class="sect"><h4>OBJECTIVES</h4><ul id="bObj"></ul></div>
     <div class="sect"><h4>INTELLIGENCE</h4><ul id="bIntel"></ul></div>
     <div class="sect"><h4>LOADOUT</h4><div id="bLoad"></div></div>
-    <div class="bbtns"><button class="btn" id="bBack">BACK</button><button class="btn red" id="bDeploy">DEPLOY</button></div>
+    <div class="bbtns"><button class="btn" id="bBack">BACK</button><button class="btn" id="bArm">ARMORY</button><button class="btn red" id="bDeploy">DEPLOY</button></div>
   </div>
   <div class="right">
     <canvas id="tmap"></canvas>
@@ -277,25 +342,30 @@ h1,h2,h3{font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 </div>
 
 <!-- ======================= ARMORY ======================= -->
-<div id="armory" class="screen"><div class="wrap panel" style="height:90vh;background:rgba(13,14,15,.25)"><div class="hdr" style="background:rgba(13,14,15,.92)"><div class="bar"></div><h2>ARMORY</h2><span class="tag">PRIMARY · OPTIC · EQUIPMENT</span><button class="back" data-go="main">ESC · BACK</button></div>
-  <div class="armbody">
-    <div class="armcol"><h4>PRIMARY RIFLE</h4><div id="arRifle"></div><h4>OPTIC</h4><div id="arOptic"></div><h4>EQUIPMENT (SLOT 5)</h4><div id="arGadget"></div><h4>AMMUNITION</h4><div id="arMags"></div></div>
-    <div class="armview"><div class="tag">FIXED: P-9 SD SUPPRESSED PISTOL · CK-1 COMBAT KNIFE</div></div>
-    <div class="armcol r"><h4>WEAPON DATA</h4><div id="arStats"></div><h4 style="margin-top:26px">INVENTORY LAYOUT</h4><div class="tag" style="line-height:2">1 · SUPPRESSED PISTOL<br>2 · PRIMARY RIFLE<br>3 · COMBAT KNIFE (THROWABLE)<br>4 · MISSION EQUIPMENT<br>5 · EQUIPMENT / COLLECTED ITEMS</div></div>
-  </div></div></div>
+<div id="armory" class="screen">
+  <div class="sh-top"><div class="bar"></div><h2>ARMORY</h2><div class="tabs" id="arTabs"></div><div class="crd">₵ <b id="arCredits">0</b></div><button class="back" data-go="back2">ESC · BACK</button></div>
+  <div class="ar-list" id="arList"></div>
+  <div class="ar-detail" id="arDetail"></div>
+  <div class="ar-load" id="arLoad"></div>
+</div>
+
+<!-- ======================= OPERATORS ======================= -->
+<div id="operators" class="screen">
+  <div class="sh-top"><div class="bar"></div><h2>OPERATORS</h2><span class="tag">EACH OPERATIVE BRINGS A FIELD PERK</span><div class="crd">₵ <b id="opCredits">0</b></div><button class="back" data-go="main">ESC · BACK</button></div>
+  <div class="op-list" id="opList"></div>
+</div>
 
 <!-- ======================= SETTINGS ======================= -->
-<div id="settings" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>SETTINGS</h2><span class="tag">SAVED AUTOMATICALLY</span><button class="back" data-go="back">ESC · BACK</button></div><div id="setList"></div>
-  <div class="keys"><span><b>W A S D</b>MOVE</span><span><b>MOUSE</b>LOOK</span><span><b>LMB</b>FIRE</span><span><b>RMB</b>AIM / KNIFE THROW STANCE</span><span><b>F</b>SILENT TAKEDOWN</span><span><b>Q</b>MELEE</span><span><b>E</b>INTERACT (HOLD)</span><span><b>R</b>RELOAD</span><span><b>SPACE</b>JUMP / PARACHUTE</span><span><b>SHIFT</b>SPRINT</span><span><b>CTRL</b>CROUCH</span><span><b>1 – 5</b>INVENTORY</span><span><b>C</b>VEHICLE CAMERA</span><span><b>ESC</b>PAUSE</span></div></div></div>
+<div id="settings" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>SETTINGS</h2><div class="tabs" id="setTabs"></div><span class="tag">SAVED AUTOMATICALLY</span><button class="back" data-go="back">ESC · BACK</button></div><div id="setList"></div></div></div>
 
 <!-- ======================= STATISTICS ======================= -->
-<div id="stats" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>SERVICE RECORD</h2><span class="tag">OPERATOR REDLINE-1</span><button class="back" data-go="main">ESC · BACK</button></div><div id="stGrid"></div><div id="stMissions"></div></div></div>
+<div id="stats" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>SERVICE RECORD</h2><span class="tag" id="stOp">OPERATOR</span><button class="back" data-go="main">ESC · BACK</button></div><div id="stGrid"></div><div id="stMissions"></div></div></div>
 
 <!-- ======================= LOADING / PAUSE / RESULTS / FAIL ======================= -->
 <div id="loading" class="screen"><div class="spin"></div><div id="ldText">LOADING</div></div>
 <div id="pause" class="screen"><div class="modal panel"><span class="tag">MISSION TIME <b id="pTime"></b></span><h1>PAUSED</h1><div class="row"><div style="flex:1"><ul id="pObj"></ul></div><div><button class="btn red" id="pResume">RESUME</button><button class="btn" id="pRestart">RESTART MISSION</button><button class="btn" id="pSettings">SETTINGS</button><button class="btn" id="pAbort">ABORT TO MENU</button></div></div></div></div>
 <div id="results" class="screen"><div class="modal panel" style="width:min(880px,94vw)"><div class="rhead"><div id="rRating">A</div><div><span class="tag">MISSION COMPLETE</span><h1 id="rName"></h1><div id="rStatus"></div><div class="tag" style="margin-top:8px">TIME <b id="rTime" style="color:#fff;font-size:15px"></b></div></div></div>
-  <div class="sect"><h4>OBJECTIVES</h4><ul id="rObj"></ul></div><div id="rStats"></div>
+  <div class="rcols"><div><div class="sect"><h4>OBJECTIVES</h4><ul id="rObj"></ul></div><div id="rStats"></div></div><div class="pay"><h4>PAYMENT</h4><div id="rPay"></div></div></div>
   <div class="row"><button class="btn" id="rReplay" style="flex:1">REPLAY MISSION</button><button class="btn red" id="rNext" style="flex:1">CONTINUE</button></div></div></div>
 <div id="fail" class="screen"><div class="modal panel"><span class="tag">OPERATOR DOWN</span><h1>MISSION FAILED</h1><div id="fReason"></div><div class="row"><button class="btn red" id="fRetry" style="flex:1">RETRY</button><button class="btn" id="fAbort" style="flex:1">ABORT TO MENU</button></div></div></div>
 <div id="err"></div>
@@ -1858,6 +1928,7 @@ function appearanceFor(faction, rng, o = {}) {
 }
 /* ======================= BUILD ======================= */
 function buildCharacter(app) {
+  app = Object.assign({ hair: 0x2a1a10, skin: 0xc89670, eyeCol: 0x3a2a1a, tie: 0x7a1010, accent: 0xe8e4dc, vestCol: 0x3a3e2c, topCol: app.shirt ?? 0x4a5038, botCol: app.pants ?? 0x2c2a26 }, app);
   const B = new MB(26000); const bk = app.bulk || 1; const F = !!app.female;
   const skin = app.skin, sk = () => B.col(skin, MAT.SKIN);
   const top = app.top || (app.suit ? 'suit' : app.camo ? 'combat' : 'tshirt');
@@ -2352,6 +2423,17 @@ function buildKnifeVM(B, bone, kind = 'knife') {
   if (kind === 'knife') { B.col(0x5a5e62, MAT.METAL); for (let i = 0; i < 5; i++) B.box(0, .02 + i * .01, -.019, .006, .004, .004); }
   B.pop();
 }
+
+/* ---------------- operators (cosmetic + functional perks) ---------------- */
+const OPERATORS = {
+  viper: { name: 'VIPER', role: 'RECON SPECIALIST', price: 0, perk: 'Balanced kit — no trade-offs', sleeve: 0x4a5038, glove: 0x1c1c1a, app: { top: 'combat', camo: true, topCol: 0x4a5038, botCol: 0x3f4430, head: 'helmet', helmetCol: 0x3a3f2e, vest: 'plate', vestCol: 0x3a3e2c, gloves: true, feet: 'combat', hairStyle: 'buzz', skin: 0xc89670, beard: 'stubble', eyeCol: 0x3a2a1a }, perks: {} },
+  ghost: { name: 'GHOST', role: 'INFILTRATION', price: 2500, perk: 'Footsteps 25% quieter · 15% harder to see', sleeve: 0x1e2024, glove: 0x0e0e0e, app: { top: 'combat', camo: false, topCol: 0x1e2024, botCol: 0x1a1c1e, head: 'balaclava', vest: 'rig', vestCol: 0x18191b, gloves: true, feet: 'combat', skin: 0xe0b896, eyeCol: 0x2a4a6a }, perks: { quiet: .75, vis: .85 } },
+  wolf: { name: 'WOLF', role: 'ASSAULT', price: 3500, perk: '+30 maximum health · faster recovery', sleeve: 0x8a7a5a, glove: 0x3a2a1a, app: { top: 'combat', camo: true, topCol: 0x8a7a5a, botCol: 0x6a5e48, head: 'cap', capCol: 0x5a4a32, vest: 'plate', vestCol: 0x6a5e44, gloves: true, feet: 'combat', hairStyle: 'short', beard: 'full', skin: 0xa87452, bulk: 1.1 }, perks: { hp: 130, regen: 1.5 } },
+  raven: { name: 'RAVEN', role: 'COUNTER-TERROR', price: 4500, perk: 'Slow-motion lasts 5 s longer, recharges 30% faster', sleeve: 0x4a4e54, glove: 0x1a1a1c, app: { female: true, top: 'combat', camo: true, topCol: 0x4a4e54, botCol: 0x3a3e44, head: 'none', hairStyle: 'pony', hair: 0x2a1a10, vest: 'plate', vestCol: 0x2e3238, gloves: true, feet: 'combat', skin: 0xd8b090, eyeCol: 0x3a5a3a }, perks: { slowDur: 20, slowRe: .7 } },
+};
+const SHOP_DEFAULT_OWNED = ['pistol', 'ar7', 'knife', 'iron', 'none', 'std', 'off', 'noisemaker', 'viper'];
+function owns(id) { return G.career.owned.includes(id); }
+function operatorPerks() { const o = OPERATORS[G.loadout.operator] || OPERATORS.viper; return o.perks || {}; }
 
 /* ---- 04_world.js ---- */
 /* =====================================================================
@@ -3028,11 +3110,16 @@ class World {
    INPUT + PLAYER — movement, stances, freefall/parachute, weapons,
    inventory, interactions, takedowns, health.
    ===================================================================== */
+const ACTIONS = [['forward', 'MOVE FORWARD', 'KeyW'], ['back', 'MOVE BACK', 'KeyS'], ['left', 'STRAFE LEFT', 'KeyA'], ['right', 'STRAFE RIGHT', 'KeyD'], ['jump', 'JUMP / PARACHUTE', 'Space'], ['sprint', 'SPRINT', 'ShiftLeft'], ['crouch', 'CROUCH', 'ControlLeft'],
+  ['interact', 'INTERACT', 'KeyE'], ['takedown', 'TAKEDOWN / HOSTAGE', 'KeyF'], ['melee', 'MELEE', 'KeyQ'], ['reload', 'RELOAD', 'KeyR'], ['slow', 'SLOW MOTION', 'KeyG'], ['s1', 'SLOT 1 — PISTOL', 'Digit1'], ['s2', 'SLOT 2 — RIFLE', 'Digit2'], ['s3', 'SLOT 3 — KNIFE', 'Digit3'], ['s4', 'SLOT 4 — MISSION', 'Digit4'], ['s5', 'SLOT 5 — EQUIPMENT', 'Digit5'], ['vcam', 'VEHICLE CAMERA', 'KeyC']];
 const IN = {
+  binds: {}, remap: null,
+  buildRemap() { const r = {}; const blocked = new Set(); for (const [id, , def] of ACTIONS) { const b = this.binds[id] || def; r[b] = def; if (b !== def) blocked.add(def); } for (const k of blocked) if (!(k in r)) r[k] = null; this.remap = r; },
+  canon(code) { if (!this.remap) this.buildRemap(); return code in this.remap ? this.remap[code] : code; },
   keys: {}, hits: {}, mdx: 0, mdy: 0, mb: [0, 0, 0], mbHit: [0, 0, 0], mbUp: [0, 0, 0], wheel: 0, locked: false,
   init(cv) {
-    addEventListener('keydown', e => { if (e.repeat) { if (G.state === 'play') e.preventDefault(); return; } this.keys[e.code] = 1; this.hits[e.code] = 1; if (G.state === 'play' && !['F5', 'F11', 'F12'].includes(e.code)) e.preventDefault(); G.onKey && G.onKey(e); });
-    addEventListener('keyup', e => { this.keys[e.code] = 0; });
+    addEventListener('keydown', e => { if (UI.capture) { e.preventDefault(); UI.capture(e.code); return; } if (e.repeat) { if (G.state === 'play') e.preventDefault(); return; } const c = this.canon(e.code); if (c) { this.keys[c] = 1; this.hits[c] = 1; } if (G.state === 'play' && !['F5', 'F11', 'F12'].includes(e.code)) e.preventDefault(); G.onKey && G.onKey(e); });
+    addEventListener('keyup', e => { const c = this.canon(e.code); if (c) this.keys[c] = 0; });
     addEventListener('mousemove', e => { if (this.locked) { this.mdx += e.movementX; this.mdy += e.movementY; } });
     cv.addEventListener('mousedown', e => { this.mb[e.button] = 1; this.mbHit[e.button] = 1; if (!this.locked && G.wantsLock()) this.lock(); });
     addEventListener('mouseup', e => { this.mb[e.button] = 0; this.mbUp[e.button] = 1; });
@@ -3078,7 +3165,8 @@ const P = {
   reset(cfg) {
     this.buildWeaponMeshes(cfg);
     this.pos = [0, 0, 0]; this.vel = [0, 0, 0]; this.yaw = 0; this.pitch = 0; this.roll = 0; this.onGround = false; this.state = 'ground';
-    this.crouch = 0; this.crouchHeld = false; this.sprinting = false; this.health = 100; this.regenT = 0; this.dead = false;
+    const pk = operatorPerks(); this.maxHealth = pk.hp || 100; this.regenMul = pk.regen || 1;
+    this.crouch = 0; this.crouchHeld = false; this.sprinting = false; this.health = this.maxHealth; this.regenT = 0; this.dead = false;
     this.rifleKey = 'rifle'; this.cfg = cfg;
     this.weps = { pistol: effWeapon(cfg.pistol || 'pistol', cfg), rifle: effWeapon(cfg.rifle || 'ar7', cfg), knife: effWeapon(cfg.knife || 'knife', cfg) };
     this.inv = [{ k: 'pistol' }, { k: 'rifle' }, { k: 'knife' }, null, null];
@@ -3111,7 +3199,8 @@ const P = {
     this.stun = Math.max(0, (this.stun || 0) - dt);
     if (this.state !== 'dead' && !this.camOverride && !this.takedown && !(this.stun > 0) && !(this.hostage && this.hostage.phase === 'grab')) {
       const sens = S.sens * .0022 * (this.ads > .5 ? .65 : 1);
-      this.yaw -= IN.mdx * sens; this.pitch -= IN.mdy * sens * (S.invert ? -1 : 1);
+      let ax = IN.mdx, ay = IN.mdy; if (S.accel) { const m = 1 + Math.min(1, Math.hypot(ax, ay) / 40) * .9; ax *= m; ay *= m; }
+      this.yaw -= ax * sens; this.pitch -= ay * sens * (S.invert ? -1 : 1);
       this.pitch = clamp(this.pitch, -1.5, 1.5);
       this.swayX = damp(this.swayX, clamp(-IN.mdx * .0006, -.03, .03), 8, dt); this.swayY = damp(this.swayY, clamp(IN.mdy * .0006, -.03, .03), 8, dt);
     }
@@ -3123,7 +3212,7 @@ const P = {
     if (this.state !== 'dead' && this.state !== 'vehicle') this.updateWeapons(dt);
     if (this.state !== 'dead') this.updateInteract(dt);
     // health regen
-    this.regenT -= dt; if (this.regenT < 0 && this.health < 100 && this.health > 0) this.health = Math.min(100, this.health + 9 * dt);
+    this.regenT -= dt; if (this.regenT < 0 && this.health < this.maxHealth && this.health > 0) this.health = Math.min(this.maxHealth, this.health + 9 * this.regenMul * dt);
     this.land = damp(this.land, 0, 6, dt); this.shake = damp(this.shake, 0, 5, dt);
     this.kickP = damp(this.kickP, 0, 12, dt); this.kickZ = damp(this.kickZ, 0, 14, dt); this.kickR = damp(this.kickR, 0, 10, dt);
     this.slideBack = damp(this.slideBack, 0, 22, dt);
@@ -3173,7 +3262,7 @@ const P = {
       if (this.stepAcc > stride) {
         this.stepAcc = 0; const surf = water > .05 ? 'water' : W.surfAt(this.pos[0], this.pos[2], this.pos[1]); this.lastSurf = surf;
         const v = this.sprinting ? .5 : this.crouch > .5 ? .1 : .26; AUD.step(surf, null, v);
-        const nr = (this.cfg.boots ? .6 : 1) * (this.sprinting ? 11 : this.crouch > .5 ? 1.6 : 4.5) * (surf === 'water' ? 1.5 : surf === 'metal' || surf === 'wood' ? 1.3 : surf === 'grass' || surf === 'snow' ? .8 : 1);
+        const nr = (this.cfg.boots ? .6 : 1) * (operatorPerks().quiet || 1) * (this.sprinting ? 11 : this.crouch > .5 ? 1.6 : 4.5) * (surf === 'water' ? 1.5 : surf === 'metal' || surf === 'wood' ? 1.3 : surf === 'grass' || surf === 'snow' ? .8 : 1);
         G.noise(this.pos, nr, 'step');
         if (surf === 'water') G.splash([this.pos[0], W.waterY, this.pos[2]], 6);
       }
@@ -3342,7 +3431,7 @@ const P = {
     if (A.k === 'melee' && !A.hit && A.t > .22) { A.hit = true; G.meleeHit(this.isGun() ? 45 : 150, 2.0, this.weapon === 'knife'); }
     if (A.k === 'stab' && !A.hit && A.t > .18) { A.hit = true; G.meleeHit(110, 2.0, true); }
     if (A.k === 'throw' && !A.fired && A.t > .3) { A.fired = true; G.spawnThrownKnife(); AUD.swoosh(.4, null, 1500, .3); }
-    if (A.k === 'gadget' && !A.fired && A.t > .42) { A.fired = true; const s = this.inv[this.cur]; s.count--; if (s.k === 'medkit') { this.health = Math.min(100, this.health + 70); AUD.mech('pickup'); AUD.swoosh(.3, null, 2000, .4); G.notify('MEDKIT APPLIED +70'); } else { G.throwGadget(s.k); AUD.swoosh(.3, null, 700, .35); } }
+    if (A.k === 'gadget' && !A.fired && A.t > .42) { A.fired = true; const s = this.inv[this.cur]; s.count--; if (s.k === 'medkit') { this.health = Math.min(this.maxHealth, this.health + 70); AUD.mech('pickup'); AUD.swoosh(.3, null, 2000, .4); G.notify('MEDKIT APPLIED +70'); } else { G.throwGadget(s.k); AUD.swoosh(.3, null, 700, .35); } }
     if (A.k === 'interact' && !A.fired && A.t > A.d * A.at) { A.fired = true; A.act && A.act(); }
     if (this.state !== 'ground' && this.state !== 'plane' && this.state !== 'boatride' && this.state !== 'heliride' && this.state !== 'truckride') { this.prompt = ''; this.interactTarget = null; return; }
     if (this.hostage) { this.prompt = this.hostage.phase === 'hold' ? '[F] ELIMINATE   ·   [E] RELEASE' : ''; this.interactTarget = null; return; }
@@ -4021,13 +4110,17 @@ class SecCam {
 const G = {
   state: 'menu', time: 0, W: null, M: null, npcs: [], vehicles: [], cams: [], particles: [], vmParticles: [], dlights: [], groups: {}, projectiles: [], smokes: [], decals: [],
   alarm: 0, searchT: 0, powerOn: true, diffMul: 1, dmgMul: 1, cineLock: false, god: false, missionTime: 0, stats: null, objectives: [], subs: [],
-  settings: { sens: 1, fov: 72, invert: false, master: .8, music: .5, amb: .8, quality: 'high', shadows: true, markers: true, subtitles: true, scale: 1, difficulty: 'normal' },
+  settings: { sens: 1, sensPct: 48, accel: false, hud: 'full', detection: true, minimap: true, mmRotate: true, mmZoom: 2.2, prompts: true, effects: true, aa: '4x', drawDist: 380, sfx: 1, voice: 1, fov: 72, invert: false, master: .8, music: .5, amb: .8, quality: 'high', shadows: true, markers: true, subtitles: true, scale: 1, difficulty: 'normal' },
   loadout: { pistol: 'pistol', rifle: 'ar7', knife: 'knife', optic: 'iron', muzzle: 'none', mag: 'std', laser: 'off', gadget: 'noisemaker', extraMags: false, armor: false, boots: false, operator: 'viper' },
   init() {
     try { Object.assign(this.settings, JSON.parse(localStorage.getItem('redline_settings') || '{}')); } catch (e) { }
     try { Object.assign(this.loadout, JSON.parse(localStorage.getItem('redline_loadout') || '{}')); } catch (e) { }
     try { this.career = JSON.parse(localStorage.getItem('redline_career') || 'null'); } catch (e) { }
     this.career = this.career || { completed: {}, best: {}, kills: 0, headshots: 0, takedowns: 0, shots: 0, hits: 0, detected: 0, missions: 0, deaths: 0, playtime: 0, ghosts: 0, ratings: {} };
+    const C = this.career; if (C.credits === undefined) C.credits = 2000; C.owned = C.owned || SHOP_DEFAULT_OWNED.slice(); for (const k of SHOP_DEFAULT_OWNED) if (!C.owned.includes(k)) C.owned.push(k); C.earned = C.earned || 0; C.civSaved = C.civSaved || 0; C.civLost = C.civLost || 0; C.slowmo = C.slowmo || 0;
+    if (this.loadout.optic === 'reddot' && !C.owned.includes('reddot')) C.owned.push('reddot');
+    for (const k of ['pistol', 'rifle', 'knife', 'gadget', 'operator']) if (!C.owned.includes(this.loadout[k])) this.loadout[k] = { pistol: 'pistol', rifle: 'ar7', knife: 'knife', gadget: 'noisemaker', operator: 'viper' }[k];
+    if (this.settings.sensPct === undefined) this.settings.sensPct = 48;
     const cv = document.getElementById('gl'); R.init(cv); IN.init(cv); P.init();
     this.applySettings();
     let last = performance.now();
@@ -4040,7 +4133,10 @@ const G = {
     const s = this.settings; R.shadowsOn = s.shadows; R.scale = s.scale;
     const q = { low: [1024, 220, 40], medium: [2048, 300, 60], high: [2048, 380, 75], ultra: [4096, 480, 100] }[s.quality] || [2048, 380, 75];
     if (R.gl && R.shadowRes !== q[0]) R.makeShadow(q[0]); R.drawDist = q[1]; R.detailDist = q[2];
-    AUD.vol.master = s.master; AUD.vol.music = s.music; AUD.vol.amb = s.amb; AUD.applyVol();
+    AUD.vol.master = s.master; AUD.vol.music = s.music; AUD.vol.amb = s.amb; AUD.vol.sfx = s.sfx ?? 1; AUD.vol.voice = s.voice ?? 1; AUD.applyVol();
+    if (s.drawDist) R.drawDist = s.drawDist; R.post.fx = s.effects === false ? 0 : 1; const sm = { off: 0, '2x': 2, '4x': 4 }[s.aa || '4x']; if (R.gl) R.samples = Math.min(sm, R.gl.getParameter(R.gl.MAX_SAMPLES)); else R.aa = sm;
+    s.sens = Math.pow(2, ((s.sensPct ?? 48) - 48) / 20); IN.binds = s.binds || {}; IN.remap = null;
+    const hud = document.getElementById('hud'); if (hud) { hud.classList.toggle('minimal', s.hud === 'minimal'); hud.classList.toggle('nohud', s.hud === 'off'); hud.classList.toggle('nodet', s.detection === false); hud.classList.toggle('nomm', s.minimap === false); hud.classList.toggle('noprompt', s.prompts === false); }
     const d = { easy: [.65, .55], normal: [1, 1], hard: [1.35, 1.5] }[s.difficulty] || [1, 1]; this.diffMul = d[0]; this.dmgMul = d[1];
   },
   wantsLock() { return this.state === 'play' || this.state === 'intro'; },
@@ -4055,6 +4151,7 @@ const G = {
     this.disposeWorld();
     const M = MISSIONS.find(m => m.id === id); this.M = M;
     const W = new World(M.size, M.seed); this.W = W;
+    { const pk = operatorPerks(); this.SLOW_DUR = pk.slowDur || 15; this.SLOW_RECHARGE = 40 * (pk.slowRe || 1); }
     this.timers = []; this.wtime = 0; this.slow = { on: false, t: 0, charge: 1, k: 0 }; this.timeScale = 1; R.post.slow = 0;
     this.npcs = []; this.vehicles = []; this.cams = []; this.groups = {}; this.particles = []; this.projectiles = []; this.smokes = []; this.decals = []; this.extras = []; this.hums = [];
     this.plane = null; this.heli = null; this.boat = null; this.chuteDrops = []; this.drops = []; this.extraUpdaters = []; this.exHeli = null; this.fires = []; this.marker = null; this._outF = 0; this.siren = null;
@@ -4067,7 +4164,7 @@ const G = {
   },
   begin() {
     const M = this.M; this.state = 'intro'; this.time = 0; this.missionTime = 0; this.alarm = 0; this.searchT = 0; this.powerOn = true; this.cineLock = false;
-    this.stats = { kills: 0, headshots: 0, takedowns: 0, shots: 0, hits: 0, detected: false, bodies: 0, alarms: 0, damage: 0, knifeKills: 0, stealthKills: 0, vehicles: 0, startT: performance.now() };
+    this.stats = { slowmo: 0, civKilled: 0, kills: 0, headshots: 0, takedowns: 0, shots: 0, hits: 0, detected: false, bodies: 0, alarms: 0, damage: 0, knifeKills: 0, stealthKills: 0, vehicles: 0, startT: performance.now() };
     this.objectives = M.objectives.map(o => Object.assign({ done: false, failed: false }, o));
     this.radioT = 70 + Math.random() * 30; this.lastEye = 0; this.subs = []; this.notifs = [];
     P.reset(this.loadout); P.applyLook(M); this.env = M.env; this.computeEnv(); this.civTotal = this.npcs.filter(n => n.civ).length; this.camFeedOff = false; this._civReported = false;
@@ -4132,7 +4229,7 @@ const G = {
     if (this.searchT > 0) { this.searchT -= dt; if (this.searchT <= 0 && !this.npcs.some(n => n.state === 'combat')) { this.alarm = 0; if (this.siren) { this.siren.stop(); this.siren = null; } } }
     if (this.alarm >= 2 && !this.npcs.some(n => !n.dead && n.state === 'combat') && this.searchT <= 0) this.searchT = 50;
     // visibility (light level)
-    this.visT = (this.visT || 0) - dt; if (this.visT <= 0) { this.visT = .15; P.visibility = this.computeVisibility(); }
+    this.visT = (this.visT || 0) - dt; if (this.visT <= 0) { this.visT = .15; P.visibility = this.computeVisibility() * (operatorPerks().vis || 1); }
     // animation (LOD: only nearby / visible characters are re-solved every frame)
     for (const n of this.npcs) { const d = n.distP ?? 0; n.animSkip = (n.animSkip || 0) - 1; if (d > 70 && n.animSkip > 0) continue; n.animSkip = d > 120 ? 6 : d > 70 ? 3 : 0; n.animate(dt * (n.animSkip + 1)); }
     VM.update(dt); P.updateBody(dt);
@@ -5042,9 +5139,18 @@ Object.assign(G, {
     const status = ghost ? 'GHOST — UNDETECTED' : !s.detected ? 'SHADOW — NEVER SPOTTED' : s.alarms ? 'COMPROMISED — ALARM RAISED' : 'DETECTED';
     const C = this.career; C.missions++; C.kills += s.kills; C.headshots += s.headshots; C.takedowns += s.takedowns; C.shots += s.shots; C.hits += s.hits; if (s.detected) C.detected++; if (ghost) C.ghosts++;
     C.playtime += time; C.completed[M.id] = (C.completed[M.id] || 0) + 1; if (!C.best[M.id] || time < C.best[M.id]) C.best[M.id] = time;
-    const ord = 'SABCD'; if (!C.ratings[M.id] || ord.indexOf(rating) < ord.indexOf(C.ratings[M.id])) C.ratings[M.id] = rating; this.saveCareer();
+    const ord = 'SABCD'; if (!C.ratings[M.id] || ord.indexOf(rating) < ord.indexOf(C.ratings[M.id])) C.ratings[M.id] = rating;
+    // ---- payout ----
+    const base = M.reward || ({ m1: 5000, m2: 7000, m3: 8500 })[M.id] || 6000; const lines = [['MISSION COMPLETE', base]];
+    const tb = Math.round(base * .25 * clamp((M.parTime * 1.25 - time) / M.parTime, 0, 1) / 50) * 50; if (tb) lines.push(['TIME BONUS', tb]);
+    if (!s.detected) lines.push(['UNDETECTED BONUS', Math.round(base * .2)]); if (ghost) lines.push(['GHOST BONUS', Math.round(base * .1)]);
+    if (optDone) lines.push(['OPTIONAL OBJECTIVES ×' + optDone, Math.round(base * .08 * optDone)]);
+    lines.push(['RATING ' + rating, Math.round(base * ({ S: .15, A: .1, B: .05, C: 0, D: 0 })[rating])]);
+    let sub = lines.reduce((a, l) => a + l[1], 0); const civT = this.civTotal || 0, civK = s.civKilled || 0;
+    let mult = 1; if (civT) { mult = 1 - .5 * clamp(civK / civT, 0, 1); lines.push(['CIVILIANS ' + (civT - civK) + '/' + civT + ' ALIVE', mult < 1 ? '×' + mult.toFixed(2) : '×1.00']); }
+    const pay = Math.round(sub * mult / 10) * 10; C.credits += pay; C.earned += pay; C.civSaved += civT - civK; C.civLost += civK; C.slowmo += s.slowmo || 0; this.saveCareer();
     AUD.stopAllLoops(); this.noPauseOnUnlock = false;
-    UI.results({ M, s, time, rating, status, acc, objectives: this.objectives, ghost });
+    UI.results({ M, s, time, rating, status, acc, objectives: this.objectives, ghost, pay, lines, civT, civK, credits: C.credits });
   },
 });
 
@@ -6180,7 +6286,7 @@ const UI = {
       $('bText').textContent = M.briefing;
       $('bObj').innerHTML = M.objectives.filter(o => o.type !== 'hidden').map(o => '<li class="' + o.type + '"><span>' + (o.type === 'primary' ? 'PRIMARY' : 'OPTIONAL') + '</span>' + o.text + '</li>').join('');
       $('bIntel').innerHTML = M.intel.map(t => '<li>' + t + '</li>').join('');
-      const L = G.loadout; $('bLoad').textContent = [WEAPONS[L.pistol].name, WEAPONS[L.rifle].name + ' (' + ATTACH.optics[L.optic].name + (L.muzzle === 'sup' ? ', SUPPRESSED' : '') + ')', WEAPONS[L.knife].name, GEAR[L.gadget].name].join(' · ');
+      this.openBriefingRefresh(); $('bPay').textContent = '₵ ' + (M.reward || ({ m1: 5000, m2: 7000, m3: 8500 })[M.id]).toLocaleString('en-US') + (M.civPayout ? ' · REDUCED BY CIVILIAN CASUALTIES' : '');
       this.makeTacMap(); this.tm.zoom = .5; this.tm.tz = 1; this.tm.rot = -.6; this.tm.tr = 0; this.tm.px = this.tm.tpx = 0; this.tm.py = this.tm.tpy = 0;
       this.show('brief');
     });
@@ -6402,17 +6508,246 @@ const UI = {
   drawMini() {
     const c = this.miniC, W = G.W, sz = 220; if (!G.minimap) return; c.clearRect(0, 0, sz, sz);
     c.fillStyle = 'rgba(12,13,14,.72)'; c.fillRect(0, 0, sz, sz);
-    const sc = G.minimapScale, zoom = 2.2; const pp = P.state === 'vehicle' && P.vehicle ? P.vehicle.pos : P.pos; const yaw = P.state === 'vehicle' && P.vehicle ? P.vehicle.yaw + P.yaw : P.state === 'plane' && G.plane ? P.yaw + G.plane.yaw : P.state === 'chute' ? P.chuteYaw : P.yaw;
+    const sc = G.minimapScale, zoom = G.settings.mmZoom || 2.2; const pp = P.state === 'vehicle' && P.vehicle ? P.vehicle.pos : P.pos; const yaw = P.state === 'vehicle' && P.vehicle ? P.vehicle.yaw + P.yaw : P.state === 'plane' && G.plane ? P.yaw + G.plane.yaw : P.state === 'chute' ? P.chuteYaw : P.yaw;
     const wp = P.state === 'plane' && G.plane ? M4.pos(G.plane.m) : pp;
-    c.save(); c.translate(sz / 2, sz / 2 + 30); c.rotate(yaw); c.scale(zoom / sc, zoom / sc);
+    const rot = G.settings.mmRotate !== false; c.save(); c.translate(sz / 2, sz / 2 + (rot ? 30 : 0)); if (rot) c.rotate(yaw); c.scale(zoom / sc, zoom / sc);
     c.drawImage(G.minimap, -(wp[0] + W.half) * sc, -(wp[2] + W.half) * sc);
     c.fillStyle = '#fff'; for (const n of G.npcs) { if (n.dead) continue; const dx = (n.pos[0] - wp[0]) * sc, dz = (n.pos[2] - wp[2]) * sc; if (Math.abs(dx) > 160 * sc / zoom || Math.abs(dz) > 160 * sc / zoom) continue; c.beginPath(); c.arc(dx, dz, 2.6 * sc / zoom, 0, TAU); c.fill(); }
     c.restore();
-    c.save(); c.translate(sz / 2, sz / 2 + 30); const cg = c.createRadialGradient(0, 0, 0, 0, 0, 60); cg.addColorStop(0, 'rgba(70,200,90,.28)'); cg.addColorStop(1, 'rgba(70,200,90,0)'); c.fillStyle = cg; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 60, -Math.PI / 2 - .55, -Math.PI / 2 + .55); c.closePath(); c.fill();
+    c.save(); c.translate(sz / 2, sz / 2 + (rot ? 30 : 0)); if (!rot) c.rotate(-yaw); const cg = c.createRadialGradient(0, 0, 0, 0, 0, 60); cg.addColorStop(0, 'rgba(70,200,90,.28)'); cg.addColorStop(1, 'rgba(70,200,90,0)'); c.fillStyle = cg; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 60, -Math.PI / 2 - .55, -Math.PI / 2 + .55); c.closePath(); c.fill();
     c.fillStyle = '#46c85a'; c.shadowColor = '#46c85a'; c.shadowBlur = 8; c.beginPath(); c.arc(0, 0, 4.2, 0, TAU); c.fill(); c.restore();
     c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 1; c.strokeRect(.5, .5, sz - 1, sz - 1);
   },
 };
+
+/* ---- 12b_menu.js ---- */
+/* =====================================================================
+   MENU v2 — 3D operator showcase main menu, armory shop & loadout,
+   operators, tabbed settings with key rebinding, payouts.
+   ===================================================================== */
+(function () {
+  const baseInit = UI.init, baseShow = UI.show, baseHud = UI.hudFrame, baseGo = UI.go;
+  const fmt = n => (Math.round(n) + '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const TICK = ['INTERPOL: MERIDIAN CREW LINKED TO PORT VASKO ARMS PIPELINE', 'CASH TRANSFER FLAGGED — VALMONT HOLDINGS, LUXEMBOURG', 'STATION 9 UPLINK OFFLINE — CAUSE UNKNOWN', 'CARTEL AIR BRIDGE GROUNDED AFTER LEADERSHIP LOSS', 'VANGUARD RISK SOLUTIONS DENIES INVOLVEMENT IN HARBOR INCIDENT', 'TASK FORCE ODIN — CLEARANCE BLACK — EYES ONLY'];
+  Object.assign(UI, {
+    init() {
+      baseInit.call(this); this.buildOperators();
+      document.querySelectorAll('.nbtn').forEach(b => b.addEventListener('mouseenter', () => AUD.ready && AUD.uiHover()));
+      $('bArm').onclick = () => { AUD.uiClick(); this.armoryFrom = 'brief'; this.go('armory'); };
+      $('mmTicker').textContent = TICK.join('   ///   ');
+      this.go('main');
+    },
+    show(id) { baseShow.call(this, id); const three = id === 'main' || id === 'armory' || id === 'operators'; $('bg').style.opacity = three ? 0 : $('bg').style.opacity; $('vign').style.opacity = three ? .6 : 1; if (id === 'main') this.renderMain(); },
+    go(id) {
+      if (id === 'back2') { const f = this.armoryFrom; this.armoryFrom = null; if (f === 'brief') { if (G.W) { G.state = 'briefing'; this.openBriefingRefresh(); return; } } return this.go('main'); }
+      if (id === 'operators') this.renderOperators();
+      if (id === 'armory' && G.state === 'briefing') { this.armoryFrom = 'brief'; G.state = 'menu'; this._briefKeep = true; }
+      baseGo.call(this, id);
+    },
+    openBriefingRefresh() { const L = G.loadout; $('bLoad').textContent = [WEAPONS[L.pistol].name, WEAPONS[L.rifle].name + ' (' + ATTACH.optics[L.optic].name + (L.muzzle === 'sup' ? ', SUPPRESSED' : '') + ')', WEAPONS[L.knife].name, GEAR[L.gadget].name, OPERATORS[L.operator].name].join(' · '); this.show('brief'); },
+    /* ---------------- main menu ---------------- */
+    renderMain() {
+      const C = G.career, L = G.loadout; $('mmCredits').textContent = fmt(C.credits); $('mmEarned').textContent = 'LIFETIME EARNINGS ₵ ' + fmt(C.earned || 0);
+      const next = MISSIONS.find(m => !C.completed[m.id]) || MISSIONS[MISSIONS.length - 1]; this.nextMission = next;
+      $('deploySub').textContent = 'NEXT: ' + next.num + ' — ' + next.name;
+      $('mmMission').innerHTML = `<div class="mmm-name">${next.num} · ${next.name}</div><div class="mmm-sub">${next.code}<br>${next.location}<br>${next.time} · THREAT ${'■'.repeat(next.difficulty)}${'□'.repeat(5 - next.difficulty)}<br>PAYMENT ₵ ${fmt(next.reward || ({ m1: 5000, m2: 7000, m3: 8500 })[next.id])}${C.ratings[next.id] ? ' · BEST ' + C.ratings[next.id] : ''}</div>`;
+      const eq = (k, v) => `<div class="eqrow"><span>${k}</span>${v}</div>`;
+      $('mmEquip').innerHTML = eq('PRIMARY', WEAPONS[L.rifle].name) + eq('OPTIC', ATTACH.optics[L.optic].name + (L.muzzle === 'sup' ? ' · SUP' : '')) + eq('SIDEARM', WEAPONS[L.pistol].name) + eq('KNIFE', WEAPONS[L.knife].name) + eq('EQUIPMENT', GEAR[L.gadget].name) + eq('UPGRADES', [L.armor && 'ARMOUR', L.boots && 'BOOTS', L.extraMags && 'MAGS'].filter(Boolean).join(' · ') || '—');
+      $('mmProgress').innerHTML = `<div class="prog">${MISSIONS.map(m => `<i class="${C.completed[m.id] ? 'done' : ''}">${m.num}${C.ratings[m.id] ? ' ' + C.ratings[m.id] : ''}</i>`).join('')}</div><div class="tag" style="margin-top:8px">${MISSIONS.filter(m => C.completed[m.id]).length} / ${MISSIONS.length} OPERATIONS COMPLETE</div>`;
+      const op = OPERATORS[L.operator]; $('mmOpName').textContent = op.name; $('mmOpRole').textContent = op.role + ' · ' + op.perk.toUpperCase();
+    },
+    menuChar(opId) {
+      this.mchars = this.mchars || {};
+      if (!this.mchars[opId]) { const op = OPERATORS[opId]; const app = Object.assign({ holster: true, radio: true, kneepads: true }, op.app); this.mchars[opId] = new Rig(buildCharacter(app)); }
+      return this.mchars[opId];
+    },
+    menuScene() {
+      if (this.ms) return this.ms;
+      const B = new MB(60000); B.col(0x1c1d1e, MAT.CONC).box(0, -.1, 0, 30, .2, 30); B.col(0x0d0d0e, MAT.CONC).cyl(0, 0, 0, 2.2, 2.2, .04, 40); B.col(0x8a1010, MAT.EMIT).torus(0, .045, 0, 2.2, .012, 48, 3);
+      B.col(0x2a1010, MAT.EMIT); for (let i = -6; i <= 6; i++) { B.box(i * 1.5, .002, 0, .01, .004, 18); B.box(0, .002, i * 1.5, 18, .004, .01); }
+      B.col(0x3a3e40, MAT.CORR).box(0, 4, -6, 18, 8, .2); for (let x = -8; x <= 8; x += 2) B.col(0x26282a, MAT.METAL).box(x, 4, -5.85, .2, 8, .2);
+      B.col(0x2a2c2e, MAT.METAL).box(0, 6.5, -5.8, 18, .3, .4); B.col(0x8a1010, MAT.EMIT).box(0, 5.2, -5.84, 6, .05, .02);
+      for (const [x, z, s] of [[-3.2, -3.2, 1.1], [-4.4, -2.4, .9], [-3.4, -1.9, .8], [3.6, -3, 1.2], [4.6, -1.6, .9]]) { B.col(0x3a3e30, MAT.CANVAS).box(x, s / 2, z, s, s, s); B.col(0x22251c, MAT.CANVAS).box(x, s / 2, z + s / 2, s * 1.01, .1, .02); }
+      B.col(0x1a1a1a, MAT.METAL).box(3.2, 1.1, -5.3, 2.4, 2.2, .3); for (let i = 0; i < 4; i++) { B.push().t(2.4 + i * .5, 1.2, -5.1).rx(-Math.PI / 2 + .1).rz(Math.PI / 2); buildNpcWeapon(B, i % 2 ? 'rifle' : 'ak'); B.pop(); }
+      B.col(0x111111, MAT.METAL).cyl(-1.5, 5.5, -1, .02, .02, 3, 4).cyl(-1.5, 5.4, -1, .3, .1, .2, 10); B.col(0xfff2d0, MAT.EMIT).cyl(-1.5, 5.39, -1, .26, .26, .01, 10);
+      const mesh = B.mesh(); const rb = new MB(8000); buildRifleVM(rb, G.loadout.rifle, G.loadout.optic, G.loadout.muzzle);
+      this.ms = { mesh, m: M4.create(), rifle: rb.mesh(), rkey: G.loadout.rifle + G.loadout.optic + G.loadout.muzzle, wb: new Float32Array(VB.N * 16), t: 0, aim: 0, pose: 0 };
+      return this.ms;
+    },
+    renderMenu3D(dt) {
+      const S = this.menuScene(); S.t += dt; const L = G.loadout; const t = S.t;
+      const key = L.rifle + L.optic + L.muzzle; if (S.rkey !== key) { S.rkey = key; S.rifle.dispose(); const rb = new MB(8000); buildRifleVM(rb, L.rifle, L.optic, L.muzzle); S.rifle = rb.mesh(); }
+      const rig = this.menuChar(L.operator); const j = P_();
+      const cyc = (t % 14); S.aim = damp(S.aim, cyc > 9 && cyc < 11.5 ? 1 : 0, 4, dt);
+      poseIdle(j, t, cyc > 5 && cyc < 8 ? 'look' : 'idle', 1); pj(j, SK.THL, 0, .12, -.08); pj(j, SK.THR, 0, -.12, .08);
+      rig.tj.set(j); rig.tpy = 0; rig.blend(6, dt); M4.ident(rig.root); M4.rotY(rig.root, rig.root, Math.PI - .35 + Math.sin(t * .2) * .05);
+      const wm = M4.create(); const a = S.aim;
+      M4.translate(wm, wm, lerp(.07, .1, a), lerp(.1, .32, a), lerp(-.24, -.2, a)); M4.rotY(wm, wm, lerp(.5, -.3, a)); M4.rotX(wm, wm, lerp(-.62, 0, a));
+      rig.solve({ m: wm, gr: [0, -.045, .03], gl: [0, .012, -.31] }, false);
+      for (let i = 0; i < VB.N; i++) S.wb.set(rig.mats[SK.WPN], i * 16);
+      const camT = [0, .98, 0], cyaw = Math.sin(t * .11) * .22 + (this.screen === 'operators' ? .25 : 0), cd = this.screen === 'operators' ? 4.2 : 3.9;
+      const eye = [Math.sin(cyaw) * cd + .2, 1.35 + Math.sin(t * .17) * .06, Math.cos(cyaw) * cd];
+      const view = M4.lookAt(M4.create(), eye, camT, [0, 1, 0]);
+      const env = { sunDir: V.norm([-.5, .7, .6]), sunCol: [1.6, 1.45, 1.25], sky: [.05, .055, .065], gnd: [.02, .015, .015], fog: [.012, .012, .014], fogD: .06, fogH: 0, expo: 1.25, zen: [.01, .01, .012], hor: [.02, .015, .015], night: 0, cloud: 0, skyFog: 1 };
+      const parts = []; for (let i = 0; i < 40; i++) { const k = (i * 7.31 + t * .05) % 1; parts.push({ p: [Math.sin(i * 3.1) * 3, k * 5, -1.5 + Math.cos(i * 1.7) * 2], s: .015, c: [1, .9, .8], a: .35 * Math.sin(k * Math.PI), add: true }); }
+      const Sc = { chunks: [], dyn: [{ mesh: S.mesh, m: S.m }, { mesh: rig.mesh, bones: rig.bones }, { mesh: S.rifle, bones: S.wb }], env, lights: [{ pos: [-2.5, 3.5, 2.5], col: [1, .95, .85], i: 3.5, range: 9, dir: V.norm([.5, -.7, -.5]), cone: .8 }, { pos: [1.5, 2.2, -2.5], col: [1, .12, .1], i: 4, range: 7 }, { pos: [2.5, 1.5, 2], col: [.35, .45, .7], i: 1.4, range: 7 }, { pos: [-1.5, 5.2, -1], col: [1, .9, .7], i: 1.5, range: 6, dir: [0, -1, 0], cone: .5 }], particles: parts, time: t, shadowExt: 6 };
+      R.post.slow = 0; R.post.hurt = 0; R.render(Sc, { pos: eye, view, fov: 36 * DEG, fwd: V.norm(V.sub(camT, eye)), right: [1, 0, 0], up: [0, 1, 0], near: .05, far: 60 });
+    },
+    menuFrame(dt) {
+      if (this.screen === 'main' || this.screen === 'operators') return this.renderMenu3D(dt);
+      if (this.screen === 'armory') { const it = this.arSel; if (it && (it.cat === 'upgrades')) return this.renderMenu3D(dt); return this.armoryPreview(dt); }
+      const c = this.bgc, cv = this.bg; if (cv.width !== innerWidth || cv.height !== innerHeight) { cv.width = innerWidth; cv.height = innerHeight; }
+      const w = cv.width, h = cv.height, t = performance.now() / 1000;
+      c.fillStyle = '#0c0d0e'; c.fillRect(0, 0, w, h); c.lineWidth = 1; const cs = 30;
+      for (let lvl = 0; lvl < 7; lvl++) { c.strokeStyle = lvl % 3 === 0 ? 'rgba(150,150,150,.14)' : 'rgba(110,110,110,.06)'; c.beginPath(); const th = .25 + lvl * .07;
+        for (let y = 0; y < h + cs; y += cs) for (let x = 0; x < w + cs; x += cs) { const f = (px, py) => fbm(px * .003 + t * .01, py * .003, 3); const a = f(x, y), b = f(x + cs, y), d = f(x, y + cs); if ((a - th) * (b - th) < 0) { const k = (th - a) / (b - a); c.moveTo(x + k * cs, y); c.lineTo(x + k * cs + 2, y + 2); } if ((a - th) * (d - th) < 0) { const k = (th - a) / (d - a); c.moveTo(x, y + k * cs); c.lineTo(x + 2, y + k * cs + 2); } }
+        c.stroke(); }
+      const sy = (t * 90) % (h + 200) - 100; const g = c.createLinearGradient(0, sy - 80, 0, sy); g.addColorStop(0, 'rgba(179,18,27,0)'); g.addColorStop(1, 'rgba(179,18,27,.07)'); c.fillStyle = g; c.fillRect(0, sy - 80, w, 80);
+      const vg = c.createRadialGradient(w / 2, h / 2, h * .3, w / 2, h / 2, h * .9); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.75)'); c.fillStyle = vg; c.fillRect(0, 0, w, h);
+    },
+    /* ---------------- armory shop ---------------- */
+    buildArmory() {
+      this.arTab = 'rifles';
+      const tabs = [['pistols', 'PISTOLS'], ['rifles', 'RIFLES'], ['optics', 'OPTICS'], ['attach', 'ATTACHMENTS'], ['knives', 'KNIVES'], ['gear', 'EQUIPMENT'], ['upgrades', 'UPGRADES']];
+      $('arTabs').innerHTML = tabs.map(([k, n]) => `<button data-t="${k}">${n}</button>`).join('');
+      $('arTabs').querySelectorAll('button').forEach(b => b.onclick = () => { AUD.uiClick(); this.arTab = b.dataset.t; this.arSel = null; this.renderArmory(); });
+    },
+    arItems() {
+      const L = G.loadout; const T = this.arTab; const out = [];
+      const W = type => Object.entries(WEAPONS).filter(([, w]) => w.type === type);
+      if (T === 'pistols') for (const [id, w] of W('pistol')) out.push({ id, own: id, name: w.name, desc: w.desc, price: w.price, eq: L.pistol === id, equip: () => L.pistol = id, w });
+      if (T === 'rifles') for (const [id, w] of W('rifle')) out.push({ id, own: id, name: w.name, desc: w.desc, price: w.price, eq: L.rifle === id, equip: () => L.rifle = id, w });
+      if (T === 'knives') for (const [id, w] of W('knife')) out.push({ id, own: id, name: w.name, desc: w.desc, price: w.price, eq: L.knife === id, equip: () => L.knife = id, w });
+      if (T === 'optics') for (const [id, o] of Object.entries(ATTACH.optics)) out.push({ id, own: id, name: o.name, desc: o.desc, price: o.price, eq: L.optic === id, equip: () => L.optic = id });
+      if (T === 'attach') { for (const [k, grp, own] of [['muzzle', ATTACH.muzzle, 'sup'], ['mag', ATTACH.mag, 'ext'], ['laser', ATTACH.laser, 'on']]) for (const [id, o] of Object.entries(grp)) out.push({ id: k + '_' + id, own: id === own ? k + '_' + id : id, name: o.name, desc: o.desc || '—', price: o.price, eq: L[k] === id, equip: () => L[k] = id }); }
+      if (T === 'gear') for (const [id, o] of Object.entries(GEAR)) out.push({ id, own: id, name: o.name, desc: o.desc, price: o.price, eq: L.gadget === id, equip: () => L.gadget = id, item: id });
+      if (T === 'upgrades') for (const [id, o] of Object.entries(UPGRADES)) out.push({ id, own: id, name: o.name, desc: o.desc, price: o.price, eq: !!L[id], equip: () => L[id] = !L[id], toggle: true });
+      for (const it of out) it.cat = T === 'attach' ? 'attach' : T;
+      return out;
+    },
+    renderArmory() {
+      $('arTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === this.arTab));
+      $('arCredits').textContent = fmt(G.career.credits);
+      const items = this.arItems(); if (!this.arSel || !items.find(i => i.id === this.arSel.id)) this.arSel = items.find(i => i.eq) || items[0];
+      $('arList').innerHTML = items.map((it, k) => { const owned = owns(it.own); const st = it.eq ? (it.toggle ? 'ACTIVE' : 'EQUIPPED') : owned ? (it.toggle ? 'OWNED · OFF' : 'OWNED') : '₵ ' + fmt(it.price); const cls = it.eq ? 'eq' : owned ? 'own' : G.career.credits >= it.price ? 'buy' : 'no';
+        return `<div class="item ${this.arSel && this.arSel.id === it.id ? 'sel' : ''}" data-k="${k}" style="animation-delay:${k * .04}s"><div class="in">${it.name}</div><div class="id">${it.desc}</div><div class="st ${cls}">${st}</div></div>`; }).join('');
+      $('arList').querySelectorAll('.item').forEach(el => { el.onclick = () => this.armoryClick(items[+el.dataset.k]); el.onmouseenter = () => { AUD.ready && AUD.uiHover(); this.arSel = items[+el.dataset.k]; this.renderArmoryDetail(); }; });
+      this.renderArmoryDetail(); this.renderLoadout();
+    },
+    armoryClick(it) {
+      AUD.init(); const C = G.career;
+      if (!owns(it.own)) { if (C.credits < it.price) { AUD.beep(220, .15, .25); this.flash($('arCredits')); return; } C.credits -= it.price; C.owned.push(it.own); G.saveCareer(); AUD.beep(1200, .06, .2); AUD.beep(1800, .08, .15); }
+      else AUD.uiClick();
+      it.equip(); G.saveSettings(); this.arSel = it; this.renderArmory();
+    },
+    flash(el) { el.parentElement.animate([{ color: '#ff3040' }, { color: '' }], { duration: 600 }); },
+    renderArmoryDetail() {
+      const it = this.arSel; if (!it) return; const w = it.w;
+      const bar = (n, v) => `<div class="stat"><span>${n}</span><i style="--v:${clamp(v, 0, 1)}"></i></div>`;
+      let st = ''; if (w && w.type !== 'knife') st = bar('DAMAGE', w.dmg / 90) + bar('FIRE RATE', w.rpm / 950) + bar('CAPACITY', w.mag / 30) + bar('CONTROL', 1 - w.recoil / .065) + bar('STEALTH', 1 - w.noise / 170);
+      else if (w) st = bar('SLASH', w.dmg / 180) + bar('THROW', w.throwDmg / 160) + bar('SPEED', 1 - (w.swing - .3) / .3) + bar('TAKEDOWN', 1 - (w.td - 1.2) / .7);
+      $('arDetail').innerHTML = `<div class="dn">${it.name}</div><div class="dd">${it.desc}${it.price ? ' · ₵ ' + fmt(it.price) : ' · STANDARD ISSUE'}</div><div style="position:absolute;right:30px;top:30px;width:260px">${st}</div>`;
+      this.previewKey = null;
+    },
+    renderLoadout() {
+      const L = G.loadout; const P2 = effWeapon(L.pistol, L), R2 = effWeapon(L.rifle, L); const r = (k, v) => `<div class="lrow"><span>${k}</span>${v}</div>`;
+      $('arLoad').innerHTML = '<h4>CURRENT LOADOUT</h4>' + r('OPERATOR', OPERATORS[L.operator].name) + r('PRIMARY', R2.name) + r('OPTIC', ATTACH.optics[L.optic].name) + r('MUZZLE', ATTACH.muzzle[L.muzzle].name) + r('MAGAZINES', ATTACH.mag[L.mag].name) + r('LASER', ATTACH.laser[L.laser].name) + r('SIDEARM', P2.name) + r('KNIFE', WEAPONS[L.knife].name) + r('EQUIPMENT', GEAR[L.gadget].name) + r('UPGRADES', [L.armor && 'ARMOUR', L.boots && 'SILENT BOOTS', L.extraMags && '+2 MAGS'].filter(Boolean).join(', ') || '—')
+        + '<h4 style="margin-top:20px">PRIMARY — EFFECTIVE</h4>' + r('DAMAGE', Math.round(R2.dmg)) + r('MAGAZINE', R2.mag + ' / ' + R2.reserve) + r('NOISE RADIUS', R2.noise + ' M') + r('SUPPRESSED', R2.suppressed ? 'YES' : 'NO')
+        + '<h4 style="margin-top:20px">SIDEARM — EFFECTIVE</h4>' + r('DAMAGE', Math.round(P2.dmg)) + r('MAGAZINE', P2.mag) + r('MODE', P2.auto ? 'FULL AUTO' : 'SEMI');
+    },
+    armoryPreview(dt) {
+      if (!R.gl) return; const it = this.arSel; const L = G.loadout; const t = performance.now() / 1000;
+      const key = it ? it.id + L.optic + L.muzzle + L.rifle + L.pistol + L.knife + L.laser : 'x';
+      if (this.previewKey !== key) {
+        this.previewKey = key; if (this.prevMesh) this.prevMesh.dispose(); const B = new MB(9000); let kind = 'rifle';
+        if (it && it.cat === 'pistols') { buildPistolVM(B, it.id); kind = 'pistol'; }
+        else if (it && it.cat === 'knives') { buildKnifeVM(B, VB.WPN, it.id); kind = 'knife'; }
+        else if (it && it.cat === 'gear') { B.b(VB.WPN); buildItemGeo(B, it.id); kind = 'item'; }
+        else { const rid = it && it.cat === 'rifles' ? it.id : L.rifle; const opt = it && it.cat === 'optics' ? it.id : L.optic; const muz = it && it.id === 'muzzle_sup' ? 'sup' : it && it.id === 'muzzle_none' ? 'none' : L.muzzle; buildRifleVM(B, rid, opt, muz); }
+        this.prevMesh = B.mesh(); this.prevKind = kind; this.pb = new Float32Array(VB.N * 16);
+      }
+      const sc = { rifle: 1, pistol: 2.2, knife: 2.4, item: 5 }[this.prevKind]; const m = M4.create(); M4.translate(m, m, 0, .02, -1.6); M4.rotY(m, m, t * .45); M4.rotX(m, m, .1); M4.scale(m, m, sc, sc, sc); M4.translate(m, m, 0, 0, this.prevKind === 'rifle' ? .25 : this.prevKind === 'pistol' ? .08 : 0);
+      for (let i = 0; i < VB.N; i++) this.pb.set(m, i * 16);
+      const env = { sunDir: V.norm([.4, .8, .5]), sunCol: [2.2, 2.0, 1.8], sky: [.25, .26, .28], gnd: [.05, .04, .04], fog: [0, 0, 0], fogD: 0, expo: 1.2, zen: [.01, .01, .012], hor: [.04, .03, .03], night: 0, cloud: 0, skyFog: 0 };
+      R.post.slow = 0; R.post.hurt = 0;
+      R.render({ chunks: [], dyn: [{ mesh: this.prevMesh, bones: this.pb }], env, lights: [{ pos: [-1, .5, 0], col: [1, .1, .08], i: 3, range: 4 }, { pos: [1, 1, .5], col: [.8, .85, 1], i: 1.5, range: 5 }], particles: [], time: t }, { pos: [0, 0, 0], view: M4.create(), fov: 40 * DEG, fwd: [0, 0, -1], right: [1, 0, 0], up: [0, 1, 0], near: .05, far: 20 });
+    },
+    /* ---------------- operators ---------------- */
+    buildOperators() { this.renderOperators(); },
+    renderOperators() {
+      $('opCredits').textContent = fmt(G.career.credits); const L = G.loadout;
+      $('opList').innerHTML = Object.entries(OPERATORS).map(([id, o], k) => { const owned = owns(id); const st = L.operator === id ? '<span class="st eq">SELECTED</span>' : owned ? '<span class="st own">SELECT</span>' : `<span class="st ${G.career.credits >= o.price ? 'buy' : 'no'}">UNLOCK ₵ ${fmt(o.price)}</span>`;
+        return `<div class="opc ${L.operator === id ? 'sel' : ''}" data-id="${id}" style="animation-delay:${k * .06}s"><div class="on">${o.name}</div><div class="or">${o.role}</div><div class="op">${o.perk}</div><div class="item" style="display:block;border:none;background:none;padding:0;animation:none">${st}</div></div>`; }).join('');
+      $('opList').querySelectorAll('.opc').forEach(el => { el.onclick = () => { AUD.init(); const id = el.dataset.id, o = OPERATORS[id]; if (!owns(id)) { if (G.career.credits < o.price) { AUD.beep(220, .15, .25); return; } G.career.credits -= o.price; G.career.owned.push(id); G.saveCareer(); AUD.beep(1500, .08, .2); } L.operator = id; G.saveSettings(); AUD.uiClick(); this.renderOperators(); }; el.onmouseenter = () => AUD.ready && AUD.uiHover(); });
+    },
+    /* ---------------- settings ---------------- */
+    buildSettings() {
+      this.setTab = 'gameplay';
+      this.setDefsAll = {
+        gameplay: [['difficulty', 'DIFFICULTY', 'sel', ['easy', 'normal', 'hard']], ['hud', 'HUD VISIBILITY', 'sel', ['full', 'minimal', 'off']], ['detection', 'DETECTION INDICATOR', 'bool'], ['minimap', 'MINIMAP', 'bool'], ['mmRotate', 'MINIMAP ROTATES WITH VIEW', 'bool'], ['mmZoom', 'MINIMAP ZOOM', 'range', 1, 4, .1], ['prompts', 'INTERACTION PROMPTS', 'bool'], ['markers', 'OBJECTIVE MARKERS', 'bool'], ['subtitles', 'SUBTITLES', 'bool'], ['fov', 'FIELD OF VIEW', 'range', 60, 100, 1]],
+        controls: [['sensPct', 'MOUSE SENSITIVITY', 'range', 0, 100, 1], ['invert', 'INVERT MOUSE Y', 'bool'], ['accel', 'MOUSE ACCELERATION', 'bool'], ['__binds', 'KEY BINDINGS', 'binds']],
+        graphics: [['scale', 'RESOLUTION SCALE', 'range', .5, 1, .05], ['quality', 'QUALITY PRESET', 'sel', ['low', 'medium', 'high', 'ultra']], ['shadows', 'DYNAMIC SHADOWS', 'bool'], ['effects', 'POST-PROCESS EFFECTS', 'bool'], ['drawDist', 'VIEW DISTANCE', 'range', 150, 600, 10], ['aa', 'ANTI-ALIASING (MSAA)', 'sel', ['off', '2x', '4x']]],
+        audio: [['master', 'MASTER VOLUME', 'range', 0, 1, .01], ['music', 'MUSIC VOLUME', 'range', 0, 1, .01], ['sfx', 'EFFECTS VOLUME', 'range', 0, 1, .01], ['amb', 'AMBIENT VOLUME', 'range', 0, 1, .01], ['voice', 'DIALOGUE VOLUME', 'range', 0, 1, .01]],
+      };
+      $('setTabs').innerHTML = Object.keys(this.setDefsAll).map(k => `<button data-t="${k}">${k.toUpperCase()}</button>`).join('');
+      $('setTabs').querySelectorAll('button').forEach(b => b.onclick = () => { AUD.uiClick(); this.setTab = b.dataset.t; this.renderSettings(); });
+      this.setDefs = []; this.renderSettings();
+    },
+    renderSettings() {
+      $('setTabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === this.setTab));
+      const S = this.setDefsAll[this.setTab]; this.setDefs = S.filter(d => d[2] !== 'binds');
+      let h = '';
+      for (const [k, n, t, a, b, s] of S) {
+        if (t === 'binds') { h += `<div class="setrow"><label>${n}</label><button class="tog" id="kbReset">RESET TO DEFAULTS</button><span class="hint">CLICK A KEY, THEN PRESS THE NEW KEY · ESC CANCELS</span></div>`; for (const [id, nm, def] of ACTIONS) h += `<div class="setrow" style="padding:6px 0"><label style="color:#aaa;font-size:12px">${nm}</label><button class="kb" data-a="${id}">${this.keyName((G.settings.binds || {})[id] || def)}</button></div>`; continue; }
+        h += `<div class="setrow"><label>${n}</label>${t === 'range' ? `<input type="range" id="s_${k}" min="${a}" max="${b}" step="${s}"><output id="o_${k}"></output>` : t === 'bool' ? `<button class="tog" id="s_${k}"></button>` : `<div class="seg" id="s_${k}">${a.map(v => `<button data-v="${v}">${v.toUpperCase()}</button>`).join('')}</div>`}</div>`;
+      }
+      $('setList').innerHTML = h;
+      for (const [k, n, t] of this.setDefs) {
+        const el = $('s_' + k);
+        if (t === 'range') el.oninput = () => { G.settings[k] = parseFloat(el.value); this.syncSettings(); G.applySettings(); G.saveSettings(); };
+        else if (t === 'bool') el.onclick = () => { G.settings[k] = !G.settings[k]; this.syncSettings(); G.applySettings(); G.saveSettings(); AUD.uiClick(); };
+        else el.querySelectorAll('button').forEach(b => b.onclick = () => { G.settings[k] = b.dataset.v; this.syncSettings(); G.applySettings(); G.saveSettings(); AUD.uiClick(); });
+      }
+      document.querySelectorAll('.kb').forEach(b => b.onclick = () => { document.querySelectorAll('.kb').forEach(x => x.classList.remove('wait')); b.classList.add('wait'); b.textContent = 'PRESS A KEY…';
+        this.capture = code => { this.capture = null; if (code !== 'Escape') { const binds = G.settings.binds = G.settings.binds || {}; for (const [id] of ACTIONS) if (binds[id] === code) delete binds[id]; binds[b.dataset.a] = code; G.applySettings(); G.saveSettings(); AUD.uiClick(); } this.renderSettings(); }; });
+      const kr = $('kbReset'); if (kr) kr.onclick = () => { G.settings.binds = {}; G.applySettings(); G.saveSettings(); this.renderSettings(); };
+      this.syncSettings();
+    },
+    keyName(c) { return c.replace('Key', '').replace('Digit', '').replace('Left', ' L').replace('Right', ' R').replace('Control', 'CTRL').replace('Space', 'SPACE').toUpperCase(); },
+    syncSettings() {
+      for (const [k, n, t] of this.setDefs || []) { const el = $('s_' + k); if (!el) continue; const v = G.settings[k];
+        if (t === 'range') { el.value = v; $('o_' + k).textContent = k === 'fov' ? v + '°' : k === 'sensPct' ? Math.round(v) + '%' : k === 'scale' ? Math.round(v * 100) + '%' : k === 'drawDist' ? v + ' M' : k === 'mmZoom' ? (+v).toFixed(1) + '×' : Math.round(v * 100) + '%'; }
+        else if (t === 'bool') { el.textContent = v ? 'ON' : 'OFF'; el.classList.toggle('on', !!v); }
+        else el.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
+    },
+    /* ---------------- statistics ---------------- */
+    renderStats() {
+      const C = G.career; const acc = C.shots ? Math.round(C.hits / C.shots * 100) : 0; const cell = (n, v) => `<div class="sc"><b>${v}</b><span>${n}</span></div>`;
+      $('stOp').textContent = 'OPERATOR ' + OPERATORS[G.loadout.operator].name + ' · FUNDS ₵ ' + fmt(C.credits);
+      $('stGrid').innerHTML = cell('MISSIONS COMPLETED', C.missions) + cell('TOTAL ELIMINATIONS', C.kills) + cell('HEADSHOTS', C.headshots) + cell('SILENT TAKEDOWNS', C.takedowns) + cell('ACCURACY', acc + '%') + cell('CREDITS EARNED', '₵ ' + fmt(C.earned || 0)) + cell('CIVILIANS SAVED', C.civSaved || 0) + cell('CIVILIANS LOST', C.civLost || 0) + cell('GHOST RUNS', C.ghosts) + cell('TIME IN FIELD', fmtTime(C.playtime));
+      $('stMissions').innerHTML = MISSIONS.map(m => `<div class="srow"><span>${m.num} · ${m.name}</span><span>${C.completed[m.id] ? '×' + C.completed[m.id] : '—'}</span><span>${C.best[m.id] ? fmtTime(C.best[m.id]) : '--:--'}</span><b>${C.ratings[m.id] || '-'}</b></div>`).join('');
+    },
+    /* ---------------- results with payout ---------------- */
+    results(r) {
+      this.showHUD(false); IN.unlock(); this.fade(0, .6);
+      $('rName').textContent = r.M.name; $('rStatus').textContent = r.status; $('rStatus').className = r.ghost ? 'ghost' : ''; $('rRating').textContent = r.rating; $('rTime').textContent = fmtTime(r.time);
+      $('rObj').innerHTML = r.objectives.filter(o => o.type !== 'hidden').map(o => `<li class="${o.done ? 'done' : 'fail'} ${o.type}"><i>${o.done ? '✔' : '✖'}</i>${o.text}</li>`).join('');
+      const s = r.s; const cell = (n, v) => `<div class="sc"><b>${v}</b><span>${n}</span></div>`;
+      $('rStats').innerHTML = cell('ELIMINATIONS', s.kills) + cell('TAKEDOWNS', s.takedowns) + cell('ACCURACY', Math.round(r.acc * 100) + '%') + cell('DETECTED', s.detected ? 'YES' : 'NO') + (r.civT ? cell('CIVILIANS ALIVE', (r.civT - r.civK) + ' / ' + r.civT) : cell('BODIES FOUND', s.bodies)) + cell('ALARMS', s.alarms) + cell('HOSTAGES TAKEN', s.hostages || 0) + cell('SLOW-MO USES', s.slowmo || 0);
+      $('rPay').innerHTML = r.lines.map((l, i) => `<div class="prow" style="animation-delay:${.2 + i * .12}s"><span>${l[0]}</span><b>${typeof l[1] === 'number' ? '₵ ' + fmt(l[1]) : l[1]}</b></div>`).join('') + `<div class="prow tot" style="animation-delay:${.3 + r.lines.length * .12}s"><span>TOTAL PAID</span><b>₵ ${fmt(r.pay)}</b></div><div class="prow" style="animation-delay:${.4 + r.lines.length * .12}s"><span>BALANCE</span><b>₵ ${fmt(r.credits)}</b></div>`;
+      this.show('results');
+    },
+    hudFrame(dt) {
+      baseHud.call(this, dt); if (!$('hud').classList.contains('on')) return;
+      const so = $('social'); let txt = '', cls = '';
+      if (G.M && G.M.social) { const z = G.zoneAt(P.pos); if (!G.socialCover()) { txt = P.holstered ? 'COVER BLOWN' : 'WEAPON DRAWN — VISIBLE'; cls = 'arm'; } else if (z === 'restricted') { txt = 'RESTRICTED AREA'; cls = 'res'; } else { txt = 'BLENDING IN'; cls = 'pub'; } }
+      else if (P.holstered) { txt = 'WEAPON HOLSTERED'; }
+      if (so._t !== txt + cls) { so._t = txt + cls; so.textContent = txt; so.className = cls; }
+      $('hpbar').firstChild.style.width = (P.health / (P.maxHealth || 100) * 100).toFixed(0) + '%';
+      if (P.holstered && P.state !== 'vehicle') { const am = $('ammo'); if (am.querySelector('.wn').textContent !== 'HOLSTERED') { am.querySelector('.wn').textContent = 'HOLSTERED'; am.querySelector('b').textContent = ''; am.querySelector('.am span').textContent = ''; this._ak = 'hol'; } }
+    },
+  });
+})();
 
 /* ---- 13_main.js ---- */
 /* =====================================================================

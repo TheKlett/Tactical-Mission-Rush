@@ -302,8 +302,17 @@ Object.assign(G, {
     const status = ghost ? 'GHOST — UNDETECTED' : !s.detected ? 'SHADOW — NEVER SPOTTED' : s.alarms ? 'COMPROMISED — ALARM RAISED' : 'DETECTED';
     const C = this.career; C.missions++; C.kills += s.kills; C.headshots += s.headshots; C.takedowns += s.takedowns; C.shots += s.shots; C.hits += s.hits; if (s.detected) C.detected++; if (ghost) C.ghosts++;
     C.playtime += time; C.completed[M.id] = (C.completed[M.id] || 0) + 1; if (!C.best[M.id] || time < C.best[M.id]) C.best[M.id] = time;
-    const ord = 'SABCD'; if (!C.ratings[M.id] || ord.indexOf(rating) < ord.indexOf(C.ratings[M.id])) C.ratings[M.id] = rating; this.saveCareer();
+    const ord = 'SABCD'; if (!C.ratings[M.id] || ord.indexOf(rating) < ord.indexOf(C.ratings[M.id])) C.ratings[M.id] = rating;
+    // ---- payout ----
+    const base = M.reward || ({ m1: 5000, m2: 7000, m3: 8500 })[M.id] || 6000; const lines = [['MISSION COMPLETE', base]];
+    const tb = Math.round(base * .25 * clamp((M.parTime * 1.25 - time) / M.parTime, 0, 1) / 50) * 50; if (tb) lines.push(['TIME BONUS', tb]);
+    if (!s.detected) lines.push(['UNDETECTED BONUS', Math.round(base * .2)]); if (ghost) lines.push(['GHOST BONUS', Math.round(base * .1)]);
+    if (optDone) lines.push(['OPTIONAL OBJECTIVES ×' + optDone, Math.round(base * .08 * optDone)]);
+    lines.push(['RATING ' + rating, Math.round(base * ({ S: .15, A: .1, B: .05, C: 0, D: 0 })[rating])]);
+    let sub = lines.reduce((a, l) => a + l[1], 0); const civT = this.civTotal || 0, civK = s.civKilled || 0;
+    let mult = 1; if (civT) { mult = 1 - .5 * clamp(civK / civT, 0, 1); lines.push(['CIVILIANS ' + (civT - civK) + '/' + civT + ' ALIVE', mult < 1 ? '×' + mult.toFixed(2) : '×1.00']); }
+    const pay = Math.round(sub * mult / 10) * 10; C.credits += pay; C.earned += pay; C.civSaved += civT - civK; C.civLost += civK; C.slowmo += s.slowmo || 0; this.saveCareer();
     AUD.stopAllLoops(); this.noPauseOnUnlock = false;
-    UI.results({ M, s, time, rating, status, acc, objectives: this.objectives, ghost });
+    UI.results({ M, s, time, rating, status, acc, objectives: this.objectives, ghost, pay, lines, civT, civK, credits: C.credits });
   },
 });

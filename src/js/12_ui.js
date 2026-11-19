@@ -56,7 +56,7 @@ const UI = {
       $('bText').textContent = M.briefing;
       $('bObj').innerHTML = M.objectives.filter(o => o.type !== 'hidden').map(o => '<li class="' + o.type + '"><span>' + (o.type === 'primary' ? 'PRIMARY' : 'OPTIONAL') + '</span>' + o.text + '</li>').join('');
       $('bIntel').innerHTML = M.intel.map(t => '<li>' + t + '</li>').join('');
-      const L = G.loadout; $('bLoad').textContent = [WEAPONS[L.pistol].name, WEAPONS[L.rifle].name + ' (' + ATTACH.optics[L.optic].name + (L.muzzle === 'sup' ? ', SUPPRESSED' : '') + ')', WEAPONS[L.knife].name, GEAR[L.gadget].name].join(' · ');
+      this.openBriefingRefresh(); $('bPay').textContent = '₵ ' + (M.reward || ({ m1: 5000, m2: 7000, m3: 8500 })[M.id]).toLocaleString('en-US') + (M.civPayout ? ' · REDUCED BY CIVILIAN CASUALTIES' : '');
       this.makeTacMap(); this.tm.zoom = .5; this.tm.tz = 1; this.tm.rot = -.6; this.tm.tr = 0; this.tm.px = this.tm.tpx = 0; this.tm.py = this.tm.tpy = 0;
       this.show('brief');
     });
@@ -278,13 +278,13 @@ const UI = {
   drawMini() {
     const c = this.miniC, W = G.W, sz = 220; if (!G.minimap) return; c.clearRect(0, 0, sz, sz);
     c.fillStyle = 'rgba(12,13,14,.72)'; c.fillRect(0, 0, sz, sz);
-    const sc = G.minimapScale, zoom = 2.2; const pp = P.state === 'vehicle' && P.vehicle ? P.vehicle.pos : P.pos; const yaw = P.state === 'vehicle' && P.vehicle ? P.vehicle.yaw + P.yaw : P.state === 'plane' && G.plane ? P.yaw + G.plane.yaw : P.state === 'chute' ? P.chuteYaw : P.yaw;
+    const sc = G.minimapScale, zoom = G.settings.mmZoom || 2.2; const pp = P.state === 'vehicle' && P.vehicle ? P.vehicle.pos : P.pos; const yaw = P.state === 'vehicle' && P.vehicle ? P.vehicle.yaw + P.yaw : P.state === 'plane' && G.plane ? P.yaw + G.plane.yaw : P.state === 'chute' ? P.chuteYaw : P.yaw;
     const wp = P.state === 'plane' && G.plane ? M4.pos(G.plane.m) : pp;
-    c.save(); c.translate(sz / 2, sz / 2 + 30); c.rotate(yaw); c.scale(zoom / sc, zoom / sc);
+    const rot = G.settings.mmRotate !== false; c.save(); c.translate(sz / 2, sz / 2 + (rot ? 30 : 0)); if (rot) c.rotate(yaw); c.scale(zoom / sc, zoom / sc);
     c.drawImage(G.minimap, -(wp[0] + W.half) * sc, -(wp[2] + W.half) * sc);
     c.fillStyle = '#fff'; for (const n of G.npcs) { if (n.dead) continue; const dx = (n.pos[0] - wp[0]) * sc, dz = (n.pos[2] - wp[2]) * sc; if (Math.abs(dx) > 160 * sc / zoom || Math.abs(dz) > 160 * sc / zoom) continue; c.beginPath(); c.arc(dx, dz, 2.6 * sc / zoom, 0, TAU); c.fill(); }
     c.restore();
-    c.save(); c.translate(sz / 2, sz / 2 + 30); const cg = c.createRadialGradient(0, 0, 0, 0, 0, 60); cg.addColorStop(0, 'rgba(70,200,90,.28)'); cg.addColorStop(1, 'rgba(70,200,90,0)'); c.fillStyle = cg; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 60, -Math.PI / 2 - .55, -Math.PI / 2 + .55); c.closePath(); c.fill();
+    c.save(); c.translate(sz / 2, sz / 2 + (rot ? 30 : 0)); if (!rot) c.rotate(-yaw); const cg = c.createRadialGradient(0, 0, 0, 0, 0, 60); cg.addColorStop(0, 'rgba(70,200,90,.28)'); cg.addColorStop(1, 'rgba(70,200,90,0)'); c.fillStyle = cg; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 60, -Math.PI / 2 - .55, -Math.PI / 2 + .55); c.closePath(); c.fill();
     c.fillStyle = '#46c85a'; c.shadowColor = '#46c85a'; c.shadowBlur = 8; c.beginPath(); c.arc(0, 0, 4.2, 0, TAU); c.fill(); c.restore();
     c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 1; c.strokeRect(.5, .5, sz - 1, sz - 1);
   },

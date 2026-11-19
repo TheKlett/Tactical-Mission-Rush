@@ -15,7 +15,7 @@
 
 <!-- ======================= HUD ======================= -->
 <div id="hud">
-  <div id="det"><canvas id="eye" width="120" height="64"></canvas><div id="detLbl">UNDETECTED</div><div id="visBar"><i></i></div><div id="visLbl">EXPOSURE</div></div>
+  <div id="det"><canvas id="eye" width="120" height="64"></canvas><div id="detLbl">UNDETECTED</div><div id="visBar"><i></i></div><div id="visLbl">EXPOSURE</div><div id="social"></div></div>
   <div id="mm"><canvas id="mini" width="220" height="220"></canvas></div>
   <ul id="objs"></ul>
   <div id="notifs"></div>
@@ -27,6 +27,7 @@
   <div id="alt"></div>
   <div id="subs"></div>
   <div id="slowmo"><svg viewBox="0 0 44 44"><circle class="b" cx="22" cy="22" r="19"/><circle class="p" cx="22" cy="22" r="19" pathLength="100"/></svg><b>G</b><span>SLOW-MO</span><i></i></div>
+  <div id="hpbar"><i></i></div>
   <div id="ammo"><div class="wn"></div><div class="am"><b></b><span></span></div></div>
   <div id="slots"></div>
   <div id="hurt"></div>
@@ -39,34 +40,41 @@
 
 <!-- ======================= MAIN MENU ======================= -->
 <div id="main" class="screen">
-  <div class="logo"><div class="rl">RED<i>/</i>LINE</div><div class="sub">TACTICAL <b>MISSION</b> RUSH</div></div>
-  <nav>
-    <button class="btn red" id="btnDeploy">DEPLOY<small>CONTINUE CAMPAIGN</small></button>
-    <button class="btn" data-go="missions">MISSIONS<small>SELECT AREA OF OPERATIONS</small></button>
-    <button class="btn" data-go="armory">ARMORY<small>CONFIGURE LOADOUT</small></button>
-    <button class="btn" data-go="settings">SETTINGS<small>CONTROLS · AUDIO · GRAPHICS</small></button>
-    <button class="btn" data-go="stats">STATISTICS<small>SERVICE RECORD</small></button>
-  </nav>
-  <div class="side panel"><h3>OPERATOR STATUS</h3>
-    <div class="kv"><span>CALLSIGN</span><b>REDLINE-1</b></div><div class="kv"><span>UNIT</span><b>TASK FORCE ODIN</b></div><div class="kv"><span>CAMPAIGN</span><b id="mCamp">0 / 3</b></div><div class="kv"><span>CLEARANCE</span><b>BLACK</b></div><div class="kv"><span>COMMS</span><b style="color:#46c85a">SECURE</b></div>
-    <p style="margin-top:14px;color:#6a6e72">Three targets. Three theatres. One operator. Choose your approach: silent, or loud.</p>
+  <div class="mm-left">
+    <div class="logo"><div class="rl">RED<i>/</i>LINE</div><div class="sub">TACTICAL <b>MISSION</b> RUSH <em>2.0</em></div></div>
+    <nav id="mainNav">
+      <button class="nbtn red" id="btnDeploy"><span class="ix">01</span><span class="nt">DEPLOY</span><small id="deploySub">CONTINUE CAMPAIGN</small></button>
+      <button class="nbtn" data-go="missions"><span class="ix">02</span><span class="nt">MISSIONS</span><small>SELECT AREA OF OPERATIONS</small></button>
+      <button class="nbtn" data-go="armory"><span class="ix">03</span><span class="nt">ARMORY</span><small>WEAPONS · ATTACHMENTS · GEAR</small></button>
+      <button class="nbtn" data-go="operators"><span class="ix">04</span><span class="nt">OPERATORS</span><small>SELECT YOUR OPERATIVE</small></button>
+      <button class="nbtn" data-go="stats"><span class="ix">05</span><span class="nt">STATISTICS</span><small>SERVICE RECORD</small></button>
+      <button class="nbtn" data-go="settings"><span class="ix">06</span><span class="nt">SETTINGS</span><small>GAMEPLAY · CONTROLS · GRAPHICS · AUDIO</small></button>
+    </nav>
+    <div class="mm-foot"><span>v2.0 · PC · KEYBOARD &amp; MOUSE</span><span class="blinkdot">● SECURE UPLINK</span></div>
   </div>
-  <div class="foot"><span>BUILD 1.0 · PC · KEYBOARD &amp; MOUSE</span><span>HEADPHONES RECOMMENDED</span></div>
+  <div class="mm-center"><div class="opname" id="mmOpName"></div><div class="oprole" id="mmOpRole"></div><div class="mm-reticle"></div></div>
+  <div class="mm-right">
+    <div class="rpanel credits"><div class="rh">FUNDS</div><div class="cr"><span>₵</span><b id="mmCredits">0</b></div><div class="tag" id="mmEarned"></div></div>
+    <div class="rpanel"><div class="rh">NEXT OPERATION</div><div id="mmMission"></div></div>
+    <div class="rpanel"><div class="rh">EQUIPMENT</div><div id="mmEquip"></div></div>
+    <div class="rpanel"><div class="rh">CAMPAIGN PROGRESS</div><div id="mmProgress"></div></div>
+  </div>
+  <div class="mm-ticker"><div id="mmTicker"></div></div>
 </div>
 
 <!-- ======================= MISSIONS ======================= -->
-<div id="missions" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>MISSION SELECT</h2><span class="tag">CAMPAIGN · OPERATION ODIN</span><button class="back" data-go="main">ESC · BACK</button></div><div id="mList"></div></div></div>
+<div id="missions" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>MISSION SELECT</h2><span class="tag">CAMPAIGN · OPERATION ODIN · FIVE THEATRES</span><button class="back" data-go="main">ESC · BACK</button></div><div id="mList"></div></div></div>
 
 <!-- ======================= BRIEFING ======================= -->
 <div id="brief" class="screen">
   <div class="left">
     <div id="bNum"></div><div id="bName"></div><div id="bCode"></div>
-    <div class="bmeta"><span>LOCATION</span><b id="bLoc"></b><span>TIME</span><b id="bTime"></b><span>WEATHER</span><b id="bWeather"></b><span>THREAT</span><b id="bDiff"></b></div>
+    <div class="bmeta"><span>LOCATION</span><b id="bLoc"></b><span>TIME</span><b id="bTime"></b><span>WEATHER</span><b id="bWeather"></b><span>THREAT</span><b id="bDiff"></b><span>PAYMENT</span><b id="bPay"></b></div>
     <div class="sect"><h4>BRIEFING</h4><p id="bText"></p></div>
     <div class="sect"><h4>OBJECTIVES</h4><ul id="bObj"></ul></div>
     <div class="sect"><h4>INTELLIGENCE</h4><ul id="bIntel"></ul></div>
     <div class="sect"><h4>LOADOUT</h4><div id="bLoad"></div></div>
-    <div class="bbtns"><button class="btn" id="bBack">BACK</button><button class="btn red" id="bDeploy">DEPLOY</button></div>
+    <div class="bbtns"><button class="btn" id="bBack">BACK</button><button class="btn" id="bArm">ARMORY</button><button class="btn red" id="bDeploy">DEPLOY</button></div>
   </div>
   <div class="right">
     <canvas id="tmap"></canvas>
@@ -77,25 +85,30 @@
 </div>
 
 <!-- ======================= ARMORY ======================= -->
-<div id="armory" class="screen"><div class="wrap panel" style="height:90vh;background:rgba(13,14,15,.25)"><div class="hdr" style="background:rgba(13,14,15,.92)"><div class="bar"></div><h2>ARMORY</h2><span class="tag">PRIMARY · OPTIC · EQUIPMENT</span><button class="back" data-go="main">ESC · BACK</button></div>
-  <div class="armbody">
-    <div class="armcol"><h4>PRIMARY RIFLE</h4><div id="arRifle"></div><h4>OPTIC</h4><div id="arOptic"></div><h4>EQUIPMENT (SLOT 5)</h4><div id="arGadget"></div><h4>AMMUNITION</h4><div id="arMags"></div></div>
-    <div class="armview"><div class="tag">FIXED: P-9 SD SUPPRESSED PISTOL · CK-1 COMBAT KNIFE</div></div>
-    <div class="armcol r"><h4>WEAPON DATA</h4><div id="arStats"></div><h4 style="margin-top:26px">INVENTORY LAYOUT</h4><div class="tag" style="line-height:2">1 · SUPPRESSED PISTOL<br>2 · PRIMARY RIFLE<br>3 · COMBAT KNIFE (THROWABLE)<br>4 · MISSION EQUIPMENT<br>5 · EQUIPMENT / COLLECTED ITEMS</div></div>
-  </div></div></div>
+<div id="armory" class="screen">
+  <div class="sh-top"><div class="bar"></div><h2>ARMORY</h2><div class="tabs" id="arTabs"></div><div class="crd">₵ <b id="arCredits">0</b></div><button class="back" data-go="back2">ESC · BACK</button></div>
+  <div class="ar-list" id="arList"></div>
+  <div class="ar-detail" id="arDetail"></div>
+  <div class="ar-load" id="arLoad"></div>
+</div>
+
+<!-- ======================= OPERATORS ======================= -->
+<div id="operators" class="screen">
+  <div class="sh-top"><div class="bar"></div><h2>OPERATORS</h2><span class="tag">EACH OPERATIVE BRINGS A FIELD PERK</span><div class="crd">₵ <b id="opCredits">0</b></div><button class="back" data-go="main">ESC · BACK</button></div>
+  <div class="op-list" id="opList"></div>
+</div>
 
 <!-- ======================= SETTINGS ======================= -->
-<div id="settings" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>SETTINGS</h2><span class="tag">SAVED AUTOMATICALLY</span><button class="back" data-go="back">ESC · BACK</button></div><div id="setList"></div>
-  <div class="keys"><span><b>W A S D</b>MOVE</span><span><b>MOUSE</b>LOOK</span><span><b>LMB</b>FIRE</span><span><b>RMB</b>AIM / KNIFE THROW STANCE</span><span><b>F</b>SILENT TAKEDOWN</span><span><b>Q</b>MELEE</span><span><b>E</b>INTERACT (HOLD)</span><span><b>R</b>RELOAD</span><span><b>SPACE</b>JUMP / PARACHUTE</span><span><b>SHIFT</b>SPRINT</span><span><b>CTRL</b>CROUCH</span><span><b>1 – 5</b>INVENTORY</span><span><b>C</b>VEHICLE CAMERA</span><span><b>ESC</b>PAUSE</span></div></div></div>
+<div id="settings" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>SETTINGS</h2><div class="tabs" id="setTabs"></div><span class="tag">SAVED AUTOMATICALLY</span><button class="back" data-go="back">ESC · BACK</button></div><div id="setList"></div></div></div>
 
 <!-- ======================= STATISTICS ======================= -->
-<div id="stats" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>SERVICE RECORD</h2><span class="tag">OPERATOR REDLINE-1</span><button class="back" data-go="main">ESC · BACK</button></div><div id="stGrid"></div><div id="stMissions"></div></div></div>
+<div id="stats" class="screen"><div class="wrap panel"><div class="hdr"><div class="bar"></div><h2>SERVICE RECORD</h2><span class="tag" id="stOp">OPERATOR</span><button class="back" data-go="main">ESC · BACK</button></div><div id="stGrid"></div><div id="stMissions"></div></div></div>
 
 <!-- ======================= LOADING / PAUSE / RESULTS / FAIL ======================= -->
 <div id="loading" class="screen"><div class="spin"></div><div id="ldText">LOADING</div></div>
 <div id="pause" class="screen"><div class="modal panel"><span class="tag">MISSION TIME <b id="pTime"></b></span><h1>PAUSED</h1><div class="row"><div style="flex:1"><ul id="pObj"></ul></div><div><button class="btn red" id="pResume">RESUME</button><button class="btn" id="pRestart">RESTART MISSION</button><button class="btn" id="pSettings">SETTINGS</button><button class="btn" id="pAbort">ABORT TO MENU</button></div></div></div></div>
 <div id="results" class="screen"><div class="modal panel" style="width:min(880px,94vw)"><div class="rhead"><div id="rRating">A</div><div><span class="tag">MISSION COMPLETE</span><h1 id="rName"></h1><div id="rStatus"></div><div class="tag" style="margin-top:8px">TIME <b id="rTime" style="color:#fff;font-size:15px"></b></div></div></div>
-  <div class="sect"><h4>OBJECTIVES</h4><ul id="rObj"></ul></div><div id="rStats"></div>
+  <div class="rcols"><div><div class="sect"><h4>OBJECTIVES</h4><ul id="rObj"></ul></div><div id="rStats"></div></div><div class="pay"><h4>PAYMENT</h4><div id="rPay"></div></div></div>
   <div class="row"><button class="btn" id="rReplay" style="flex:1">REPLAY MISSION</button><button class="btn red" id="rNext" style="flex:1">CONTINUE</button></div></div></div>
 <div id="fail" class="screen"><div class="modal panel"><span class="tag">OPERATOR DOWN</span><h1>MISSION FAILED</h1><div id="fReason"></div><div class="row"><button class="btn red" id="fRetry" style="flex:1">RETRY</button><button class="btn" id="fAbort" style="flex:1">ABORT TO MENU</button></div></div></div>
 <div id="err"></div>

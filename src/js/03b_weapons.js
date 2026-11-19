@@ -176,3 +176,14 @@ function buildKnifeVM(B, bone, kind = 'knife') {
   if (kind === 'knife') { B.col(0x5a5e62, MAT.METAL); for (let i = 0; i < 5; i++) B.box(0, .02 + i * .01, -.019, .006, .004, .004); }
   B.pop();
 }
+
+/* ---------------- operators (cosmetic + functional perks) ---------------- */
+const OPERATORS = {
+  viper: { name: 'VIPER', role: 'RECON SPECIALIST', price: 0, perk: 'Balanced kit — no trade-offs', sleeve: 0x4a5038, glove: 0x1c1c1a, app: { top: 'combat', camo: true, topCol: 0x4a5038, botCol: 0x3f4430, head: 'helmet', helmetCol: 0x3a3f2e, vest: 'plate', vestCol: 0x3a3e2c, gloves: true, feet: 'combat', hairStyle: 'buzz', skin: 0xc89670, beard: 'stubble', eyeCol: 0x3a2a1a }, perks: {} },
+  ghost: { name: 'GHOST', role: 'INFILTRATION', price: 2500, perk: 'Footsteps 25% quieter · 15% harder to see', sleeve: 0x1e2024, glove: 0x0e0e0e, app: { top: 'combat', camo: false, topCol: 0x1e2024, botCol: 0x1a1c1e, head: 'balaclava', vest: 'rig', vestCol: 0x18191b, gloves: true, feet: 'combat', skin: 0xe0b896, eyeCol: 0x2a4a6a }, perks: { quiet: .75, vis: .85 } },
+  wolf: { name: 'WOLF', role: 'ASSAULT', price: 3500, perk: '+30 maximum health · faster recovery', sleeve: 0x8a7a5a, glove: 0x3a2a1a, app: { top: 'combat', camo: true, topCol: 0x8a7a5a, botCol: 0x6a5e48, head: 'cap', capCol: 0x5a4a32, vest: 'plate', vestCol: 0x6a5e44, gloves: true, feet: 'combat', hairStyle: 'short', beard: 'full', skin: 0xa87452, bulk: 1.1 }, perks: { hp: 130, regen: 1.5 } },
+  raven: { name: 'RAVEN', role: 'COUNTER-TERROR', price: 4500, perk: 'Slow-motion lasts 5 s longer, recharges 30% faster', sleeve: 0x4a4e54, glove: 0x1a1a1c, app: { female: true, top: 'combat', camo: true, topCol: 0x4a4e54, botCol: 0x3a3e44, head: 'none', hairStyle: 'pony', hair: 0x2a1a10, vest: 'plate', vestCol: 0x2e3238, gloves: true, feet: 'combat', skin: 0xd8b090, eyeCol: 0x3a5a3a }, perks: { slowDur: 20, slowRe: .7 } },
+};
+const SHOP_DEFAULT_OWNED = ['pistol', 'ar7', 'knife', 'iron', 'none', 'std', 'off', 'noisemaker', 'viper'];
+function owns(id) { return G.career.owned.includes(id); }
+function operatorPerks() { const o = OPERATORS[G.loadout.operator] || OPERATORS.viper; return o.perks || {}; }

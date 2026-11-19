@@ -67,6 +67,7 @@ function appearanceFor(faction, rng, o = {}) {
 }
 /* ======================= BUILD ======================= */
 function buildCharacter(app) {
+  app = Object.assign({ hair: 0x2a1a10, skin: 0xc89670, eyeCol: 0x3a2a1a, tie: 0x7a1010, accent: 0xe8e4dc, vestCol: 0x3a3e2c, topCol: app.shirt ?? 0x4a5038, botCol: app.pants ?? 0x2c2a26 }, app);
   const B = new MB(26000); const bk = app.bulk || 1; const F = !!app.female;
   const skin = app.skin, sk = () => B.col(skin, MAT.SKIN);
   const top = app.top || (app.suit ? 'suit' : app.camo ? 'combat' : 'tshirt');
