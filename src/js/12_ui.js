@@ -236,7 +236,7 @@ const UI = {
     }
     // prompt
     const pr = $('prompt'); const ptxt = P.prompt || ''; if (pr._t !== ptxt) { pr._t = ptxt; pr.querySelector('span').textContent = ptxt; pr.classList.toggle('on', !!ptxt); }
-    const hold = P.anim.k === 'hold' && P.interactTarget && P.interactTarget.hold ? P.holdT / P.interactTarget.hold : 0; pr.querySelector('circle.p').style.strokeDashoffset = (1 - hold) * 100; pr.classList.toggle('hold', hold > 0);
+    const hold = P.anim.k === 'hold' && P.anim.it && P.anim.it.hold ? Math.min(1, P.holdT / P.anim.it.hold) : 0; pr.querySelector('circle.p').style.strokeDashoffset = (1 - hold) * 100; pr.classList.toggle('hold', hold > 0);
     // crosshair
     const xh = $('xh'); const hideX = (P.ads > .6 && P.isGun()) || P.state !== 'ground' && P.state !== 'plane'; xh.style.opacity = hideX ? 0 : 1; xh.classList.toggle('int', !!P.prompt);
     // altitude

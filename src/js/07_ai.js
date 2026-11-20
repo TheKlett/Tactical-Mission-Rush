@@ -95,7 +95,8 @@ class NPC {
             rate = 2.4 * distF * (.1 + .9 * shade) * stance * motion * periph * (1 - folK) * (alertLvl ? 2.2 : 1) * G.diffMul;
             if (cr && d > maxD * .6 && !alertLvl) rate *= .5;
             if (P.state === 'vehicle') rate *= 1.6; if (d < 3.5) rate += 3; if (P.lastShot > G.time - .5) rate += 1.5;
-            rate *= G.socialFactor(this, d); if (P.hostage && P.hostage.n !== this) rate += 4;
+            rate *= P.disguise && !P.disguise.blown ? G.disguiseFactor(this, d) : G.socialFactor(this, d); if (P.hostage && P.hostage.n !== this) rate += 4;
+            if (P.carry) rate = rate * 2.5 + (d < 30 ? 1.2 : .4);
           }
         }
       }
@@ -105,14 +106,15 @@ class NPC {
       if (this.susp > .32 || this.state === 'combat') { this.suspPt = V.copy(P.pos); }
       if (this.state === 'combat' || this.susp >= 1) { this.lastKnown = V.copy(P.pos); this.lastSeen = G.time; }
     } else if (this.state === 'calm' || this.state === 'suspicious') this.susp = Math.max(0, this.susp - dt * .12);
+    if (this.susp >= 1 && this.state !== 'combat' && !this.civ && P.disguise && !P.disguise.blown) G.blowDisguise(this);
     if (this.susp >= 1 && this.state !== 'combat') { if (this.civ) { if (this.state !== 'panic' && this.state !== 'cower') this.panic(P.pos, true); } else if (G.socialWarn(this)) { } else this.enterCombat(true); }
     else if (this.susp > .32 && this.state === 'calm' && !this.civ) this.setSuspicious(V.copy(P.pos), true);
     // bodies
     if (this.state !== 'combat') for (const o of G.npcs) {
-      if (!o.dead || o.discovered || o === this || o.deathT < 1) continue; const bp = [o.pos[0], o.pos[1] + .3, o.pos[2]]; const dd = V.dist(bp, e); if (dd > 24) continue;
+      if (!o.dead || o.discovered || o.carried || o === this || o.deathT < 1) continue; const bp = [o.pos[0], o.pos[1] + .3, o.pos[2]]; const dd = V.dist(bp, e); if (dd > 24) continue;
       const to = V.norm(V.sub(bp, e)); const f = this.fwd; if (to[0] * f[0] + to[2] * f[2] < .25 && dd > 3) continue;
-      if (!G.W.los(e, bp)) continue;
-      o.discovered = true; G.stats.bodies++; G.notify('BODY DISCOVERED', 'warn'); if (this.civ) { this.scream(); this.panic(o.pos, true); break; } this.say('body');
+      if (!G.W.los(e, bp)) continue; if (dd > 3 && G.W.foliage(e, bp) > .5) continue; // bodies hidden in thick vegetation
+      o.discovered = true; G.stats.bodies++; G.notify(this.civ ? 'BODY DISCOVERED' : 'BODY DISCOVERED — ALARM RAISED', 'alarm'); if (this.civ) { this.scream(); this.panic(o.pos, true); break; } this.say('body');
       G.after(() => { if (!this.dead) G.globalSearch(o.pos, this, 'body'); }, 1800);
       this.setState('investigate'); this.suspPt = V.copy(o.pos); this.goTo(o.pos, true); break;
     }
@@ -120,7 +122,7 @@ class NPC {
     if (this.group && this.state === 'calm' && !this.missingChecked) {
       const mates = G.npcs.filter(n => n !== this && n.group === this.group);
       const gone = mates.find(n => n.dead && G.time - n.deathAt > 18 && !n.discovered);
-      if (gone && this.task().t === 'talk') { this.missingChecked = true; this.say('missing', gone.name); G.after(() => { if (!this.dead && this.state === 'calm') { this.setSuspicious(V.copy(gone.pos), false); this.suspPt = V.copy(gone.pos); this.setState('investigate'); this.goTo(gone.pos, false); } }, 2500); }
+      if (gone && (this.task().t === 'talk' || V.dist(this.pos, gone.deathPos || gone.pos) < 25)) { this.missingChecked = true; this.say('missing', gone.name); const lp = V.copy(gone.deathPos || gone.pos); if (V.dist(P.pos, this.pos) < 40) G.notify(gone.name.toUpperCase() + ' IS MISSING — A GUARD IS CHECKING', 'info'); G.after(() => { if (!this.dead && this.state === 'calm') { this.setSuspicious(V.copy(lp), false); this.suspPt = V.copy(lp); this.setState('investigate'); this.goTo(lp, false); } }, 2500); }
     }
   }
   hear(pos, kind, strength) {
@@ -326,6 +328,20 @@ class NPC {
     }
     rig.solve(wl, this.hasProp);
   }
+  animateCarried(dt) {
+    // fireman's carry: hips on the operator's right shoulder, legs hanging in front, torso down the back
+    const rig = this.rig; const j = P_(); const sw = Math.sin(G.time * 6) * Math.min(1, P.speed / 2) * .12;
+    pj(j, SK.THL, 1.45 + sw, .05, -.08); pj(j, SK.THR, 1.35 - sw, -.05, .08); pj(j, SK.SHL, -.5 - sw, 0, 0); pj(j, SK.SHR, -.35 + sw, 0, 0);
+    pj(j, SK.CH, -1.05, 0, .05); pj(j, SK.HD, -.35, .3, 0); pj(j, SK.UAL, 1.5 + sw, 0, -.15); pj(j, SK.UAR, 1.4 - sw, 0, .15); pj(j, SK.FAL, .3, 0, 0); pj(j, SK.FAR, .25, 0, 0);
+    rig.tj.set(j); rig.tpy = 0; rig.tpz = 0; rig.blend(10, dt);
+    const R = [Math.cos(P.yaw), 0, -Math.sin(P.yaw)], Bk = [Math.sin(P.yaw), 0, Math.cos(P.yaw)];
+    const by = V.norm(V.add(Bk, [0, -.3, 0])), bz = V.norm(V.add([0, 1, 0], V.sc(Bk, .3))), bx = V.sc(R, -1);
+    const sc = rig.sc || 1; const hip = V.add(V.add(P.pos, V.sc(R, .17)), [0, lerp(1.42, 1.0, P.crouch) + Math.abs(sw) * .1, 0]);
+    const root = V.sub(hip, V.sc(by, .98 * sc));
+    const r = rig.root; M4.basis(r, bx, by, bz, root);
+    this.pos = [P.pos[0], P.pos[1], P.pos[2]];
+    rig.solve(null, false);
+  }
   animateDeath(dt) {
     const rig = this.rig; const j = P_(); let e;
     if (this.tdT >= 0 && !this.dead) {
@@ -336,6 +352,7 @@ class NPC {
       const r = rig.root; M4.ident(r); M4.translate(r, r, this.pos[0], this.pos[1], this.pos[2]); M4.rotY(r, r, this.yaw);
       rig.solve(null, false); return;
     }
+    if (this.carried) return this.animateCarried(dt);
     e = ease(this.deathT / .85); const k = this.k % 1;
     poseDead(j, k); const crumple = 1 - smooth(this.deathT / .35);
     if (crumple > 0) { pj(j, SK.THL, j[SK.THL * 3] + crumple * .8, 0, 0); pj(j, SK.SHL, -1.2 * crumple, 0, 0); pj(j, SK.SHR, -1.1 * crumple, 0, 0); }
@@ -369,8 +386,8 @@ class SecCam {
     const pe = P.eye(); const d = V.dist(pe, this.pos); if (d > 24) { this.susp = Math.max(0, this.susp - dt * .3); this.seeing = false; return; }
     const to = V.sc(V.sub(pe, this.pos), 1 / d); const f = [-Math.sin(this.yaw), 0, -Math.cos(this.yaw)]; const fl = Math.hypot(to[0], to[2]) || 1;
     const ca = (to[0] * f[0] + to[2] * f[2]) / fl; const seen = ca > .78 && G.W.los(this.pos, pe) && G.smokeBlock(this.pos, pe) < .9;
-    const social = G.socialFactor(null, d);
-    if (seen) this.susp += dt * (.8 + P.visibility) * (P.crouch > .5 ? .5 : 1) * (1 - d / 27) * 1.3 * G.diffMul * Math.max(social, P.holstered ? 0 : .5); else this.susp = Math.max(0, this.susp - dt * .25);
+    let social = G.socialFactor(null, d); if (P.disguise && !P.disguise.blown && !P.carry) social = Math.min(social, P.holstered || P.disguise.armed ? .12 : .6); if (P.carry) social = 2.2;
+    if (seen) this.susp += dt * (.8 + P.visibility) * (P.crouch > .5 ? .5 : 1) * (1 - d / 27) * 1.3 * G.diffMul * (P.carry ? social : Math.max(social, P.holstered || (P.disguise && !P.disguise.blown) ? 0 : .5)); else this.susp = Math.max(0, this.susp - dt * .25);
     this.seeing = seen && this.susp > .05;
     if (this.susp > 1 && this.cool <= 0) { this.cool = 20; this.susp = 0; G.camAlert(this, V.copy(P.pos)); }
   }

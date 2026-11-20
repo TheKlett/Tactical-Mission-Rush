@@ -2,8 +2,9 @@
    INPUT + PLAYER — movement, stances, freefall/parachute, weapons,
    inventory, interactions, takedowns, health.
    ===================================================================== */
+const SNIPER_ZOOM = [4, 6, 8, 12];
 const ACTIONS = [['forward', 'MOVE FORWARD', 'KeyW'], ['back', 'MOVE BACK', 'KeyS'], ['left', 'STRAFE LEFT', 'KeyA'], ['right', 'STRAFE RIGHT', 'KeyD'], ['jump', 'JUMP / PARACHUTE', 'Space'], ['sprint', 'SPRINT', 'ShiftLeft'], ['crouch', 'CROUCH', 'ControlLeft'],
-  ['interact', 'INTERACT', 'KeyE'], ['takedown', 'TAKEDOWN / HOSTAGE', 'KeyF'], ['melee', 'MELEE', 'KeyQ'], ['reload', 'RELOAD', 'KeyR'], ['slow', 'SLOW MOTION', 'KeyG'], ['s1', 'SLOT 1 — PISTOL', 'Digit1'], ['s2', 'SLOT 2 — RIFLE', 'Digit2'], ['s3', 'SLOT 3 — KNIFE', 'Digit3'], ['s4', 'SLOT 4 — MISSION', 'Digit4'], ['s5', 'SLOT 5 — EQUIPMENT', 'Digit5'], ['vcam', 'VEHICLE CAMERA', 'KeyC']];
+  ['interact', 'INTERACT', 'KeyE'], ['takedown', 'TAKEDOWN / HOSTAGE', 'KeyF'], ['melee', 'MELEE', 'KeyQ'], ['reload', 'RELOAD', 'KeyR'], ['slow', 'SLOW MOTION', 'KeyG'], ['s1', 'SLOT 1 — PISTOL', 'Digit1'], ['s2', 'SLOT 2 — RIFLE', 'Digit2'], ['s3', 'SLOT 3 — KNIFE', 'Digit3'], ['s4', 'SLOT 4 — MISSION', 'Digit4'], ['s5', 'SLOT 5 — EQUIPMENT', 'Digit5'], ['vcam', 'VEHICLE CAMERA', 'KeyC'], ['disguise', 'TAKE DISGUISE (HOLD)', 'KeyT']];
 const IN = {
   binds: {}, remap: null,
   buildRemap() { const r = {}; const blocked = new Set(); for (const [id, , def] of ACTIONS) { const b = this.binds[id] || def; r[b] = def; if (b !== def) blocked.add(def); } for (const k of blocked) if (!(k in r)) r[k] = null; this.remap = r; },
@@ -69,14 +70,15 @@ const P = {
     this.bob = 0; this.bobAmt = 0; this.swayX = 0; this.swayY = 0; this.kickP = 0; this.kickZ = 0; this.kickR = 0; this.land = 0; this.shake = 0;
     this.stepAcc = 0; this.lastSurf = 'mud'; this.inWater = 0; this.noiseLevel = 0; this.visibility = 1; this.speed = 0;
     this.interactTarget = null; this.holdT = 0; this.prompt = ''; this.chute = null; this.chuteOpen = 0; this.freefallT = 0; this.vehicle = null;
-    this.takedown = null; this.local = null; this.hostage = null; this.holstered = false; this.stun = 0; this.fov = 72; this.camRollT = 0; this.altitude = 0; this.thrownKnife = false; this.recoilYaw = 0;
+    this.takedown = null; this.local = null; this.hostage = null; this.holstered = false; this.carry = null; this.disguise = null; this.zoomI = 0; this.scoped = false; this.stun = 0; this.fov = 72; this.camRollT = 0; this.altitude = 0; this.thrownKnife = false; this.recoilYaw = 0;
     this.slideBack = 0; this.burstShots = 0; this.lastShot = -10; this.hurtDir = null; this.lastHurt = -10; this.camOverride = null;
   },
   applyLook(M) {
     const op = (typeof OPERATORS !== 'undefined' && OPERATORS[G.loadout.operator]) || null;
-    const app = Object.assign({}, this.baseApp || (this.baseApp = Object.assign({}, this.app)), op ? op.app : {}, M && M.playerApp ? M.playerApp : {});
-    const key = JSON.stringify(app) + (M && M.armSleeve);
-    if (key !== this._lookKey) { this._lookKey = key; this.rig.mesh.dispose(); this.rig.mesh = buildCharacter(app); this.vmArms.dispose(); this.vmArms = buildArms({ sleeve: (M && M.armSleeve) || (op && op.sleeve) || 0x4a5038, glove: (M && M.armGlove) || (op && op.glove) || 0x1c1c1a, plain: !!(M && M.armSleeve) }); }
+    const D = this.disguise;
+    const app = Object.assign({}, this.baseApp || (this.baseApp = Object.assign({}, this.app)), op ? op.app : {}, M && M.playerApp ? M.playerApp : {}, D ? D.clothes : {});
+    const key = JSON.stringify(app) + (M && M.armSleeve) + (D ? D.sleeve : '');
+    if (key !== this._lookKey) { this._lookKey = key; this.rig.mesh.dispose(); this.rig.mesh = buildCharacter(app); this.vmArms.dispose(); this.vmArms = buildArms(D ? { sleeve: D.sleeve, glove: D.glove, plain: D.plain } : { sleeve: (M && M.armSleeve) || (op && op.sleeve) || 0x4a5038, glove: (M && M.armGlove) || (op && op.glove) || 0x1c1c1a, plain: !!(M && M.armSleeve) }); }
   },
   get weapon() { const s = this.inv[this.cur]; return s ? s.k : null; },
   get wdef() { return (this.weps && this.weps[this.weapon]) || null; },
@@ -89,10 +91,12 @@ const P = {
     const W = G.W; const S = G.settings;
     // look
     this.stun = Math.max(0, (this.stun || 0) - dt);
+    if (this.carry && (this.state !== 'ground' || this.hostage || !this.carry.dead)) G.dropBody();
     if (this.state !== 'dead' && !this.camOverride && !this.takedown && !(this.stun > 0) && !(this.hostage && this.hostage.phase === 'grab')) {
-      const sens = S.sens * .0022 * (this.ads > .5 ? .65 : 1);
+      const sens = S.sens * .0022 * (this.ads > .5 ? .65 : 1) * (this.scoped ? 3 / SNIPER_ZOOM[this.zoomI | 0] : 1);
       let ax = IN.mdx, ay = IN.mdy; if (S.accel) { const m = 1 + Math.min(1, Math.hypot(ax, ay) / 40) * .9; ax *= m; ay *= m; }
       this.yaw -= ax * sens; this.pitch -= ay * sens * (S.invert ? -1 : 1);
+      if (this.scoped) { const br = IN.k('ShiftLeft') ? .15 : 1, t = G.time; this.yaw += (Math.sin(t * .9) * .5 + Math.sin(t * 2.3) * .2) * .021 * br * dt; this.pitch += Math.cos(t * 1.15) * .017 * br * dt; }
       this.pitch = clamp(this.pitch, -1.5, 1.5);
       this.swayX = damp(this.swayX, clamp(-IN.mdx * .0006, -.03, .03), 8, dt); this.swayY = damp(this.swayY, clamp(IN.mdy * .0006, -.03, .03), 8, dt);
     }
@@ -123,14 +127,15 @@ const P = {
     this.sprinting = IN.k('ShiftLeft') && f > .3 && this.crouch < .3 && this.ads < .3 && !(this.anim.k === 'reload' && this.wdef && this.wdef.type === 'rifle' && false);
     const water = W.waterY > -50 ? clamp((W.waterY - this.pos[1]) / .9, 0, 1) : 0; this.inWater = water;
     if (this.hostage || this.stun > 0) { this.sprinting = false; this.crouchHeld = false; }
-    let spd = this.sprinting ? 6.4 : this.crouch > .5 ? 1.9 : 3.7; if (this.hostage) spd = 1.7; if (this.stun > 0) spd = 0; if (this.ads > .5) spd *= .6; spd *= 1 - water * .45;
+    if (this.carry) this.sprinting = false;
+    let spd = this.sprinting ? 6.4 : this.crouch > .5 ? 1.9 : 3.7; if (this.hostage) spd = 1.7; if (this.carry) spd *= .55; if (this.stun > 0) spd = 0; if (this.ads > .5) spd *= .6; spd *= 1 - water * .45;
     if (this.wdef && this.wdef.type === 'rifle') spd *= .96;
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const tx = (-sy * f + cy * s) * spd, tz = (-cy * f - sy * s) * spd;
     const acc = this.onGround ? 12 : 2;
     this.vel[0] = damp(this.vel[0], tx, acc, dt); this.vel[2] = damp(this.vel[2], tz, acc, dt);
-    if (IN.hit('Space') && !this.hostage && this.tryMantle()) return;
-    if (this.onGround && IN.hit('Space') && this.crouch < .5 && water < .6) { this.vel[1] = 5.2; this.onGround = false; AUD.step(this.lastSurf, null, .25); }
+    if (IN.hit('Space') && !this.hostage && !this.carry && this.tryMantle()) return;
+    if (this.onGround && IN.hit('Space') && this.crouch < .5 && water < .6 && !this.carry) { this.vel[1] = 5.2; this.onGround = false; AUD.step(this.lastSurf, null, .25); }
     this.vel[1] -= 18 * dt;
     const np = [this.pos[0] + this.vel[0] * dt, this.pos[1], this.pos[2] + this.vel[2] * dt];
     const h = lerp(1.8, 1.2, this.crouch);
@@ -280,10 +285,12 @@ const P = {
     const A = this.anim; A.t += dt;
     const W = this.wdef; const S = G.settings;
     const canAct = this.state === 'ground' && !this.takedown;
+    if (this.carry) { if (A.t >= A.d) this.animDone(A); this.adsHeld = false; this.ads = damp(this.ads, 0, 14, dt); this.fireCd -= dt; if (canAct && IN.hit('KeyF') && !this.busy()) G.dropBody(); return; }
     // slot switching
     if (canAct && !this.hostage) for (let i = 0; i < 5; i++) if (IN.hit('Digit' + (i + 1))) this.selectSlot(i);
     if (canAct && this.holstered && (IN.mbHit[0] || IN.mbHit[2])) { this.holstered = false; this.anim = { k: 'draw', t: 0, d: .45 }; AUD.mech('draw'); }
-    if (canAct && IN.wheel) { let n = this.cur; for (let k = 0; k < 5; k++) { n = (n + (IN.wheel > 0 ? 1 : 4)) % 5; if (this.inv[n] || (n === 3 && this.mission.length)) break; } if (n !== this.cur) this.selectSlot(n); }
+    if (canAct && IN.wheel && this.scoped) { const z0 = this.zoomI | 0; this.zoomI = clamp(z0 + (IN.wheel < 0 ? 1 : -1), 0, SNIPER_ZOOM.length - 1); if (this.zoomI !== z0) AUD.click(2400, .25, null, .015); }
+    else if (canAct && IN.wheel) { let n = this.cur; for (let k = 0; k < 5; k++) { n = (n + (IN.wheel > 0 ? 1 : 4)) % 5; if (this.inv[n] || (n === 3 && this.mission.length)) break; } if (n !== this.cur) this.selectSlot(n); }
     // anim completion
     if (A.t >= A.d) this.animDone(A);
     const firing = IN.mb[0]; const firingHit = IN.mbHit[0];
@@ -351,6 +358,7 @@ const P = {
     this.slideBack = 1; this.shake = Math.max(this.shake, W.type === 'rifle' ? .1 : .04);
     G.muzzleFlash(W);
     if (am.mag === 0) AUD.mech('dry');
+    else if (W.sniper) G.after(() => AUD.mech('rack'), 380);
   },
   knifeAttack() {
     const K = this.weps.knife; this.anim = { k: 'stab', t: 0, d: K.swing, hit: false, side: Math.random() < .5 ? 1 : -1 }; AUD.swoosh(.35, null, 1300, .25);
@@ -376,25 +384,31 @@ const P = {
         const p = typeof it.pos === 'function' ? it.pos() : it.pos; const d = V.dist(p, eye); if (d > (it.r || 1.8)) continue;
         const to = V.sc(V.sub(p, eye), 1 / (d || 1)); const ang = Math.acos(clamp(V.dot(to, fwd), -1, 1));
         const lim = it.wide ? 1.2 : d < .9 ? .9 : .45; if (ang > lim) continue;
-        const score = ang + d * .05; if (score < bs) { bs = score; best = it; }
+        const score = ang + d * .05 - (it.prio || 0); if (score < bs) { bs = score; best = it; }
       }
     }
     this.interactTarget = best;
     this.prompt = best ? (typeof best.label === 'function' ? best.label() : best.label) : '';
     if (!best || !this.prompt) { this.interactTarget = null; if (A.k === 'hold') this.cancelHold(); return; }
-    const key = best.key || 'KeyE';
-    if (best.hold) {
-      if (IN.k(key) && (A.k === 'hold' && A.it === best || !this.busy())) {
-        if (A.k !== 'hold') { this.anim = { k: 'hold', t: 0, d: 1e9, it: best, kind: best.anim || 'hotwire' }; best.onStart && best.onStart(); }
-        this.holdT += dt; if (best.onHold) best.onHold(dt);
-        if (this.holdT >= best.hold) { this.holdT = 0; const it = best; this.anim = { k: 'idle', t: 0, d: 1e9 }; it.act(); }
-      } else if (A.k === 'hold') this.cancelHold();
-    } else if (IN.hit(key) && !this.busy()) {
-      if (best.instant) { best.act(); return; }
-      const p = typeof best.pos === 'function' ? best.pos() : best.pos;
-      this.anim = { k: 'interact', t: 0, d: best.dur || .75, at: best.at || .5, target: V.copy(p), kind: best.anim || 'reach', act: () => best.act(), fired: false, item: best.item || null };
-      if (best.onStart) best.onStart();
+    const opts = []; if (!(best.mainOff && best.mainOff())) opts.push(best); if (best.extra) for (const o of best.extra) if (!o.enabled || o.enabled()) opts.push(o);
+    let held = false;
+    for (const o of opts) {
+      const key = o.key || 'KeyE';
+      if (o.hold) {
+        if (!IN.k(key)) continue;
+        if (A.k === 'hold' && A.it !== o) continue;
+        if (A.k !== 'hold') { if (this.busy()) continue; this.holdT = 0; this.anim = { k: 'hold', t: 0, d: 1e9, it: o, kind: o.anim || 'hotwire' }; o.onStart && o.onStart(); }
+        held = true; this.holdT += dt; if (o.onHold) o.onHold(dt);
+        if (this.holdT >= o.hold) { this.holdT = 0; this.anim = { k: 'idle', t: 0, d: 1e9 }; o.act(); }
+        break;
+      } else if (IN.hit(key) && !this.busy()) {
+        if (o.instant) { o.act(); return; }
+        const p = typeof o.pos === 'function' ? o.pos() : (o.pos || (typeof best.pos === 'function' ? best.pos() : best.pos));
+        this.anim = { k: 'interact', t: 0, d: o.dur || .75, at: o.at || .5, target: V.copy(p), kind: o.anim || 'reach', act: () => o.act(), fired: false, item: o.item || null };
+        if (o.onStart) o.onStart(); return;
+      }
     }
+    if (!held && A.k === 'hold') this.cancelHold();
   },
   cancelHold() { this.holdT = 0; if (this.anim.k === 'hold') { const it = this.anim.it; it && it.onCancel && it.onCancel(); this.anim = { k: 'idle', t: 0, d: 1e9 }; } },
   hurt(dmg, from) {
@@ -423,9 +437,10 @@ const P = {
     this.camPos = M4.pos(m); this.camFwd = V.norm(M4.dir(m, 0, 0, -1)); this.camRight = V.norm(M4.dir(m, 1, 0, 0)); this.camUp = V.norm(M4.dir(m, 0, 1, 0));
     // fov
     const W = this.wdef; let fov = G.settings.fov;
-    if (this.isGun()) fov = lerp(fov, W.adsFov * (G.loadout.optic === 'holo' && W.type === 'rifle' ? .82 : 1), this.ads);
+    if (this.isGun()) fov = lerp(fov, W.sniper ? G.settings.fov / SNIPER_ZOOM[this.zoomI | 0] : W.adsFov * (G.loadout.optic === 'holo' && W.type === 'rifle' ? .82 : 1), this.ads);
+    this.scoped = !!(this.isGun() && W.sniper && this.ads > .86);
     if (this.sprinting) fov += 4; if (this.state === 'fall') fov += 8;
-    this.fov = damp(this.fov, fov, 10, dt);
+    this.fov = damp(this.fov, fov, this.scoped ? 18 : 10, dt);
   },
   /* body pose for the world-space player model */
   updateBody(dt) {

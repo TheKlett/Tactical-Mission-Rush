@@ -11,6 +11,7 @@ const WEAPONS = {
   ar7: { name: 'AR-7 CARBINE', type: 'rifle', mag: 30, reserve: 150, dmg: 34, rpm: 760, auto: true, spread: .03, adsSpread: .004, recoil: .022, suppressed: false, reload: 2.3, adsFov: 50, noise: 140, sound: 'rifle', price: 0, desc: '5.56 · 30 rds · light and controllable' },
   mk17: { name: 'MK-17 BATTLE RIFLE', type: 'rifle', mag: 20, reserve: 100, dmg: 52, rpm: 560, auto: true, spread: .034, adsSpread: .003, recoil: .036, suppressed: false, reload: 2.6, adsFov: 46, noise: 160, sound: 'rifle2', price: 1800, desc: '7.62 · 20 rds · defeats body armour' },
   vx9: { name: 'VX-9 SD CARBINE', type: 'rifle', mag: 30, reserve: 150, dmg: 27, rpm: 820, auto: true, spread: .028, adsSpread: .005, recoil: .018, suppressed: true, reload: 2.2, adsFov: 52, noise: 18, sound: 'pistolS', price: 4200, desc: 'Integrally suppressed · stealth automatic' },
+  sniper: { name: 'AWR-338 SNIPER RIFLE', type: 'rifle', sniper: true, mag: 5, reserve: 25, dmg: 260, rpm: 46, auto: false, spread: .09, adsSpread: .00015, recoil: .15, suppressed: false, reload: 3.3, adsFov: 18, noise: 240, sound: 'rifle2', price: 7600, desc: '.338 bolt-action · 4–12× variable scope · scroll to zoom while aiming' },
   dmr: { name: 'SR-25 MARKSMAN RIFLE', type: 'rifle', mag: 15, reserve: 75, dmg: 88, rpm: 300, auto: false, spread: .04, adsSpread: .0007, recoil: .06, suppressed: false, reload: 2.7, adsFov: 40, noise: 170, sound: 'rifle2', price: 5200, desc: '7.62 semi-auto · long range precision' },
   // knives (slot 3)
   knife: { name: 'CK-1 COMBAT KNIFE', type: 'knife', dmg: 150, throwDmg: 90, throwSpeed: 24, swing: .5, td: 1.75, noise: 0, price: 0, desc: 'Balanced fighting knife' },
@@ -39,7 +40,8 @@ function effWeapon(id, L) {
   const w = Object.assign({ id }, WEAPONS[id]);
   if (w.type === 'rifle') {
     if (L.muzzle === 'sup' && !w.suppressed) { w.suppressed = true; w.noise = 22; w.dmg *= .9; w.sound = 'riflS'; }
-    if (L.optic === 'scope') { w.adsFov = 22; w.adsSpread *= .6; } else if (L.optic === 'holo') w.adsFov *= .86;
+    if (w.sniper) { w.optic = 'sniper'; if (L.muzzle === 'sup') { w.noise = 30; w.dmg = 230; } }
+    else if (L.optic === 'scope') { w.adsFov = 22; w.adsSpread *= .6; } else if (L.optic === 'holo') w.adsFov *= .86;
   }
   if (w.type !== 'knife') { if (L.mag === 'ext') w.mag = Math.round(w.mag * 1.5); if (L.laser === 'on') w.spread *= .7; }
   return w;
@@ -83,6 +85,7 @@ function buildPistolVM(B, kind = 'pistol') {
 }
 /* ---------------- rifles ---------------- */
 function buildRifleVM(B, variant, optic, muzzle) {
+  if (variant === 'sniper') return buildSniperVM(B, muzzle);
   const mk = variant === 'mk17', vx = variant === 'vx9', dm = variant === 'dmr';
   B.b(VB.WPN);
   const rc = mk ? 0x5d5444 : dm ? 0x3a3c36 : 0x232425, rc2 = lin(rc).map(v => v * .8);
@@ -149,6 +152,53 @@ function buildRifleVM(B, variant, optic, muzzle) {
   // charging handle + visible bolt carrier (moving)
   B.b(VB.SLD).col(0x111111, MAT.METAL).box(0, .066, .03, .02, .01, .03).box(0, .066, .045, .05, .01, .01);
   B.col(0x3a3a38, MAT.METAL).box(.019, .05, -.1, .006, .016, .06);
+}
+/* bolt-action sniper rifle: chassis stock, fluted heavy barrel, 4-12x scope, folded bipod */
+function buildSniperVM(B, muzzle) {
+  B.b(VB.WPN);
+  const od = 0x3b3f33, od2 = 0x2c2f27, blk = 0x151515;
+  // pistol grip (same hand position as the carbines)
+  B.col(0x1d1e1f, MAT.RUBBER).push().t(0, -.004, .012).rx(-.3).tbox(0, -.045, 0, .032, .1, .048, .034, .044).pop();
+  B.col(0x141414, MAT.RUBBER); for (let i = 0; i < 4; i++) B.push().t(0, -.02 - i * .02, .025 + i * .007).rx(-.3).box(0, 0, -.023, .034, .005, .004).pop();
+  // chassis / receiver
+  B.col(od, MAT.PAINT).box(0, .01, -.1, .05, .045, .24).box(0, .03, .03, .046, .05, .06);
+  B.col(0x26282a, MAT.METAL).cylZ(0, .052, -.12, .021, .26, 16);
+  B.col(0x0b0b0b, MAT.METAL).box(.02, .052, -.09, .004, .02, .07);
+  B.col(blk, MAT.METAL).box(0, .075, -.13, .022, .008, .3);
+  for (let i = 0; i < 12; i++) B.box(0, .081, .0 - i * .024, .024, .004, .008);
+  // trigger guard + trigger
+  B.col(0x111111, MAT.METAL).box(0, -.022, -.04, .008, .005, .07).push().t(0, 0, -.03).rx(.3).box(0, -.008, 0, .005, .018, .005).pop();
+  // stock: skeleton chassis, adjustable cheek riser, butt pad
+  B.col(od, MAT.PAINT).box(0, .045, .12, .04, .03, .16).box(0, -.04, .17, .036, .022, .1).push().t(0, 0, .085).rx(.55).box(0, -.02, 0, .036, .07, .022).pop();
+  B.col(od2, MAT.PAINT).box(0, .085, .14, .034, .03, .13); B.col(0x777777, MAT.METAL).cyl(0, .066, .1, .004, .004, .04, 6).cyl(0, .066, .18, .004, .004, .04, 6);
+  B.col(od, MAT.PAINT).box(0, .015, .23, .044, .13, .03); B.col(0x0e0e0e, MAT.RUBBER).box(0, .015, .248, .046, .14, .014);
+  B.col(blk, MAT.METAL).box(0, -.06, .19, .012, .03, .012); // monopod stub
+  // free-float handguard
+  B.col(od, MAT.PAINT).box(0, .045, -.42, .05, .05, .34);
+  B.col(0x0d0d0d, MAT.METAL); for (let i = 0; i < 6; i++) { const z = -.3 - i * .05; B.box(.026, .05, z, .002, .024, .024).box(-.026, .05, z, .002, .024, .024); }
+  B.col(blk, MAT.METAL).box(0, .016, -.42, .022, .008, .3);
+  // folded bipod
+  B.col(0x1a1a1a, MAT.METAL).box(0, .01, -.56, .03, .02, .03).box(.012, .0, -.47, .008, .008, .17).box(-.012, .0, -.47, .008, .008, .17);
+  B.col(0x0e0e0e, MAT.RUBBER).box(.012, .0, -.385, .011, .011, .02).box(-.012, .0, -.385, .011, .011, .02);
+  // fluted heavy barrel + brake / suppressor
+  B.col(0x121212, MAT.METAL).cylZ(0, .048, -.76, .013, .36, 14);
+  B.col(0x070707, MAT.METAL); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; B.box(Math.cos(a) * .012, .048 + Math.sin(a) * .012, -.74, .003, .003, .26); }
+  if (muzzle === 'sup') { B.col(0x161616, MAT.METAL).cylZ(0, .048, -1.02, .024, .2, 16); B.col(0x0a0a0a, MAT.METAL); for (let i = 0; i < 6; i++) B.cylZ(0, .048, -.95 - i * .025, .0243, .003, 16); }
+  else { B.col(0x1a1a1a, MAT.METAL).cylZ(0, .048, -.97, .019, .07, 12); B.col(0x050505, MAT.METAL); for (let i = 0; i < 3; i++) B.box(0, .048, -.95 - i * .02, .044, .01, .008); }
+  // scope: rings, 30mm tube, turrets, objective bell, eyepiece
+  B.col(0x141414, MAT.METAL); for (const z of [-.07, -.2]) B.box(0, .1, z, .03, .03, .022).cylZ(0, .136, z, .022, .024, 16);
+  B.col(0x1b1c1c, MAT.METAL).cylZ(0, .136, -.13, .018, .22, 18).cylZ(0, .136, -.285, .032, .07, 20).cylZ(0, .136, -.255, .024, .03, 18).cylZ(0, .136, -.005, .023, .07, 18).cylZ(0, .136, -.05, .02, .03, 18);
+  B.col(0x0d0d0d, MAT.RUBBER).cylZ(0, .136, .028, .024, .012, 18);
+  B.col(0x111111, MAT.METAL).cyl(0, .166, -.13, .013, .013, .026, 12).push().t(.03, .136, -.13).rz(-Math.PI / 2).cyl(0, 0, 0, .012, .012, .024, 12).pop().push().t(-.026, .136, -.11).rz(Math.PI / 2).cyl(0, 0, 0, .009, .009, .016, 10).pop();
+  B.col(0x2a2a2a, MAT.METAL); for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; B.box(Math.cos(a) * .0135, .172, -.13 + Math.sin(a) * .0135, .002, .012, .002); }
+  B.col(0xb02020, MAT.PAINT).box(0, .18, -.13, .004, .002, .012);
+  B.col(0x284858, MAT.GLASS).push().t(0, .136, -.322).rx(Math.PI / 2).cyl(0, 0, 0, .03, .03, .002, 20).pop().push().t(0, .136, .035).rx(Math.PI / 2).cyl(0, 0, 0, .02, .02, .002, 16).pop();
+  // magazine (moving): short 5-round box
+  B.b(VB.MAG).col(0x1b1b1b, MAT.METAL).push().t(0, -.01, -.13).box(0, -.045, 0, .032, .09, .075).box(0, -.093, 0, .036, .012, .08).pop();
+  B.col(0xb08a40, MAT.METAL).push().t(0, -.008, -.13).cylZ(0, 0, 0, .005, .06, 6).pop();
+  // bolt + handle (moving)
+  B.b(VB.SLD).col(0x2e2e2e, MAT.METAL).cylZ(0, .052, -.02, .012, .06, 12);
+  B.push().t(.012, .052, -.005).rz(-.5).box(.03, 0, 0, .06, .008, .008).pop(); B.col(0x111111, MAT.RUBBER).sph(.065, .02, -.005, .012, .012, .012, 10, 8);
 }
 /* ---------------- knives ---------------- */
 function buildKnifeVM(B, bone, kind = 'knife') {

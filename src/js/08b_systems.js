@@ -133,3 +133,63 @@ Object.assign(G, {
     else { n.say(n.civ ? 'Thank you, thank you…' : 'You\'re making a mistake.'); this.notify('HOSTAGE RELEASED'); }
   },
 });
+/* =====================================================================
+   BODIES + DISGUISES — carry corpses out of sight ([F]), take a victim's
+   clothes ([T] hold) to move among his own side. Anyone who gets a good
+   look up close sees through it.
+   ===================================================================== */
+const DISGUISE_LABEL = { cartel: 'CARTEL SOLDIER', pmc: 'PMC CONTRACTOR', militia: 'MILITIA FIGHTER', security: 'SECURITY GUARD', civ: 'PARTY GUEST', staff: 'CATERING STAFF', bank: 'BANK EMPLOYEE', robber: 'BANK ROBBER' };
+Object.assign(G, {
+  pickupBody(n) {
+    if (P.carry || !n.dead || n.carried) return;
+    P.carry = n; n.carried = true; P.carryHol = P.holstered; P.holstered = true; P.ads = 0;
+    AUD.swoosh(.35, null, 600, .45); AUD.step('mud', null, .3); this.noise(P.pos, 3, 'step');
+    if (P.vmL) P.anim = { k: 'holster', t: 0, d: .3, keep: true };
+    this.notify('CARRYING ' + (n.name ? n.name.toUpperCase() : 'BODY') + ' — [F] DROP', 'info');
+  },
+  dropBody() {
+    const n = P.carry; if (!n) return; P.carry = null; n.carried = false;
+    const f = [-Math.sin(P.yaw), 0, -Math.cos(P.yaw)]; const W = this.W;
+    let p = V.add(P.pos, V.sc(f, .85)); const blk = W.ray([P.pos[0], P.pos[1] + .5, P.pos[2]], f, 1.1, { bullet: true }); if (blk) p = V.copy(P.pos);
+    p[1] = W.ground(p[0], p[2], P.pos[1] + .4, .5, .2); if (W.waterY > -50 && p[1] < W.waterY - .5) p[1] = Math.max(p[1], W.waterY - .45);
+    n.pos = p; n.yaw = P.yaw + Math.PI / 2 * (Math.random() < .5 ? 1 : -1); n.fallDir = Math.random() < .5 ? 1 : -1; n.deathT = Math.max(n.deathT, 2); n.k = Math.random() * 10;
+    AUD.impact('wood', p); this.noise(p, 4, 'body');
+    P.holstered = !!P.carryHol; if (!P.holstered) P.anim = { k: 'draw', t: 0, d: .45 };
+  },
+  takeDisguise(n) {
+    if (n.stripped || !n.dead) return;
+    const a = n.app; const label = DISGUISE_LABEL[n.faction] || 'GUARD';
+    const clothes = { top: a.top, topCol: a.topCol, suit: a.suit, bottom: a.bottom === 'dress' ? 'slacks' : a.bottom, botCol: a.botCol, feet: a.feet, head: a.head === 'helmet' || a.head === 'cap' || a.head === 'beanie' || a.head === 'balaclava' || a.head === 'skimask' || a.head === 'hood' || a.head === 'earpiece' || a.head === 'headset' ? a.head : 'none', vest: a.vest || 'none', vestCol: a.vestCol, camo: !!a.camo, gloves: !!a.gloves, accent: a.accent, tie: a.tie, holster: a.holster };
+    if (clothes.top === 'dress' || clothes.top === 'blouse') clothes.top = 'shirt';
+    const plain = !!n.civ || n.faction === 'security';
+    P.disguise = { faction: n.faction, civ: !!n.civ, armed: !!n.W && !n.civ, label, name: n.name, clothes, sleeve: a.suit ?? a.topCol ?? 0x4a5038, glove: a.gloves ? 0x1c1c1a : 0xc89670, plain, guest: n.faction === 'civ', blown: false };
+    // the body is left in a plain undershirt
+    const s = Object.assign({}, a, { top: 'tshirt', topCol: 0xcfcac0, suit: undefined, vest: 'none', head: a.head === 'helmet' ? 'none' : a.head === 'earpiece' ? 'none' : a.head, camo: false, holster: false, bottom: a.bottom === 'dress' ? 'slacks' : a.bottom });
+    n.stripped = true; n.rig.mesh.dispose && n.rig.mesh.dispose(); n.rig.mesh = buildCharacter(s);
+    P.applyLook(this.M); AUD.swoosh(.5, null, 800, .4); AUD.mech('pickup');
+    this.notify('DISGUISED AS ' + label + ' — KEEP YOUR DISTANCE FROM OTHERS', 'good');
+    UI.hint('Disguised as ' + label.toLowerCase() + '. People ignore you from a distance, but anyone who gets close will recognise you. ' + (P.disguise.armed ? 'Weapons are part of the outfit — just don\'t aim at anyone.' : 'Keep your weapon holstered.'));
+  },
+  blowDisguise(by) {
+    const D = P.disguise; if (!D || D.blown) return; D.blown = true;
+    this.notify('DISGUISE BLOWN', 'alarm'); if (by && !by.civ) by.say(pick(['Wait — you\'re not one of us!', 'Hey! That\'s not ' + (D.name || 'him') + '!', 'Impostor! Take him down!']));
+  },
+  disguiseFactor(npc, d) {
+    const D = P.disguise; if (!D || D.blown || P.carry || P.hostage || P.state !== 'ground') return 1;
+    if (P.lastShot > this.time - 4) return 1;
+    if (npc.civ) return D.civ ? .02 : .06;
+    let k = .05;
+    if (!D.armed && !P.holstered) k = .9;           // drawn weapon in an unarmed outfit
+    if (P.ads > .5) k = Math.max(k, .8);            // aiming at people
+    if (P.crouch > .5) k *= 4; if (P.sprinting) k *= 3;
+    if (npc.state === 'search' || npc.state === 'combat' || this.alarm > 0) k *= 2.5;
+    if (D.guest && this.zoneAt && this.zoneAt(P.pos) === 'restricted') k = Math.max(k, .5);
+    const close = npc.state === 'calm' ? 4.5 : 7; // up close they recognise the face
+    if (d < close) k = Math.max(k, lerp(.75, .25, d / close));
+    return Math.min(1, k);
+  },
+});
+{
+  const baseWarn = G.socialWarn;
+  G.socialWarn = function (npc) { if (P.disguise && !P.disguise.blown && !P.disguise.guest) return false; return baseWarn.call(this, npc); };
+}

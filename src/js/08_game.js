@@ -342,7 +342,7 @@ const G = {
   killNPC(n, from, part, kind) {
     if (P.hostage && P.hostage.n === n && P.hostage.phase !== 'kill') P.hostage = null;
     if (n.civ) { this.stats.civKilled = (this.stats.civKilled || 0) + 1; this.notify('CIVILIAN CASUALTY — PAYOUT REDUCED', 'alarm'); }
-    const wasState = n.state; n.dead = true; n.deathAt = this.time; n.deathT = 0; n.hp = 0; n.state = 'dead';
+    const wasState = n.state; n.dead = true; n.deathAt = this.time; n.deathPos = V.copy(n.pos); n.deathT = 0; n.hp = 0; n.state = 'dead';
     const toS = Math.atan2(-(from[0] - n.pos[0]), -(from[2] - n.pos[2])); n.fallDir = Math.abs(angDiff(n.yaw, toS)) < Math.PI / 2 ? 1 : -1;
     this.stats.kills++; if (wasState !== 'combat' && wasState !== 'search') this.stats.stealthKills++;
     if (n._anc) { n._anc.taken = null; n._anc = null; }
@@ -495,8 +495,13 @@ const G = {
     }
     for (const n of this.npcs) {
       const d = V.dist2(n.pos, pp); if (d > 3) continue;
-      if (n.dead && !n.searched && n.deathT > 1) { if (!n._sit) n._sit = { r: 2.2, wide: true, pos: () => n.rig.bonePos(SK.CH), label: '[E] SEARCH BODY (HOLD)', hold: 1.4, anim: 'search', act: () => this.searchBody(n) }; out.push(n._sit); }
-      if (!n.dead && n.tdT < 0 && n.state !== 'combat' && n.state !== 'hostage' && !P.hostage && P.state === 'ground' && d < 1.8) {
+      if (n.dead && n.deathT > 1 && !n.carried && !P.carry && n.state !== 'hostage') {
+        if (!n._sit) n._sit = { r: 2.2, wide: true, prio: .5, pos: () => n.rig.bonePos(SK.CH), hold: 1.4, anim: 'search', act: () => this.searchBody(n), mainOff: () => n.searched,
+          label: () => [n.searched ? '' : '[E] SEARCH (HOLD)', '[F] CARRY BODY', n.stripped ? '' : '[T] TAKE DISGUISE (HOLD)'].filter(Boolean).join('   ·   '),
+          extra: [{ key: 'KeyF', instant: true, act: () => this.pickupBody(n) }, { key: 'KeyT', hold: 2.4, anim: 'search', act: () => this.takeDisguise(n), enabled: () => !n.stripped }] };
+        out.push(n._sit);
+      }
+      if (!n.dead && !P.carry && n.tdT < 0 && n.state !== 'combat' && n.state !== 'hostage' && !P.hostage && P.state === 'ground' && d < 1.8) {
         const toP = Math.atan2(-(P.pos[0] - n.pos[0]), -(P.pos[2] - n.pos[2])); const behind = Math.abs(angDiff(n.yaw, toP)) > 1.75 || (n.anim === 'sit' && Math.abs(angDiff(n.yaw, toP)) > 1.4);
         if (behind) { if (!n._tdit) n._tdit = { key: 'KeyF', r: 2.2, wide: true, pos: () => V.add(n.pos, [0, 1.4, 0]), label: () => this.canGrab(n) ? '[F] GRAB AS HOSTAGE' : P.thrownKnife ? '[F] SILENT TAKEDOWN (CHOKE)' : '[F] SILENT TAKEDOWN', instant: true, act: () => this.canGrab(n) ? this.startHostage(n) : this.startTakedown(n) }; out.push(n._tdit); }
       }

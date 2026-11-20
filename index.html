@@ -263,6 +263,20 @@ h1,h2,h3{font-weight:700;letter-spacing:.18em;text-transform:uppercase}
 #social{margin:6px 0 0 10px;font-family:var(--m);font-size:9.5px;letter-spacing:.24em;color:#9a9ea2}#social.pub{color:#7fbf8a}#social.res{color:var(--amber)}#social.arm{color:var(--red2)}
 #hpbar{position:absolute;right:30px;bottom:112px;width:150px;height:3px;background:rgba(255,255,255,.12)}#hpbar i{display:block;height:100%;background:#ddd;transition:width .2s}
 
+/* ---- sniper scope overlay ---- */
+#scope{position:absolute;inset:0;display:none;pointer-events:none;background:radial-gradient(circle at 50% 50%,rgba(0,0,0,0) 0,rgba(0,0,0,0) 38vh,rgba(0,0,0,.55) 39vh,#000 40.5vh);z-index:2}
+#scope.on{display:block}
+#scope .ret{position:absolute;left:50%;top:50%;width:81vh;height:81vh;transform:translate(-50%,-50%);border-radius:50%;box-shadow:inset 0 0 6vh rgba(0,0,0,.6)}
+#scope .ret i{position:absolute;background:#050505}
+#scope .ret .h{left:0;right:0;top:50%;height:2px;margin-top:-1px;background:linear-gradient(90deg,#050505 0 38%,rgba(5,5,5,.9) 38% 62%,#050505 62%);}
+#scope .ret .h::before,#scope .ret .v::before{content:'';position:absolute;background:repeating-linear-gradient(90deg,transparent 0 calc(4vh - 2px),#050505 calc(4vh - 2px) 4vh)}
+#scope .ret .h::before{left:30%;right:30%;top:-3px;height:8px;background:repeating-linear-gradient(90deg,transparent 0 calc(4vh - 2px),#050505 calc(4vh - 2px) 4vh)}
+#scope .ret .v{top:0;bottom:0;left:50%;width:2px;margin-left:-1px}
+#scope .ret .v::before{top:30%;bottom:30%;left:-3px;width:8px;background:repeating-linear-gradient(180deg,transparent 0 calc(4vh - 2px),#050505 calc(4vh - 2px) 4vh)}
+#scope .ret .c{left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#e01818;box-shadow:0 0 4px #f22}
+#scope #scopeZ{position:absolute;left:50%;top:calc(50% + 30vh);transform:translateX(-50%);font:600 12px/1 var(--m);letter-spacing:3px;color:#c8c8c8;background:rgba(0,0,0,.5);padding:4px 10px}
+#hud.scoped #xh{display:none}
+
 </style>
 </head>
 <body>
@@ -277,6 +291,7 @@ h1,h2,h3{font-weight:700;letter-spacing:.18em;text-transform:uppercase}
   <ul id="objs"></ul>
   <div id="notifs"></div>
   <div id="hint"></div>
+  <div id="scope"><div class="ret"><i class="h"></i><i class="v"></i><i class="c"></i></div><b id="scopeZ">4×</b></div>
   <div id="xh"><i></i></div>
   <div id="hitm"></div>
   <div id="prompt"><svg viewBox="0 0 36 36"><circle class="b" cx="18" cy="18" r="15.9"/><circle class="p" cx="18" cy="18" r="15.9" pathLength="100"/></svg><span></span></div>
@@ -2258,6 +2273,7 @@ const WEAPONS = {
   ar7: { name: 'AR-7 CARBINE', type: 'rifle', mag: 30, reserve: 150, dmg: 34, rpm: 760, auto: true, spread: .03, adsSpread: .004, recoil: .022, suppressed: false, reload: 2.3, adsFov: 50, noise: 140, sound: 'rifle', price: 0, desc: '5.56 · 30 rds · light and controllable' },
   mk17: { name: 'MK-17 BATTLE RIFLE', type: 'rifle', mag: 20, reserve: 100, dmg: 52, rpm: 560, auto: true, spread: .034, adsSpread: .003, recoil: .036, suppressed: false, reload: 2.6, adsFov: 46, noise: 160, sound: 'rifle2', price: 1800, desc: '7.62 · 20 rds · defeats body armour' },
   vx9: { name: 'VX-9 SD CARBINE', type: 'rifle', mag: 30, reserve: 150, dmg: 27, rpm: 820, auto: true, spread: .028, adsSpread: .005, recoil: .018, suppressed: true, reload: 2.2, adsFov: 52, noise: 18, sound: 'pistolS', price: 4200, desc: 'Integrally suppressed · stealth automatic' },
+  sniper: { name: 'AWR-338 SNIPER RIFLE', type: 'rifle', sniper: true, mag: 5, reserve: 25, dmg: 260, rpm: 46, auto: false, spread: .09, adsSpread: .00015, recoil: .15, suppressed: false, reload: 3.3, adsFov: 18, noise: 240, sound: 'rifle2', price: 7600, desc: '.338 bolt-action · 4–12× variable scope · scroll to zoom while aiming' },
   dmr: { name: 'SR-25 MARKSMAN RIFLE', type: 'rifle', mag: 15, reserve: 75, dmg: 88, rpm: 300, auto: false, spread: .04, adsSpread: .0007, recoil: .06, suppressed: false, reload: 2.7, adsFov: 40, noise: 170, sound: 'rifle2', price: 5200, desc: '7.62 semi-auto · long range precision' },
   // knives (slot 3)
   knife: { name: 'CK-1 COMBAT KNIFE', type: 'knife', dmg: 150, throwDmg: 90, throwSpeed: 24, swing: .5, td: 1.75, noise: 0, price: 0, desc: 'Balanced fighting knife' },
@@ -2286,7 +2302,8 @@ function effWeapon(id, L) {
   const w = Object.assign({ id }, WEAPONS[id]);
   if (w.type === 'rifle') {
     if (L.muzzle === 'sup' && !w.suppressed) { w.suppressed = true; w.noise = 22; w.dmg *= .9; w.sound = 'riflS'; }
-    if (L.optic === 'scope') { w.adsFov = 22; w.adsSpread *= .6; } else if (L.optic === 'holo') w.adsFov *= .86;
+    if (w.sniper) { w.optic = 'sniper'; if (L.muzzle === 'sup') { w.noise = 30; w.dmg = 230; } }
+    else if (L.optic === 'scope') { w.adsFov = 22; w.adsSpread *= .6; } else if (L.optic === 'holo') w.adsFov *= .86;
   }
   if (w.type !== 'knife') { if (L.mag === 'ext') w.mag = Math.round(w.mag * 1.5); if (L.laser === 'on') w.spread *= .7; }
   return w;
@@ -2330,6 +2347,7 @@ function buildPistolVM(B, kind = 'pistol') {
 }
 /* ---------------- rifles ---------------- */
 function buildRifleVM(B, variant, optic, muzzle) {
+  if (variant === 'sniper') return buildSniperVM(B, muzzle);
   const mk = variant === 'mk17', vx = variant === 'vx9', dm = variant === 'dmr';
   B.b(VB.WPN);
   const rc = mk ? 0x5d5444 : dm ? 0x3a3c36 : 0x232425, rc2 = lin(rc).map(v => v * .8);
@@ -2396,6 +2414,53 @@ function buildRifleVM(B, variant, optic, muzzle) {
   // charging handle + visible bolt carrier (moving)
   B.b(VB.SLD).col(0x111111, MAT.METAL).box(0, .066, .03, .02, .01, .03).box(0, .066, .045, .05, .01, .01);
   B.col(0x3a3a38, MAT.METAL).box(.019, .05, -.1, .006, .016, .06);
+}
+/* bolt-action sniper rifle: chassis stock, fluted heavy barrel, 4-12x scope, folded bipod */
+function buildSniperVM(B, muzzle) {
+  B.b(VB.WPN);
+  const od = 0x3b3f33, od2 = 0x2c2f27, blk = 0x151515;
+  // pistol grip (same hand position as the carbines)
+  B.col(0x1d1e1f, MAT.RUBBER).push().t(0, -.004, .012).rx(-.3).tbox(0, -.045, 0, .032, .1, .048, .034, .044).pop();
+  B.col(0x141414, MAT.RUBBER); for (let i = 0; i < 4; i++) B.push().t(0, -.02 - i * .02, .025 + i * .007).rx(-.3).box(0, 0, -.023, .034, .005, .004).pop();
+  // chassis / receiver
+  B.col(od, MAT.PAINT).box(0, .01, -.1, .05, .045, .24).box(0, .03, .03, .046, .05, .06);
+  B.col(0x26282a, MAT.METAL).cylZ(0, .052, -.12, .021, .26, 16);
+  B.col(0x0b0b0b, MAT.METAL).box(.02, .052, -.09, .004, .02, .07);
+  B.col(blk, MAT.METAL).box(0, .075, -.13, .022, .008, .3);
+  for (let i = 0; i < 12; i++) B.box(0, .081, .0 - i * .024, .024, .004, .008);
+  // trigger guard + trigger
+  B.col(0x111111, MAT.METAL).box(0, -.022, -.04, .008, .005, .07).push().t(0, 0, -.03).rx(.3).box(0, -.008, 0, .005, .018, .005).pop();
+  // stock: skeleton chassis, adjustable cheek riser, butt pad
+  B.col(od, MAT.PAINT).box(0, .045, .12, .04, .03, .16).box(0, -.04, .17, .036, .022, .1).push().t(0, 0, .085).rx(.55).box(0, -.02, 0, .036, .07, .022).pop();
+  B.col(od2, MAT.PAINT).box(0, .085, .14, .034, .03, .13); B.col(0x777777, MAT.METAL).cyl(0, .066, .1, .004, .004, .04, 6).cyl(0, .066, .18, .004, .004, .04, 6);
+  B.col(od, MAT.PAINT).box(0, .015, .23, .044, .13, .03); B.col(0x0e0e0e, MAT.RUBBER).box(0, .015, .248, .046, .14, .014);
+  B.col(blk, MAT.METAL).box(0, -.06, .19, .012, .03, .012); // monopod stub
+  // free-float handguard
+  B.col(od, MAT.PAINT).box(0, .045, -.42, .05, .05, .34);
+  B.col(0x0d0d0d, MAT.METAL); for (let i = 0; i < 6; i++) { const z = -.3 - i * .05; B.box(.026, .05, z, .002, .024, .024).box(-.026, .05, z, .002, .024, .024); }
+  B.col(blk, MAT.METAL).box(0, .016, -.42, .022, .008, .3);
+  // folded bipod
+  B.col(0x1a1a1a, MAT.METAL).box(0, .01, -.56, .03, .02, .03).box(.012, .0, -.47, .008, .008, .17).box(-.012, .0, -.47, .008, .008, .17);
+  B.col(0x0e0e0e, MAT.RUBBER).box(.012, .0, -.385, .011, .011, .02).box(-.012, .0, -.385, .011, .011, .02);
+  // fluted heavy barrel + brake / suppressor
+  B.col(0x121212, MAT.METAL).cylZ(0, .048, -.76, .013, .36, 14);
+  B.col(0x070707, MAT.METAL); for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; B.box(Math.cos(a) * .012, .048 + Math.sin(a) * .012, -.74, .003, .003, .26); }
+  if (muzzle === 'sup') { B.col(0x161616, MAT.METAL).cylZ(0, .048, -1.02, .024, .2, 16); B.col(0x0a0a0a, MAT.METAL); for (let i = 0; i < 6; i++) B.cylZ(0, .048, -.95 - i * .025, .0243, .003, 16); }
+  else { B.col(0x1a1a1a, MAT.METAL).cylZ(0, .048, -.97, .019, .07, 12); B.col(0x050505, MAT.METAL); for (let i = 0; i < 3; i++) B.box(0, .048, -.95 - i * .02, .044, .01, .008); }
+  // scope: rings, 30mm tube, turrets, objective bell, eyepiece
+  B.col(0x141414, MAT.METAL); for (const z of [-.07, -.2]) B.box(0, .1, z, .03, .03, .022).cylZ(0, .136, z, .022, .024, 16);
+  B.col(0x1b1c1c, MAT.METAL).cylZ(0, .136, -.13, .018, .22, 18).cylZ(0, .136, -.285, .032, .07, 20).cylZ(0, .136, -.255, .024, .03, 18).cylZ(0, .136, -.005, .023, .07, 18).cylZ(0, .136, -.05, .02, .03, 18);
+  B.col(0x0d0d0d, MAT.RUBBER).cylZ(0, .136, .028, .024, .012, 18);
+  B.col(0x111111, MAT.METAL).cyl(0, .166, -.13, .013, .013, .026, 12).push().t(.03, .136, -.13).rz(-Math.PI / 2).cyl(0, 0, 0, .012, .012, .024, 12).pop().push().t(-.026, .136, -.11).rz(Math.PI / 2).cyl(0, 0, 0, .009, .009, .016, 10).pop();
+  B.col(0x2a2a2a, MAT.METAL); for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; B.box(Math.cos(a) * .0135, .172, -.13 + Math.sin(a) * .0135, .002, .012, .002); }
+  B.col(0xb02020, MAT.PAINT).box(0, .18, -.13, .004, .002, .012);
+  B.col(0x284858, MAT.GLASS).push().t(0, .136, -.322).rx(Math.PI / 2).cyl(0, 0, 0, .03, .03, .002, 20).pop().push().t(0, .136, .035).rx(Math.PI / 2).cyl(0, 0, 0, .02, .02, .002, 16).pop();
+  // magazine (moving): short 5-round box
+  B.b(VB.MAG).col(0x1b1b1b, MAT.METAL).push().t(0, -.01, -.13).box(0, -.045, 0, .032, .09, .075).box(0, -.093, 0, .036, .012, .08).pop();
+  B.col(0xb08a40, MAT.METAL).push().t(0, -.008, -.13).cylZ(0, 0, 0, .005, .06, 6).pop();
+  // bolt + handle (moving)
+  B.b(VB.SLD).col(0x2e2e2e, MAT.METAL).cylZ(0, .052, -.02, .012, .06, 12);
+  B.push().t(.012, .052, -.005).rz(-.5).box(.03, 0, 0, .06, .008, .008).pop(); B.col(0x111111, MAT.RUBBER).sph(.065, .02, -.005, .012, .012, .012, 10, 8);
 }
 /* ---------------- knives ---------------- */
 function buildKnifeVM(B, bone, kind = 'knife') {
@@ -3124,8 +3189,9 @@ class World {
    INPUT + PLAYER — movement, stances, freefall/parachute, weapons,
    inventory, interactions, takedowns, health.
    ===================================================================== */
+const SNIPER_ZOOM = [4, 6, 8, 12];
 const ACTIONS = [['forward', 'MOVE FORWARD', 'KeyW'], ['back', 'MOVE BACK', 'KeyS'], ['left', 'STRAFE LEFT', 'KeyA'], ['right', 'STRAFE RIGHT', 'KeyD'], ['jump', 'JUMP / PARACHUTE', 'Space'], ['sprint', 'SPRINT', 'ShiftLeft'], ['crouch', 'CROUCH', 'ControlLeft'],
-  ['interact', 'INTERACT', 'KeyE'], ['takedown', 'TAKEDOWN / HOSTAGE', 'KeyF'], ['melee', 'MELEE', 'KeyQ'], ['reload', 'RELOAD', 'KeyR'], ['slow', 'SLOW MOTION', 'KeyG'], ['s1', 'SLOT 1 — PISTOL', 'Digit1'], ['s2', 'SLOT 2 — RIFLE', 'Digit2'], ['s3', 'SLOT 3 — KNIFE', 'Digit3'], ['s4', 'SLOT 4 — MISSION', 'Digit4'], ['s5', 'SLOT 5 — EQUIPMENT', 'Digit5'], ['vcam', 'VEHICLE CAMERA', 'KeyC']];
+  ['interact', 'INTERACT', 'KeyE'], ['takedown', 'TAKEDOWN / HOSTAGE', 'KeyF'], ['melee', 'MELEE', 'KeyQ'], ['reload', 'RELOAD', 'KeyR'], ['slow', 'SLOW MOTION', 'KeyG'], ['s1', 'SLOT 1 — PISTOL', 'Digit1'], ['s2', 'SLOT 2 — RIFLE', 'Digit2'], ['s3', 'SLOT 3 — KNIFE', 'Digit3'], ['s4', 'SLOT 4 — MISSION', 'Digit4'], ['s5', 'SLOT 5 — EQUIPMENT', 'Digit5'], ['vcam', 'VEHICLE CAMERA', 'KeyC'], ['disguise', 'TAKE DISGUISE (HOLD)', 'KeyT']];
 const IN = {
   binds: {}, remap: null,
   buildRemap() { const r = {}; const blocked = new Set(); for (const [id, , def] of ACTIONS) { const b = this.binds[id] || def; r[b] = def; if (b !== def) blocked.add(def); } for (const k of blocked) if (!(k in r)) r[k] = null; this.remap = r; },
@@ -3191,14 +3257,15 @@ const P = {
     this.bob = 0; this.bobAmt = 0; this.swayX = 0; this.swayY = 0; this.kickP = 0; this.kickZ = 0; this.kickR = 0; this.land = 0; this.shake = 0;
     this.stepAcc = 0; this.lastSurf = 'mud'; this.inWater = 0; this.noiseLevel = 0; this.visibility = 1; this.speed = 0;
     this.interactTarget = null; this.holdT = 0; this.prompt = ''; this.chute = null; this.chuteOpen = 0; this.freefallT = 0; this.vehicle = null;
-    this.takedown = null; this.local = null; this.hostage = null; this.holstered = false; this.stun = 0; this.fov = 72; this.camRollT = 0; this.altitude = 0; this.thrownKnife = false; this.recoilYaw = 0;
+    this.takedown = null; this.local = null; this.hostage = null; this.holstered = false; this.carry = null; this.disguise = null; this.zoomI = 0; this.scoped = false; this.stun = 0; this.fov = 72; this.camRollT = 0; this.altitude = 0; this.thrownKnife = false; this.recoilYaw = 0;
     this.slideBack = 0; this.burstShots = 0; this.lastShot = -10; this.hurtDir = null; this.lastHurt = -10; this.camOverride = null;
   },
   applyLook(M) {
     const op = (typeof OPERATORS !== 'undefined' && OPERATORS[G.loadout.operator]) || null;
-    const app = Object.assign({}, this.baseApp || (this.baseApp = Object.assign({}, this.app)), op ? op.app : {}, M && M.playerApp ? M.playerApp : {});
-    const key = JSON.stringify(app) + (M && M.armSleeve);
-    if (key !== this._lookKey) { this._lookKey = key; this.rig.mesh.dispose(); this.rig.mesh = buildCharacter(app); this.vmArms.dispose(); this.vmArms = buildArms({ sleeve: (M && M.armSleeve) || (op && op.sleeve) || 0x4a5038, glove: (M && M.armGlove) || (op && op.glove) || 0x1c1c1a, plain: !!(M && M.armSleeve) }); }
+    const D = this.disguise;
+    const app = Object.assign({}, this.baseApp || (this.baseApp = Object.assign({}, this.app)), op ? op.app : {}, M && M.playerApp ? M.playerApp : {}, D ? D.clothes : {});
+    const key = JSON.stringify(app) + (M && M.armSleeve) + (D ? D.sleeve : '');
+    if (key !== this._lookKey) { this._lookKey = key; this.rig.mesh.dispose(); this.rig.mesh = buildCharacter(app); this.vmArms.dispose(); this.vmArms = buildArms(D ? { sleeve: D.sleeve, glove: D.glove, plain: D.plain } : { sleeve: (M && M.armSleeve) || (op && op.sleeve) || 0x4a5038, glove: (M && M.armGlove) || (op && op.glove) || 0x1c1c1a, plain: !!(M && M.armSleeve) }); }
   },
   get weapon() { const s = this.inv[this.cur]; return s ? s.k : null; },
   get wdef() { return (this.weps && this.weps[this.weapon]) || null; },
@@ -3211,10 +3278,12 @@ const P = {
     const W = G.W; const S = G.settings;
     // look
     this.stun = Math.max(0, (this.stun || 0) - dt);
+    if (this.carry && (this.state !== 'ground' || this.hostage || !this.carry.dead)) G.dropBody();
     if (this.state !== 'dead' && !this.camOverride && !this.takedown && !(this.stun > 0) && !(this.hostage && this.hostage.phase === 'grab')) {
-      const sens = S.sens * .0022 * (this.ads > .5 ? .65 : 1);
+      const sens = S.sens * .0022 * (this.ads > .5 ? .65 : 1) * (this.scoped ? 3 / SNIPER_ZOOM[this.zoomI | 0] : 1);
       let ax = IN.mdx, ay = IN.mdy; if (S.accel) { const m = 1 + Math.min(1, Math.hypot(ax, ay) / 40) * .9; ax *= m; ay *= m; }
       this.yaw -= ax * sens; this.pitch -= ay * sens * (S.invert ? -1 : 1);
+      if (this.scoped) { const br = IN.k('ShiftLeft') ? .15 : 1, t = G.time; this.yaw += (Math.sin(t * .9) * .5 + Math.sin(t * 2.3) * .2) * .021 * br * dt; this.pitch += Math.cos(t * 1.15) * .017 * br * dt; }
       this.pitch = clamp(this.pitch, -1.5, 1.5);
       this.swayX = damp(this.swayX, clamp(-IN.mdx * .0006, -.03, .03), 8, dt); this.swayY = damp(this.swayY, clamp(IN.mdy * .0006, -.03, .03), 8, dt);
     }
@@ -3245,14 +3314,15 @@ const P = {
     this.sprinting = IN.k('ShiftLeft') && f > .3 && this.crouch < .3 && this.ads < .3 && !(this.anim.k === 'reload' && this.wdef && this.wdef.type === 'rifle' && false);
     const water = W.waterY > -50 ? clamp((W.waterY - this.pos[1]) / .9, 0, 1) : 0; this.inWater = water;
     if (this.hostage || this.stun > 0) { this.sprinting = false; this.crouchHeld = false; }
-    let spd = this.sprinting ? 6.4 : this.crouch > .5 ? 1.9 : 3.7; if (this.hostage) spd = 1.7; if (this.stun > 0) spd = 0; if (this.ads > .5) spd *= .6; spd *= 1 - water * .45;
+    if (this.carry) this.sprinting = false;
+    let spd = this.sprinting ? 6.4 : this.crouch > .5 ? 1.9 : 3.7; if (this.hostage) spd = 1.7; if (this.carry) spd *= .55; if (this.stun > 0) spd = 0; if (this.ads > .5) spd *= .6; spd *= 1 - water * .45;
     if (this.wdef && this.wdef.type === 'rifle') spd *= .96;
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const tx = (-sy * f + cy * s) * spd, tz = (-cy * f - sy * s) * spd;
     const acc = this.onGround ? 12 : 2;
     this.vel[0] = damp(this.vel[0], tx, acc, dt); this.vel[2] = damp(this.vel[2], tz, acc, dt);
-    if (IN.hit('Space') && !this.hostage && this.tryMantle()) return;
-    if (this.onGround && IN.hit('Space') && this.crouch < .5 && water < .6) { this.vel[1] = 5.2; this.onGround = false; AUD.step(this.lastSurf, null, .25); }
+    if (IN.hit('Space') && !this.hostage && !this.carry && this.tryMantle()) return;
+    if (this.onGround && IN.hit('Space') && this.crouch < .5 && water < .6 && !this.carry) { this.vel[1] = 5.2; this.onGround = false; AUD.step(this.lastSurf, null, .25); }
     this.vel[1] -= 18 * dt;
     const np = [this.pos[0] + this.vel[0] * dt, this.pos[1], this.pos[2] + this.vel[2] * dt];
     const h = lerp(1.8, 1.2, this.crouch);
@@ -3402,10 +3472,12 @@ const P = {
     const A = this.anim; A.t += dt;
     const W = this.wdef; const S = G.settings;
     const canAct = this.state === 'ground' && !this.takedown;
+    if (this.carry) { if (A.t >= A.d) this.animDone(A); this.adsHeld = false; this.ads = damp(this.ads, 0, 14, dt); this.fireCd -= dt; if (canAct && IN.hit('KeyF') && !this.busy()) G.dropBody(); return; }
     // slot switching
     if (canAct && !this.hostage) for (let i = 0; i < 5; i++) if (IN.hit('Digit' + (i + 1))) this.selectSlot(i);
     if (canAct && this.holstered && (IN.mbHit[0] || IN.mbHit[2])) { this.holstered = false; this.anim = { k: 'draw', t: 0, d: .45 }; AUD.mech('draw'); }
-    if (canAct && IN.wheel) { let n = this.cur; for (let k = 0; k < 5; k++) { n = (n + (IN.wheel > 0 ? 1 : 4)) % 5; if (this.inv[n] || (n === 3 && this.mission.length)) break; } if (n !== this.cur) this.selectSlot(n); }
+    if (canAct && IN.wheel && this.scoped) { const z0 = this.zoomI | 0; this.zoomI = clamp(z0 + (IN.wheel < 0 ? 1 : -1), 0, SNIPER_ZOOM.length - 1); if (this.zoomI !== z0) AUD.click(2400, .25, null, .015); }
+    else if (canAct && IN.wheel) { let n = this.cur; for (let k = 0; k < 5; k++) { n = (n + (IN.wheel > 0 ? 1 : 4)) % 5; if (this.inv[n] || (n === 3 && this.mission.length)) break; } if (n !== this.cur) this.selectSlot(n); }
     // anim completion
     if (A.t >= A.d) this.animDone(A);
     const firing = IN.mb[0]; const firingHit = IN.mbHit[0];
@@ -3473,6 +3545,7 @@ const P = {
     this.slideBack = 1; this.shake = Math.max(this.shake, W.type === 'rifle' ? .1 : .04);
     G.muzzleFlash(W);
     if (am.mag === 0) AUD.mech('dry');
+    else if (W.sniper) G.after(() => AUD.mech('rack'), 380);
   },
   knifeAttack() {
     const K = this.weps.knife; this.anim = { k: 'stab', t: 0, d: K.swing, hit: false, side: Math.random() < .5 ? 1 : -1 }; AUD.swoosh(.35, null, 1300, .25);
@@ -3498,25 +3571,31 @@ const P = {
         const p = typeof it.pos === 'function' ? it.pos() : it.pos; const d = V.dist(p, eye); if (d > (it.r || 1.8)) continue;
         const to = V.sc(V.sub(p, eye), 1 / (d || 1)); const ang = Math.acos(clamp(V.dot(to, fwd), -1, 1));
         const lim = it.wide ? 1.2 : d < .9 ? .9 : .45; if (ang > lim) continue;
-        const score = ang + d * .05; if (score < bs) { bs = score; best = it; }
+        const score = ang + d * .05 - (it.prio || 0); if (score < bs) { bs = score; best = it; }
       }
     }
     this.interactTarget = best;
     this.prompt = best ? (typeof best.label === 'function' ? best.label() : best.label) : '';
     if (!best || !this.prompt) { this.interactTarget = null; if (A.k === 'hold') this.cancelHold(); return; }
-    const key = best.key || 'KeyE';
-    if (best.hold) {
-      if (IN.k(key) && (A.k === 'hold' && A.it === best || !this.busy())) {
-        if (A.k !== 'hold') { this.anim = { k: 'hold', t: 0, d: 1e9, it: best, kind: best.anim || 'hotwire' }; best.onStart && best.onStart(); }
-        this.holdT += dt; if (best.onHold) best.onHold(dt);
-        if (this.holdT >= best.hold) { this.holdT = 0; const it = best; this.anim = { k: 'idle', t: 0, d: 1e9 }; it.act(); }
-      } else if (A.k === 'hold') this.cancelHold();
-    } else if (IN.hit(key) && !this.busy()) {
-      if (best.instant) { best.act(); return; }
-      const p = typeof best.pos === 'function' ? best.pos() : best.pos;
-      this.anim = { k: 'interact', t: 0, d: best.dur || .75, at: best.at || .5, target: V.copy(p), kind: best.anim || 'reach', act: () => best.act(), fired: false, item: best.item || null };
-      if (best.onStart) best.onStart();
+    const opts = []; if (!(best.mainOff && best.mainOff())) opts.push(best); if (best.extra) for (const o of best.extra) if (!o.enabled || o.enabled()) opts.push(o);
+    let held = false;
+    for (const o of opts) {
+      const key = o.key || 'KeyE';
+      if (o.hold) {
+        if (!IN.k(key)) continue;
+        if (A.k === 'hold' && A.it !== o) continue;
+        if (A.k !== 'hold') { if (this.busy()) continue; this.holdT = 0; this.anim = { k: 'hold', t: 0, d: 1e9, it: o, kind: o.anim || 'hotwire' }; o.onStart && o.onStart(); }
+        held = true; this.holdT += dt; if (o.onHold) o.onHold(dt);
+        if (this.holdT >= o.hold) { this.holdT = 0; this.anim = { k: 'idle', t: 0, d: 1e9 }; o.act(); }
+        break;
+      } else if (IN.hit(key) && !this.busy()) {
+        if (o.instant) { o.act(); return; }
+        const p = typeof o.pos === 'function' ? o.pos() : (o.pos || (typeof best.pos === 'function' ? best.pos() : best.pos));
+        this.anim = { k: 'interact', t: 0, d: o.dur || .75, at: o.at || .5, target: V.copy(p), kind: o.anim || 'reach', act: () => o.act(), fired: false, item: o.item || null };
+        if (o.onStart) o.onStart(); return;
+      }
     }
+    if (!held && A.k === 'hold') this.cancelHold();
   },
   cancelHold() { this.holdT = 0; if (this.anim.k === 'hold') { const it = this.anim.it; it && it.onCancel && it.onCancel(); this.anim = { k: 'idle', t: 0, d: 1e9 }; } },
   hurt(dmg, from) {
@@ -3545,9 +3624,10 @@ const P = {
     this.camPos = M4.pos(m); this.camFwd = V.norm(M4.dir(m, 0, 0, -1)); this.camRight = V.norm(M4.dir(m, 1, 0, 0)); this.camUp = V.norm(M4.dir(m, 0, 1, 0));
     // fov
     const W = this.wdef; let fov = G.settings.fov;
-    if (this.isGun()) fov = lerp(fov, W.adsFov * (G.loadout.optic === 'holo' && W.type === 'rifle' ? .82 : 1), this.ads);
+    if (this.isGun()) fov = lerp(fov, W.sniper ? G.settings.fov / SNIPER_ZOOM[this.zoomI | 0] : W.adsFov * (G.loadout.optic === 'holo' && W.type === 'rifle' ? .82 : 1), this.ads);
+    this.scoped = !!(this.isGun() && W.sniper && this.ads > .86);
     if (this.sprinting) fov += 4; if (this.state === 'fall') fov += 8;
-    this.fov = damp(this.fov, fov, 10, dt);
+    this.fov = damp(this.fov, fov, this.scoped ? 18 : 10, dt);
   },
   /* body pose for the world-space player model */
   updateBody(dt) {
@@ -3773,11 +3853,12 @@ const VM = {
   },
   muzzleWorld() {
     if (!this.isR) return M4.pt(this.wpnWorld, 0, .042, P.cfg.pistol === 'p45' ? -.36 : P.cfg.pistol === 'mp18' ? -.31 : -.34);
-    const v = P.cfg.rifle; const hg = { dmr: .34, vx9: .3, mk17: .26, ar7: .24 }[v] || .24; const bl = v === 'dmr' ? .2 : .14; const me = -.32 - hg - bl + .02;
+    const v = P.cfg.rifle; if (v === 'sniper') return M4.pt(this.wpnWorld, 0, .048, P.cfg.muzzle === 'sup' ? -1.12 : -1.0); const hg = { dmr: .34, vx9: .3, mk17: .26, ar7: .24 }[v] || .24; const bl = v === 'dmr' ? .2 : .14; const me = -.32 - hg - bl + .02;
     return M4.pt(this.wpnWorld, 0, .045, v === 'vx9' ? -.32 - hg - .18 : P.cfg.muzzle === 'sup' ? me - .17 : me - .05);
   },
   ejectWorld() { return M4.pt(this.wpnWorld, .03, .05, this.isR ? -.1 : -.06); },
   drawList() {
+    if (P.scoped && P.state === 'ground') return [];
     const list = [{ mesh: P.vmArms, bones: P.vmBones }];
     const w = P.weapon;
     if (w === 'pistol') list.push({ mesh: P.vmMeshes.pistol, bones: P.vmBones }); else if (w === 'rifle') list.push({ mesh: P.vmMeshes.rifle, bones: P.vmBones });
@@ -3885,7 +3966,8 @@ class NPC {
             rate = 2.4 * distF * (.1 + .9 * shade) * stance * motion * periph * (1 - folK) * (alertLvl ? 2.2 : 1) * G.diffMul;
             if (cr && d > maxD * .6 && !alertLvl) rate *= .5;
             if (P.state === 'vehicle') rate *= 1.6; if (d < 3.5) rate += 3; if (P.lastShot > G.time - .5) rate += 1.5;
-            rate *= G.socialFactor(this, d); if (P.hostage && P.hostage.n !== this) rate += 4;
+            rate *= P.disguise && !P.disguise.blown ? G.disguiseFactor(this, d) : G.socialFactor(this, d); if (P.hostage && P.hostage.n !== this) rate += 4;
+            if (P.carry) rate = rate * 2.5 + (d < 30 ? 1.2 : .4);
           }
         }
       }
@@ -3895,14 +3977,15 @@ class NPC {
       if (this.susp > .32 || this.state === 'combat') { this.suspPt = V.copy(P.pos); }
       if (this.state === 'combat' || this.susp >= 1) { this.lastKnown = V.copy(P.pos); this.lastSeen = G.time; }
     } else if (this.state === 'calm' || this.state === 'suspicious') this.susp = Math.max(0, this.susp - dt * .12);
+    if (this.susp >= 1 && this.state !== 'combat' && !this.civ && P.disguise && !P.disguise.blown) G.blowDisguise(this);
     if (this.susp >= 1 && this.state !== 'combat') { if (this.civ) { if (this.state !== 'panic' && this.state !== 'cower') this.panic(P.pos, true); } else if (G.socialWarn(this)) { } else this.enterCombat(true); }
     else if (this.susp > .32 && this.state === 'calm' && !this.civ) this.setSuspicious(V.copy(P.pos), true);
     // bodies
     if (this.state !== 'combat') for (const o of G.npcs) {
-      if (!o.dead || o.discovered || o === this || o.deathT < 1) continue; const bp = [o.pos[0], o.pos[1] + .3, o.pos[2]]; const dd = V.dist(bp, e); if (dd > 24) continue;
+      if (!o.dead || o.discovered || o.carried || o === this || o.deathT < 1) continue; const bp = [o.pos[0], o.pos[1] + .3, o.pos[2]]; const dd = V.dist(bp, e); if (dd > 24) continue;
       const to = V.norm(V.sub(bp, e)); const f = this.fwd; if (to[0] * f[0] + to[2] * f[2] < .25 && dd > 3) continue;
-      if (!G.W.los(e, bp)) continue;
-      o.discovered = true; G.stats.bodies++; G.notify('BODY DISCOVERED', 'warn'); if (this.civ) { this.scream(); this.panic(o.pos, true); break; } this.say('body');
+      if (!G.W.los(e, bp)) continue; if (dd > 3 && G.W.foliage(e, bp) > .5) continue; // bodies hidden in thick vegetation
+      o.discovered = true; G.stats.bodies++; G.notify(this.civ ? 'BODY DISCOVERED' : 'BODY DISCOVERED — ALARM RAISED', 'alarm'); if (this.civ) { this.scream(); this.panic(o.pos, true); break; } this.say('body');
       G.after(() => { if (!this.dead) G.globalSearch(o.pos, this, 'body'); }, 1800);
       this.setState('investigate'); this.suspPt = V.copy(o.pos); this.goTo(o.pos, true); break;
     }
@@ -3910,7 +3993,7 @@ class NPC {
     if (this.group && this.state === 'calm' && !this.missingChecked) {
       const mates = G.npcs.filter(n => n !== this && n.group === this.group);
       const gone = mates.find(n => n.dead && G.time - n.deathAt > 18 && !n.discovered);
-      if (gone && this.task().t === 'talk') { this.missingChecked = true; this.say('missing', gone.name); G.after(() => { if (!this.dead && this.state === 'calm') { this.setSuspicious(V.copy(gone.pos), false); this.suspPt = V.copy(gone.pos); this.setState('investigate'); this.goTo(gone.pos, false); } }, 2500); }
+      if (gone && (this.task().t === 'talk' || V.dist(this.pos, gone.deathPos || gone.pos) < 25)) { this.missingChecked = true; this.say('missing', gone.name); const lp = V.copy(gone.deathPos || gone.pos); if (V.dist(P.pos, this.pos) < 40) G.notify(gone.name.toUpperCase() + ' IS MISSING — A GUARD IS CHECKING', 'info'); G.after(() => { if (!this.dead && this.state === 'calm') { this.setSuspicious(V.copy(lp), false); this.suspPt = V.copy(lp); this.setState('investigate'); this.goTo(lp, false); } }, 2500); }
     }
   }
   hear(pos, kind, strength) {
@@ -4116,6 +4199,20 @@ class NPC {
     }
     rig.solve(wl, this.hasProp);
   }
+  animateCarried(dt) {
+    // fireman's carry: hips on the operator's right shoulder, legs hanging in front, torso down the back
+    const rig = this.rig; const j = P_(); const sw = Math.sin(G.time * 6) * Math.min(1, P.speed / 2) * .12;
+    pj(j, SK.THL, 1.45 + sw, .05, -.08); pj(j, SK.THR, 1.35 - sw, -.05, .08); pj(j, SK.SHL, -.5 - sw, 0, 0); pj(j, SK.SHR, -.35 + sw, 0, 0);
+    pj(j, SK.CH, -1.05, 0, .05); pj(j, SK.HD, -.35, .3, 0); pj(j, SK.UAL, 1.5 + sw, 0, -.15); pj(j, SK.UAR, 1.4 - sw, 0, .15); pj(j, SK.FAL, .3, 0, 0); pj(j, SK.FAR, .25, 0, 0);
+    rig.tj.set(j); rig.tpy = 0; rig.tpz = 0; rig.blend(10, dt);
+    const R = [Math.cos(P.yaw), 0, -Math.sin(P.yaw)], Bk = [Math.sin(P.yaw), 0, Math.cos(P.yaw)];
+    const by = V.norm(V.add(Bk, [0, -.3, 0])), bz = V.norm(V.add([0, 1, 0], V.sc(Bk, .3))), bx = V.sc(R, -1);
+    const sc = rig.sc || 1; const hip = V.add(V.add(P.pos, V.sc(R, .17)), [0, lerp(1.42, 1.0, P.crouch) + Math.abs(sw) * .1, 0]);
+    const root = V.sub(hip, V.sc(by, .98 * sc));
+    const r = rig.root; M4.basis(r, bx, by, bz, root);
+    this.pos = [P.pos[0], P.pos[1], P.pos[2]];
+    rig.solve(null, false);
+  }
   animateDeath(dt) {
     const rig = this.rig; const j = P_(); let e;
     if (this.tdT >= 0 && !this.dead) {
@@ -4126,6 +4223,7 @@ class NPC {
       const r = rig.root; M4.ident(r); M4.translate(r, r, this.pos[0], this.pos[1], this.pos[2]); M4.rotY(r, r, this.yaw);
       rig.solve(null, false); return;
     }
+    if (this.carried) return this.animateCarried(dt);
     e = ease(this.deathT / .85); const k = this.k % 1;
     poseDead(j, k); const crumple = 1 - smooth(this.deathT / .35);
     if (crumple > 0) { pj(j, SK.THL, j[SK.THL * 3] + crumple * .8, 0, 0); pj(j, SK.SHL, -1.2 * crumple, 0, 0); pj(j, SK.SHR, -1.1 * crumple, 0, 0); }
@@ -4159,8 +4257,8 @@ class SecCam {
     const pe = P.eye(); const d = V.dist(pe, this.pos); if (d > 24) { this.susp = Math.max(0, this.susp - dt * .3); this.seeing = false; return; }
     const to = V.sc(V.sub(pe, this.pos), 1 / d); const f = [-Math.sin(this.yaw), 0, -Math.cos(this.yaw)]; const fl = Math.hypot(to[0], to[2]) || 1;
     const ca = (to[0] * f[0] + to[2] * f[2]) / fl; const seen = ca > .78 && G.W.los(this.pos, pe) && G.smokeBlock(this.pos, pe) < .9;
-    const social = G.socialFactor(null, d);
-    if (seen) this.susp += dt * (.8 + P.visibility) * (P.crouch > .5 ? .5 : 1) * (1 - d / 27) * 1.3 * G.diffMul * Math.max(social, P.holstered ? 0 : .5); else this.susp = Math.max(0, this.susp - dt * .25);
+    let social = G.socialFactor(null, d); if (P.disguise && !P.disguise.blown && !P.carry) social = Math.min(social, P.holstered || P.disguise.armed ? .12 : .6); if (P.carry) social = 2.2;
+    if (seen) this.susp += dt * (.8 + P.visibility) * (P.crouch > .5 ? .5 : 1) * (1 - d / 27) * 1.3 * G.diffMul * (P.carry ? social : Math.max(social, P.holstered || (P.disguise && !P.disguise.blown) ? 0 : .5)); else this.susp = Math.max(0, this.susp - dt * .25);
     this.seeing = seen && this.susp > .05;
     if (this.susp > 1 && this.cool <= 0) { this.cool = 20; this.susp = 0; G.camAlert(this, V.copy(P.pos)); }
   }
@@ -4511,7 +4609,7 @@ const G = {
   killNPC(n, from, part, kind) {
     if (P.hostage && P.hostage.n === n && P.hostage.phase !== 'kill') P.hostage = null;
     if (n.civ) { this.stats.civKilled = (this.stats.civKilled || 0) + 1; this.notify('CIVILIAN CASUALTY — PAYOUT REDUCED', 'alarm'); }
-    const wasState = n.state; n.dead = true; n.deathAt = this.time; n.deathT = 0; n.hp = 0; n.state = 'dead';
+    const wasState = n.state; n.dead = true; n.deathAt = this.time; n.deathPos = V.copy(n.pos); n.deathT = 0; n.hp = 0; n.state = 'dead';
     const toS = Math.atan2(-(from[0] - n.pos[0]), -(from[2] - n.pos[2])); n.fallDir = Math.abs(angDiff(n.yaw, toS)) < Math.PI / 2 ? 1 : -1;
     this.stats.kills++; if (wasState !== 'combat' && wasState !== 'search') this.stats.stealthKills++;
     if (n._anc) { n._anc.taken = null; n._anc = null; }
@@ -4664,8 +4762,13 @@ const G = {
     }
     for (const n of this.npcs) {
       const d = V.dist2(n.pos, pp); if (d > 3) continue;
-      if (n.dead && !n.searched && n.deathT > 1) { if (!n._sit) n._sit = { r: 2.2, wide: true, pos: () => n.rig.bonePos(SK.CH), label: '[E] SEARCH BODY (HOLD)', hold: 1.4, anim: 'search', act: () => this.searchBody(n) }; out.push(n._sit); }
-      if (!n.dead && n.tdT < 0 && n.state !== 'combat' && n.state !== 'hostage' && !P.hostage && P.state === 'ground' && d < 1.8) {
+      if (n.dead && n.deathT > 1 && !n.carried && !P.carry && n.state !== 'hostage') {
+        if (!n._sit) n._sit = { r: 2.2, wide: true, prio: .5, pos: () => n.rig.bonePos(SK.CH), hold: 1.4, anim: 'search', act: () => this.searchBody(n), mainOff: () => n.searched,
+          label: () => [n.searched ? '' : '[E] SEARCH (HOLD)', '[F] CARRY BODY', n.stripped ? '' : '[T] TAKE DISGUISE (HOLD)'].filter(Boolean).join('   ·   '),
+          extra: [{ key: 'KeyF', instant: true, act: () => this.pickupBody(n) }, { key: 'KeyT', hold: 2.4, anim: 'search', act: () => this.takeDisguise(n), enabled: () => !n.stripped }] };
+        out.push(n._sit);
+      }
+      if (!n.dead && !P.carry && n.tdT < 0 && n.state !== 'combat' && n.state !== 'hostage' && !P.hostage && P.state === 'ground' && d < 1.8) {
         const toP = Math.atan2(-(P.pos[0] - n.pos[0]), -(P.pos[2] - n.pos[2])); const behind = Math.abs(angDiff(n.yaw, toP)) > 1.75 || (n.anim === 'sit' && Math.abs(angDiff(n.yaw, toP)) > 1.4);
         if (behind) { if (!n._tdit) n._tdit = { key: 'KeyF', r: 2.2, wide: true, pos: () => V.add(n.pos, [0, 1.4, 0]), label: () => this.canGrab(n) ? '[F] GRAB AS HOSTAGE' : P.thrownKnife ? '[F] SILENT TAKEDOWN (CHOKE)' : '[F] SILENT TAKEDOWN', instant: true, act: () => this.canGrab(n) ? this.startHostage(n) : this.startTakedown(n) }; out.push(n._tdit); }
       }
@@ -4897,6 +5000,66 @@ Object.assign(G, {
     else { n.say(n.civ ? 'Thank you, thank you…' : 'You\'re making a mistake.'); this.notify('HOSTAGE RELEASED'); }
   },
 });
+/* =====================================================================
+   BODIES + DISGUISES — carry corpses out of sight ([F]), take a victim's
+   clothes ([T] hold) to move among his own side. Anyone who gets a good
+   look up close sees through it.
+   ===================================================================== */
+const DISGUISE_LABEL = { cartel: 'CARTEL SOLDIER', pmc: 'PMC CONTRACTOR', militia: 'MILITIA FIGHTER', security: 'SECURITY GUARD', civ: 'PARTY GUEST', staff: 'CATERING STAFF', bank: 'BANK EMPLOYEE', robber: 'BANK ROBBER' };
+Object.assign(G, {
+  pickupBody(n) {
+    if (P.carry || !n.dead || n.carried) return;
+    P.carry = n; n.carried = true; P.carryHol = P.holstered; P.holstered = true; P.ads = 0;
+    AUD.swoosh(.35, null, 600, .45); AUD.step('mud', null, .3); this.noise(P.pos, 3, 'step');
+    if (P.vmL) P.anim = { k: 'holster', t: 0, d: .3, keep: true };
+    this.notify('CARRYING ' + (n.name ? n.name.toUpperCase() : 'BODY') + ' — [F] DROP', 'info');
+  },
+  dropBody() {
+    const n = P.carry; if (!n) return; P.carry = null; n.carried = false;
+    const f = [-Math.sin(P.yaw), 0, -Math.cos(P.yaw)]; const W = this.W;
+    let p = V.add(P.pos, V.sc(f, .85)); const blk = W.ray([P.pos[0], P.pos[1] + .5, P.pos[2]], f, 1.1, { bullet: true }); if (blk) p = V.copy(P.pos);
+    p[1] = W.ground(p[0], p[2], P.pos[1] + .4, .5, .2); if (W.waterY > -50 && p[1] < W.waterY - .5) p[1] = Math.max(p[1], W.waterY - .45);
+    n.pos = p; n.yaw = P.yaw + Math.PI / 2 * (Math.random() < .5 ? 1 : -1); n.fallDir = Math.random() < .5 ? 1 : -1; n.deathT = Math.max(n.deathT, 2); n.k = Math.random() * 10;
+    AUD.impact('wood', p); this.noise(p, 4, 'body');
+    P.holstered = !!P.carryHol; if (!P.holstered) P.anim = { k: 'draw', t: 0, d: .45 };
+  },
+  takeDisguise(n) {
+    if (n.stripped || !n.dead) return;
+    const a = n.app; const label = DISGUISE_LABEL[n.faction] || 'GUARD';
+    const clothes = { top: a.top, topCol: a.topCol, suit: a.suit, bottom: a.bottom === 'dress' ? 'slacks' : a.bottom, botCol: a.botCol, feet: a.feet, head: a.head === 'helmet' || a.head === 'cap' || a.head === 'beanie' || a.head === 'balaclava' || a.head === 'skimask' || a.head === 'hood' || a.head === 'earpiece' || a.head === 'headset' ? a.head : 'none', vest: a.vest || 'none', vestCol: a.vestCol, camo: !!a.camo, gloves: !!a.gloves, accent: a.accent, tie: a.tie, holster: a.holster };
+    if (clothes.top === 'dress' || clothes.top === 'blouse') clothes.top = 'shirt';
+    const plain = !!n.civ || n.faction === 'security';
+    P.disguise = { faction: n.faction, civ: !!n.civ, armed: !!n.W && !n.civ, label, name: n.name, clothes, sleeve: a.suit ?? a.topCol ?? 0x4a5038, glove: a.gloves ? 0x1c1c1a : 0xc89670, plain, guest: n.faction === 'civ', blown: false };
+    // the body is left in a plain undershirt
+    const s = Object.assign({}, a, { top: 'tshirt', topCol: 0xcfcac0, suit: undefined, vest: 'none', head: a.head === 'helmet' ? 'none' : a.head === 'earpiece' ? 'none' : a.head, camo: false, holster: false, bottom: a.bottom === 'dress' ? 'slacks' : a.bottom });
+    n.stripped = true; n.rig.mesh.dispose && n.rig.mesh.dispose(); n.rig.mesh = buildCharacter(s);
+    P.applyLook(this.M); AUD.swoosh(.5, null, 800, .4); AUD.mech('pickup');
+    this.notify('DISGUISED AS ' + label + ' — KEEP YOUR DISTANCE FROM OTHERS', 'good');
+    UI.hint('Disguised as ' + label.toLowerCase() + '. People ignore you from a distance, but anyone who gets close will recognise you. ' + (P.disguise.armed ? 'Weapons are part of the outfit — just don\'t aim at anyone.' : 'Keep your weapon holstered.'));
+  },
+  blowDisguise(by) {
+    const D = P.disguise; if (!D || D.blown) return; D.blown = true;
+    this.notify('DISGUISE BLOWN', 'alarm'); if (by && !by.civ) by.say(pick(['Wait — you\'re not one of us!', 'Hey! That\'s not ' + (D.name || 'him') + '!', 'Impostor! Take him down!']));
+  },
+  disguiseFactor(npc, d) {
+    const D = P.disguise; if (!D || D.blown || P.carry || P.hostage || P.state !== 'ground') return 1;
+    if (P.lastShot > this.time - 4) return 1;
+    if (npc.civ) return D.civ ? .02 : .06;
+    let k = .05;
+    if (!D.armed && !P.holstered) k = .9;           // drawn weapon in an unarmed outfit
+    if (P.ads > .5) k = Math.max(k, .8);            // aiming at people
+    if (P.crouch > .5) k *= 4; if (P.sprinting) k *= 3;
+    if (npc.state === 'search' || npc.state === 'combat' || this.alarm > 0) k *= 2.5;
+    if (D.guest && this.zoneAt && this.zoneAt(P.pos) === 'restricted') k = Math.max(k, .5);
+    const close = npc.state === 'calm' ? 4.5 : 7; // up close they recognise the face
+    if (d < close) k = Math.max(k, lerp(.75, .25, d / close));
+    return Math.min(1, k);
+  },
+});
+{
+  const baseWarn = G.socialWarn;
+  G.socialWarn = function (npc) { if (P.disguise && !P.disguise.blown && !P.disguise.guest) return false; return baseWarn.call(this, npc); };
+}
 
 /* ---- 09_vehicles.js ---- */
 /* =====================================================================
@@ -6532,7 +6695,7 @@ const UI = {
     }
     // prompt
     const pr = $('prompt'); const ptxt = P.prompt || ''; if (pr._t !== ptxt) { pr._t = ptxt; pr.querySelector('span').textContent = ptxt; pr.classList.toggle('on', !!ptxt); }
-    const hold = P.anim.k === 'hold' && P.interactTarget && P.interactTarget.hold ? P.holdT / P.interactTarget.hold : 0; pr.querySelector('circle.p').style.strokeDashoffset = (1 - hold) * 100; pr.classList.toggle('hold', hold > 0);
+    const hold = P.anim.k === 'hold' && P.anim.it && P.anim.it.hold ? Math.min(1, P.holdT / P.anim.it.hold) : 0; pr.querySelector('circle.p').style.strokeDashoffset = (1 - hold) * 100; pr.classList.toggle('hold', hold > 0);
     // crosshair
     const xh = $('xh'); const hideX = (P.ads > .6 && P.isGun()) || P.state !== 'ground' && P.state !== 'plane'; xh.style.opacity = hideX ? 0 : 1; xh.classList.toggle('int', !!P.prompt);
     // altitude
@@ -6807,8 +6970,19 @@ const UI = {
       baseHud.call(this, dt); if (!$('hud').classList.contains('on')) return;
       const so = $('social'); let txt = '', cls = '';
       if (G.M && G.M.social) { const z = G.zoneAt(P.pos); if (!G.socialCover()) { txt = P.holstered ? 'COVER BLOWN' : 'WEAPON DRAWN — VISIBLE'; cls = 'arm'; } else if (z === 'restricted') { txt = 'RESTRICTED AREA'; cls = 'res'; } else { txt = 'BLENDING IN'; cls = 'pub'; } }
-      else if (P.holstered) { txt = 'WEAPON HOLSTERED'; }
+      else if (P.holstered && !P.carry) { txt = 'WEAPON HOLSTERED'; }
+      if (P.disguise) {
+        const D = P.disguise;
+        if (D.blown) { txt = 'DISGUISE BLOWN'; cls = 'arm'; }
+        else {
+          let near = false; for (const n of G.npcs) { if (n.dead || n.civ || n.state === 'hostage') continue; const dd = V.dist(n.pos, P.pos); if (dd < (n.state === 'calm' ? 4.5 : 7) && n.canSee) { near = true; break; } }
+          if (near) { txt = 'TOO CLOSE — THEY WILL RECOGNISE YOU'; cls = 'res'; } else if (!D.armed && !P.holstered) { txt = 'WEAPON DRAWN — DISGUISE AT RISK'; cls = 'arm'; } else { txt = 'DISGUISED · ' + D.label; cls = 'pub'; }
+        }
+      }
+      if (P.carry) { txt = 'CARRYING BODY — [F] DROP'; cls = 'res'; }
       if (so._t !== txt + cls) { so._t = txt + cls; so.textContent = txt; so.className = cls; }
+      const sc = !!(P.scoped && P.state === 'ground'); const sEl = $('scope'); if (sEl._on !== sc) { sEl._on = sc; sEl.classList.toggle('on', sc); $('hud').classList.toggle('scoped', sc); }
+      if (sc) { const z = SNIPER_ZOOM[P.zoomI | 0] + '×  ·  SCROLL TO ZOOM'; if ($('scopeZ')._t !== z) { $('scopeZ')._t = z; $('scopeZ').textContent = z; } }
       $('hpbar').firstChild.style.width = (P.health / (P.maxHealth || 100) * 100).toFixed(0) + '%';
       if (P.holstered && P.state !== 'vehicle') { const am = $('ammo'); if (am.querySelector('.wn').textContent !== 'HOLSTERED') { am.querySelector('.wn').textContent = 'HOLSTERED'; am.querySelector('b').textContent = ''; am.querySelector('.am span').textContent = ''; this._ak = 'hol'; } }
     },

@@ -193,11 +193,12 @@ const VM = {
   },
   muzzleWorld() {
     if (!this.isR) return M4.pt(this.wpnWorld, 0, .042, P.cfg.pistol === 'p45' ? -.36 : P.cfg.pistol === 'mp18' ? -.31 : -.34);
-    const v = P.cfg.rifle; const hg = { dmr: .34, vx9: .3, mk17: .26, ar7: .24 }[v] || .24; const bl = v === 'dmr' ? .2 : .14; const me = -.32 - hg - bl + .02;
+    const v = P.cfg.rifle; if (v === 'sniper') return M4.pt(this.wpnWorld, 0, .048, P.cfg.muzzle === 'sup' ? -1.12 : -1.0); const hg = { dmr: .34, vx9: .3, mk17: .26, ar7: .24 }[v] || .24; const bl = v === 'dmr' ? .2 : .14; const me = -.32 - hg - bl + .02;
     return M4.pt(this.wpnWorld, 0, .045, v === 'vx9' ? -.32 - hg - .18 : P.cfg.muzzle === 'sup' ? me - .17 : me - .05);
   },
   ejectWorld() { return M4.pt(this.wpnWorld, .03, .05, this.isR ? -.1 : -.06); },
   drawList() {
+    if (P.scoped && P.state === 'ground') return [];
     const list = [{ mesh: P.vmArms, bones: P.vmBones }];
     const w = P.weapon;
     if (w === 'pistol') list.push({ mesh: P.vmMeshes.pistol, bones: P.vmBones }); else if (w === 'rifle') list.push({ mesh: P.vmMeshes.rifle, bones: P.vmBones });

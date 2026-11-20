@@ -218,8 +218,19 @@
       baseHud.call(this, dt); if (!$('hud').classList.contains('on')) return;
       const so = $('social'); let txt = '', cls = '';
       if (G.M && G.M.social) { const z = G.zoneAt(P.pos); if (!G.socialCover()) { txt = P.holstered ? 'COVER BLOWN' : 'WEAPON DRAWN — VISIBLE'; cls = 'arm'; } else if (z === 'restricted') { txt = 'RESTRICTED AREA'; cls = 'res'; } else { txt = 'BLENDING IN'; cls = 'pub'; } }
-      else if (P.holstered) { txt = 'WEAPON HOLSTERED'; }
+      else if (P.holstered && !P.carry) { txt = 'WEAPON HOLSTERED'; }
+      if (P.disguise) {
+        const D = P.disguise;
+        if (D.blown) { txt = 'DISGUISE BLOWN'; cls = 'arm'; }
+        else {
+          let near = false; for (const n of G.npcs) { if (n.dead || n.civ || n.state === 'hostage') continue; const dd = V.dist(n.pos, P.pos); if (dd < (n.state === 'calm' ? 4.5 : 7) && n.canSee) { near = true; break; } }
+          if (near) { txt = 'TOO CLOSE — THEY WILL RECOGNISE YOU'; cls = 'res'; } else if (!D.armed && !P.holstered) { txt = 'WEAPON DRAWN — DISGUISE AT RISK'; cls = 'arm'; } else { txt = 'DISGUISED · ' + D.label; cls = 'pub'; }
+        }
+      }
+      if (P.carry) { txt = 'CARRYING BODY — [F] DROP'; cls = 'res'; }
       if (so._t !== txt + cls) { so._t = txt + cls; so.textContent = txt; so.className = cls; }
+      const sc = !!(P.scoped && P.state === 'ground'); const sEl = $('scope'); if (sEl._on !== sc) { sEl._on = sc; sEl.classList.toggle('on', sc); $('hud').classList.toggle('scoped', sc); }
+      if (sc) { const z = SNIPER_ZOOM[P.zoomI | 0] + '×  ·  SCROLL TO ZOOM'; if ($('scopeZ')._t !== z) { $('scopeZ')._t = z; $('scopeZ').textContent = z; } }
       $('hpbar').firstChild.style.width = (P.health / (P.maxHealth || 100) * 100).toFixed(0) + '%';
       if (P.holstered && P.state !== 'vehicle') { const am = $('ammo'); if (am.querySelector('.wn').textContent !== 'HOLSTERED') { am.querySelector('.wn').textContent = 'HOLSTERED'; am.querySelector('b').textContent = ''; am.querySelector('.am span').textContent = ''; this._ak = 'hol'; } }
     },
