@@ -50,7 +50,7 @@ const G = {
     let last = performance.now();
     const loop = now => {
       const dt = Math.min(.05, (now - last) / 1000); last = now;
-      try { this.frame(dt); } catch (e) { if (!this._errShown) { this._errShown = true; console.error(e); } }
+      try { this.frame(dt); } catch (e) { if (!this._errShown) { this._errShown = true; console.error(e); } try { UI.hudFrame && G.state === 'play' && UI._fadeAnim(dt); } catch (e2) { } }
       IN.end(); requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);

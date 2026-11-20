@@ -87,13 +87,14 @@ Object.assign(AUD, {
       const roots = kind === 'title' ? [41.2, 36.7, 49, 43.65] : [55, 51.9, 46.25, 49]; const nodes = []; let step = 0, nextT = t0, chord = 0;
       const voices = []; for (let i = 0; i < 4; i++) { const o = this.osc(i % 2 ? 'sawtooth' : 'triangle', 110); const lp = this.filt('lowpass', 600, .8); const g = C.createGain(); g.gain.value = .07; o.connect(lp); lp.connect(g); g.connect(out); o.start(); nodes.push(o); voices.push([o, lp]); }
       const sub = this.osc('sine', 55); const sg = C.createGain(); sg.gain.value = .25; sub.connect(sg); sg.connect(out); sub.start(); nodes.push(sub);
+      const self = this;
       return {
         update() {
           const t = AUD.t; if (t < nextT - .05) return;
           if (step % 16 === 0) { chord = (chord + 1) % roots.length; const r = roots[chord]; const iv = [2, 3, 4.5, 6]; voices.forEach(([o, lp], i) => { o.frequency.setTargetAtTime(r * iv[i], t, .8); lp.frequency.setTargetAtTime(500 + Math.random() * 600, t, 2); }); sub.frequency.setTargetAtTime(r, t, .5); }
           // arpeggio pluck
           const r = roots[chord]; const notes = [4, 6, 8, 9, 12, 9, 8, 6]; const f = r * notes[step % 8] * (kind === 'title' ? 1 : 2);
-          if (kind !== 'title' || step % 2 === 0) { const o = this.osc('square', f); const lp = this.filt('lowpass', 2200, 2); const g = C.createGain(); o.connect(lp); lp.connect(g); g.connect(out); this.env(g.gain, nextT, .005, .05, .35); o.start(nextT); o.stop(nextT + .45); }
+          if (kind !== 'title' || step % 2 === 0) { const o = self.osc('square', f); const lp = self.filt('lowpass', 2200, 2); const g = C.createGain(); o.connect(lp); lp.connect(g); g.connect(out); self.env(g.gain, nextT, .005, .05, .35); o.start(nextT); o.stop(nextT + .45); }
           step++; nextT += kind === 'title' ? .32 : .2;
         },
         stop() { const t = AUD.t; out.gain.setTargetAtTime(0, t, .8); setTimeout(() => nodes.forEach(n => { try { n.stop(); } catch (e) { } }), 4000); },
