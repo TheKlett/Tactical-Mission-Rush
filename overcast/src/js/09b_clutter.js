@@ -7,7 +7,7 @@ function clutterFOB(W) {
   const R = () => W.R(); const B = W.B, D = W.D;
   // keep-out: the walking route container → ramp, and the vignette stages
   const route = [[-126, -19], [-110, -60], [-90, -100], [-78, -120]];
-  const keep = [[FOB.mech.x, FOB.mech.z, 9], [FOB.tent.x, FOB.tent.z, 7], [FOB.pad.x, FOB.pad.z, 17], [-120, -45, 4], [-155, -40, 7], [FOB.cont.x, FOB.cont.z, 6], [-190, -104, 9], [-30, -42, 7], [-12, -42, 6], [-58, -120, 30], [-92, -126, 6]];
+  const keep = [[FOB.mech.x, FOB.mech.z, 9], [FOB.tent.x, FOB.tent.z, 7], [FOB.pad.x, FOB.pad.z, 17], [-120, -45, 4], [-155, -40, 7], [FOB.cont.x, FOB.cont.z, 6], [-190, -104, 9], [-30, -42, 7], [-12, -42, 6], [-48, -52, 14], [-150, 52, 15], [-178, -30, 8], [-20, 30, 8], [-58, -120, 30], [-92, -126, 6]];
   const segD = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1]; const t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz), 0, 1); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); };
   const taken = [];
   const free = (x, z, r) => {
@@ -16,6 +16,7 @@ function clutterFOB(W) {
     if (Math.abs(z + 10) < 2.5 + r && x > -205 && x < -55) return false; if (Math.abs(z - 90) < 2.5 + r && x > -205 && x < -55) return false; // jogging loop
     if (Math.abs(x + 200) < 2.5 + r && z > -12 && z < 92) return false; if (Math.abs(x + 60) < 2.5 + r && z > -12 && z < 92) return false;
     if (Math.abs(x + 100) < 2.5 + r && z > -82 && z < 12) return false; if (Math.abs(x + 70) < 2.5 + r && z > -82 && z < 12) return false; if (Math.abs(z + 80) < 2.5 + r && x > -102 && x < -68) return false;
+    if (Math.abs(z + 28) < 3 + r && x > -215 && x < 10) return false; // marching column
     if (Math.abs(z - FOB.runway.z) < FOB.runway.w / 2 + 2 && x > -230) return false;
     for (const t of taken) if (Math.hypot(x - t[0], z - t[1]) < t[2] + r) return false;
     taken.push([x, z, r]); return true;
@@ -49,15 +50,15 @@ function clutterFOB(W) {
   };
   const names = Object.keys(kinds); const size = { truck: 4.5, stack2: 4.2, crates: 2.5, drums: 2.2, pallets: 3.5, ammo: 1.5, tires: 1.4, gen: 2.5, cones: 4.5, jersey: 6.5, toilets: 2.6, canopy: 4.2, conex: 4, bladder: 4, lights: 1.5, bikes: 2.2, mesh: 2.8 };
   let placed = 0;
-  const weighted = names.concat(['truck', 'truck', 'stack2', 'conex', 'canopy', 'crates', 'drums', 'mesh', 'pallets']);
-  for (let n = 0; n < 12000 && placed < 700; n++) {
+  const weighted = ['truck', 'truck', 'truck', 'stack2', 'stack2', 'conex', 'canopy', 'canopy', 'crates', 'mesh', 'mesh', 'jersey', 'gen', 'lights', 'bladder', 'ammo', 'pallets', 'drums'];
+  for (let n = 0; n < 12000 && placed < 260; n++) {
     // denser near the walking route, the plane and the tents
     const near = R() < .7; const x = near ? rnd(-215, -20) : rnd(-310, 300), z = near ? rnd(-100, 60) : rnd(-90, 120);
     const k = weighted[R() * weighted.length | 0]; if (!free(x, z, size[k])) continue; kinds[k](x, z); placed++;
   }
   // scattered small junk right along the route edges (crates, cases, drums) so the walk feels busy
-  for (let i = 0; i < route.length - 1; i++) { const a = route[i], b = route[i + 1]; for (let t = .03; t < 1; t += .05) { const x = lerp(a[0], b[0], t), z = lerp(a[1], b[1], t); const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); const nx = -dz / L, nz = dx / L; const sd = R() < .5 ? -1 : 1; const px = x + nx * sd * rnd(5.5, 8), pz = z + nz * sd * rnd(5.5, 8); if (!free(px, pz, 1)) continue; if (R() < .5) W.crateStack(px, pz, 0); else drum(px, pz, 0x3a4a2a); } }
-  W.clutterTaken = taken;
+  for (let i = 0; i < route.length - 1; i++) { const a = route[i], b = route[i + 1]; for (let t = .03; t < 1; t += .1) { const x = lerp(a[0], b[0], t), z = lerp(a[1], b[1], t); const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); const nx = -dz / L, nz = dx / L; const sd = R() < .5 ? -1 : 1; const px = x + nx * sd * rnd(5.5, 8), pz = z + nz * sd * rnd(5.5, 8); if (!free(px, pz, 1)) continue; if (R() < .5) W.crateStack(px, pz, 0); else drum(px, pz, 0x3a4a2a); } }
+  W.clutterTaken = taken; W.clutterFree = free;
 }
 
 /* ---------------- the cargo cabin, packed ---------------- */
@@ -140,7 +141,7 @@ function puffAt(p) { for (const b of PUFFS.blobs) { const dx = p[0] - b[0], dy =
 function buildDropZone(W) {
   const river = (x, z) => Math.abs(z - Math.sin(x * .0011) * 900 - Math.sin(x * .0037) * 160 - 200);
   W.initTerrain((x, z) => {
-    const r = Math.hypot(x, z); let h = fbm(x * .0009, z * .0009, 5) * 320 + fbm(x * .005, z * .005, 3) * 55;
+    const r = Math.hypot(x, z); let h = fbm(x * .0009, z * .0009, 5) * 150 + fbm(x * .005, z * .005, 3) * 40;
     h += smooth((r - 2600) / 4200) * (fbm(x * .0005 + 7, z * .0005, 5) * 1900 + 300);           // mountain ranges ringing the valley
     h -= Math.max(0, 70 - river(x, z) * .25) * 2.2;                                             // the river valley
     return h;

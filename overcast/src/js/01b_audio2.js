@@ -101,6 +101,16 @@ Object.assign(AUD, {
       };
     });
   },
+  // distant heavy detonation: delayed by the speed of sound, low and rolling
+  farBoom(dist) {
+    if (!this.ready) return; const d = dist / 340; setTimeout(() => { const C = this.ctx, t = this.t; const k = clamp(600 / (dist + 200), .25, 1.2);
+      const g = C.createGain(); const lp = this.filt('lowpass', 420); lp.connect(g); g.connect(this.sfx); this.env(g.gain, t, .02, 1.6 * k, 4.5); this.noise(lp, t, 5, 'brown');
+      const os = this.osc('sine', 48); os.frequency.exponentialRampToValueAtTime(22, t + 2); const g2 = C.createGain(); os.connect(g2); g2.connect(this.sfx); this.env(g2.gain, t, .01, 1.2 * k, 2.5); os.start(t); os.stop(t + 3);
+      for (let i = 0; i < 5; i++) { const g3 = C.createGain(); const l3 = this.filt('lowpass', 700); l3.connect(g3); g3.connect(this.sfx); const tt = t + .4 + i * (.3 + Math.random() * .5); this.env(g3.gain, tt, .02, .5 * k, 1.2); this.noise(l3, tt, 1.5, 'brown'); } }, d * 1000);
+  },
+  missile(pos) { return this.synthLoop({ ref: 60, roll: .7, noise: [{ type: 'white', ft: 'bandpass', f: 2600, v: 1.2, q: .6 }, { type: 'pink', ft: 'lowpass', f: 600, v: .8 }], osc: [{ type: 'sawtooth', f: 900, v: .02 }] }, pos); },
+  knock() { if (!this.ready) return; const C = this.ctx, t = this.t; const g = C.createGain(); const lp = this.filt('lowpass', 900); lp.connect(g); g.connect(this.master); this.env(g.gain, t, .002, 2.2, .5); this.noise(lp, t, .6, 'brown');
+    const ring = this.osc('sine', 3600); const rg = C.createGain(); ring.connect(rg); rg.connect(this.master); this.env(rg.gain, t + .05, .3, .08, 6); ring.start(t); ring.stop(t + 7); this.impact('metal', null); },
   hackKey() { if (!this.ready) return; this.click(1800 + Math.random() * 2400, .06, null, .008); },
   granted() { if (!this.ready) return; for (const [d, f] of [[0, 660], [.12, 880], [.24, 1320]]) { const C = this.ctx, t = this.t + d; const o = this.osc('square', f); const lp = this.filt('lowpass', 3000); const g = C.createGain(); o.connect(lp); lp.connect(g); g.connect(this.sfx); this.env(g.gain, t, .005, .12, .25); o.start(t); o.stop(t + .3); } },
   denied() { this.beep(220, .12, .15); },

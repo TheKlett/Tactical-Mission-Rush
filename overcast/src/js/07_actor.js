@@ -129,6 +129,7 @@ class Actor {
       const m = this.wl.m; M4.ident(m);
       if (this.weaponMode === 'low') { M4.translate(m, m, .08, .1, -.26); M4.rotY(m, m, .55); M4.rotX(m, m, -.6); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'chest') { M4.translate(m, m, .02, .2, -.25); M4.rotY(m, m, .9); M4.rotX(m, m, -.15); M4.rotZ(m, m, 1.2); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
+      else if (this.weaponMode === 'aim') { M4.translate(m, m, .1, .33, -.24); M4.rotY(m, m, -.32); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'knees') { wl = this.wl; wl.knees = true; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'lap' || this.weaponMode === 'hidden') { wl = null; }
       else { M4.translate(m, m, .02, .08, -.2); M4.rotZ(m, m, -.95); M4.rotY(m, m, Math.PI / 2); wl = { m, gr: null, gl: null }; } // slung diagonally across the chest

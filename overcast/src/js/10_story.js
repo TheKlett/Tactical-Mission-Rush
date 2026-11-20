@@ -20,7 +20,7 @@ const Story = {
     setTimeout(() => { try { this.build(); UI.loading(false); G.state = 'play'; IN.lock(); this.begin(); } catch (e) { console.error(e); UI.fatal(e); } }, 60);
   },
   build() {
-    this.cos = []; this.interacts = []; this.flags = {}; this.phase = 'none'; this.t = 0; this.rainOpen = 1; this.titles = []; this.planeDry = null; Cabin.drank = false; Cabin.juice = null;
+    this.cos = []; this.interacts = []; this.flags = {}; this.phase = 'none'; this.t = 0; this.rainOpen = 1; this.titles = []; this.planeDry = null; Cabin.drank = false; Crash.reset(); P.lookLock = false; P.combat = false; Cabin.juice = null;
     Object.assign(Flight, { phase: 'parked', t: 0, lifted: false, cloudIn: false, swapped: false, above: false, inDeck: false, below: false, ended: false, rampTarget: undefined, fallT: undefined, engine: null, extEngine: null, wind: null }); G.raysOn = 0; R.post.grade = [1, 1, 1]; G.actors = []; G.extraDyn = []; G.glass = []; G.updaters = []; G.particles = []; G.timers = []; G.time = 0; G.dynLights = [];
     const W = new World(4400, 11); buildFOB(W); W.chunks = buildChunks(W.B, W.D, 60); W.B = null; W.D = null; this.FW = W;
     const Z = new World(16000, 23); buildDropZone(Z); Z.chunks = buildChunks(Z.B, Z.D, 800); Z.B = null; Z.D = null; this.ZW = Z;
@@ -54,7 +54,7 @@ const Story = {
     const p = this.plane; const m = p.m; M4.ident(m); M4.translate(m, m, p.pos[0], p.pos[1], p.pos[2]); M4.rotY(m, m, p.yaw); M4.rotX(m, m, p.pitch); M4.rotZ(m, m, p.roll);
     if (p.shake > .001) { M4.rotX(m, m, Math.sin(G.time * 23) * .0025 * p.shake); M4.rotZ(m, m, Math.sin(G.time * 17.3) * .003 * p.shake); M4.translate(m, m, 0, Math.sin(G.time * 13.1) * .015 * p.shake, 0); }
     poseTransport(p.bones, { m, ramp: p.ramp, door: p.door, fan: p.fan, btn: p.btn, red: p.red, green: p.green });
-    p.rampAng = lerp(-1.32, .23, p.ramp); p.inv = M4.invert(p.inv || M4.create(), m);
+    p.rampAng = lerp(-1.32, .23, p.ramp); p.inv = M4.invert(p.inv || M4.create(), m); G.S.planeInv = P.inPlane ? p.inv : null;
     if (!this.planeDry) { this.planeDry = { m: true, inv: p.inv, mn: [-3, 0, -25], mx: [3, 7, TP.z1 + .3] }; G.dry.push(this.planeDry); } this.planeDry.inv = p.inv;
     if (this.cabinLights) for (const L of this.cabinLights) { const w = M4.pt(m, L.lp[0], L.lp[1], L.lp[2]); L.pos[0] = w[0]; L.pos[1] = w[1]; L.pos[2] = w[2]; }
   },
@@ -104,7 +104,7 @@ const Story = {
       const bar = [D.hinge[0] - .08, C.fy + 1.0, D.hinge[2] + D.w - .2]; const doorBar = () => { const ang = D.ang; return [D.hinge[0] - .08 * Math.cos(ang) + Math.sin(ang) * (D.w - .2), C.fy + 1.0, D.hinge[2] + Math.cos(ang) * (D.w - .2) + .08 * Math.sin(ang)]; };
       const reach = smooth((t - .25) / .35) * (1 - smooth((t - 1.25) / .3));
       if (reach > .01) { const tgt = t < .62 ? bar : doorBar(); const rest = M4.pt(P.rig.root, .25, .95, -.1); p.ik.push({ left: false, T: V.lerp(rest, tgt, reach), pole: [0, -1, .3], fingers: [0, -.2, 1] }); }
-      if (t > .62 && !pushed) { pushed = true; D.vel = 3.4; AUD.creak(D.hinge); AUD.swoosh(.35, D.hinge, 600, .5); G.setEnv('overcast', 2.6); R.post.grade = [1.55, 1.55, 1.6]; Story.rainOpen = 0; W.door.col.mn[1] = -100; W.door.col.mx[1] = -99; }
+      if (t > .62 && !pushed) { pushed = true; D.vel = 4.6; AUD.creak(D.hinge); AUD.swoosh(.35, D.hinge, 600, .5); G.setEnv('overcast', 2.6); R.post.grade = [1.55, 1.55, 1.6]; Story.rainOpen = 0; W.door.col.mn[1] = -100; W.door.col.mx[1] = -99; }
       if (t > .62) Story.rainOpen = Math.min(1, (Story.rainOpen || 0) + dt / 1.4);
       // step through, down the steel step, into the rain
       if (t > .75) {
@@ -131,11 +131,11 @@ const Story = {
   /* ---------------- per frame ---------------- */
   update(dt) {
     this.t += dt; this.updateCos(dt);
-    { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; const hi = alt > 150; R.drawDist = hi ? 14000 : 900; R.detailDist = hi ? 0 : 70; G.cam.far = hi ? 16000 : 4200; G.S.maxDraw = hi ? 16000 : 4200; }
+    if (this.phase !== 'p2') { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; const hi = alt > 150; R.drawDist = hi ? 14000 : 900; R.detailDist = hi ? 0 : 70; G.cam.far = hi ? 16000 : 4200; G.S.maxDraw = hi ? 16000 : 4200; }
     // door physics: swing, slam against the container wall, settle
     const D = this.door; if (D) {
-      if (D.vel) { D.ang += D.vel * dt; D.vel *= Math.exp(-.9 * dt); if (D.ang > 1.62) { D.ang = 1.62; if (Math.abs(D.vel) > .5) { AUD.doorBang([D.hinge[0] + .5, D.hinge[1] + 1, D.hinge[2] + .9], Math.min(1, Math.abs(D.vel) / 3)); P.shake = Math.max(P.shake, .2); } D.vel = -D.vel * .28; } if (D.ang < 1.15 && D.vel < 0) D.vel += 3 * dt; if (Math.abs(D.vel) < .02 && D.ang > 1.2) D.vel = 0; }
-      const m = D.dyn.m; M4.ident(m); M4.translate(m, m, D.hinge[0], D.hinge[1], D.hinge[2]); M4.rotY(m, m, -D.ang);
+      if (D.vel) { D.ang += D.vel * dt; D.vel *= Math.exp(-.9 * dt); if (D.ang > 3.02) { D.ang = 3.02; if (Math.abs(D.vel) > .5) { AUD.doorBang([D.hinge[0] + .1, D.hinge[1] + 1, D.hinge[2] - .5], Math.min(1, Math.abs(D.vel) / 3)); P.shake = Math.max(P.shake, .2); } D.vel = -D.vel * .28; } if (D.ang < 2.4 && D.vel < 0) D.vel += 3 * dt; if (Math.abs(D.vel) < .02 && D.ang > 2.5) D.vel = 0; }
+      const m = D.dyn.m; M4.ident(m); M4.translate(m, m, D.hinge[0], D.hinge[1], D.hinge[2]); M4.rotY(m, m, D.ang);
     }
     // exposure "eye adaptation" after stepping outside
     R.post.grade = R.post.grade.map(v => damp(v, 1, .9, dt));
@@ -183,15 +183,16 @@ const Flight = {
       this.climbT += dt; pl.fan += dt * pl.fanSpd * 3; pl.speed = Math.min(82, pl.speed + 1.2 * dt);
       pl.pitch = damp(pl.pitch, .24, .6, dt); if (this.climbT > 6) { pl.yaw -= .055 * dt * smooth((this.climbT - 6) / 4); pl.roll = damp(pl.roll, -.32, .7, dt); }
       pl.shake = .5 + (pl.pos[1] > 360 && pl.pos[1] < 480 ? 1.6 : 0);
-      if (pl.pos[1] > 300 && !this.cloudIn) { this.cloudIn = true; G.setEnv('inCloud', 4); }
+      if (pl.pos[1] > 300 && !this.cloudIn) { this.cloudIn = true; G.setEnv(P.inPlane ? 'inCloudCabin' : 'inCloud', 6); }
       if (pl.pos[1] > 430 && !this.swapped) this.swapWorld();
     } else if (this.phase === 'climb2') {
-      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .16 : 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, -.17, .5, dt);
+      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .32 : 0, .5, dt); pl.speed = Math.max(pl.speed, 70); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, -.17, .5, dt);
       pl.shake = pl.pos[1] < 920 ? 1.5 : .35;
       if (pl.pos[1] > 920 && !this.above) { this.above = true; G.setEnv('aboveCabin', 3); G.raysOn = 1; AUD.whoosh(.2); Cabin.sunShafts(true); }
       if (pl.pos[1] >= 1500) { this.phase = 'cruise'; }
     } else if (this.phase === 'cruise' || this.phase === 'drop') {
-      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, this.phase === 'drop' ? -.05 : -.15, .4, dt); pl.pos[1] = damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
+      if (!this.above && pl.pos[1] > 920) { this.above = true; G.setEnv('aboveCabin', 3); G.raysOn = 1; Cabin.sunShafts(true); }
+      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); const orbit = Story.phase === 'fall'; pl.yaw -= pl.speed / (orbit ? 380 : 1800) * dt; pl.roll = damp(pl.roll, orbit ? -.32 : this.phase === 'drop' ? -.05 : -.15, .4, dt); if (orbit) pl.pos[1] = damp(pl.pos[1], 1180, .12, dt); if (Story.phase !== 'fall') pl.pos[1] = pl.pos[1] < 1500 ? pl.pos[1] + 14 * dt : damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
     }
     if (this.phase !== 'parked') { const f = fwd(); pl.vel = V.sc(f, pl.speed); pl.pos[0] += pl.vel[0] * dt; pl.pos[1] = Math.max(0, pl.pos[1] + pl.vel[1] * dt); pl.pos[2] += pl.vel[2] * dt; }
     if (this.engine) this.engine.set(clamp(pl.fanSpd / 9, .15, 1) * (P.inPlane ? 1 : .6), null, .8 + pl.fanSpd / 30);
@@ -223,11 +224,9 @@ const Flight = {
     P.lookLimit = null; UI.objective(''); UI.hint(''); UI.marker(null);
     G.setEnv('above', 1.2); G.raysOn = 1; AUD.whoosh(.8); P.shake = 1;
     if (this.engine) this.engine.stop(); this.engine = null;
-    this.fallT = 0; this.titleBuilt = false; Story.buildTitle(P.pos, P.yaw); Story.clearFallPath();
+    this.fallT = 0; this.titleBuilt = false; Story.titles = []; Story.clearFallPath();
     if (!this.wind) this.wind = AUD.windLoop();
     Story.titleMusic = AUD.pad('title');
-    G.after(1.5, () => UI.hint('WASD  STEER   ·   MOUSE  LOOK'));
-    G.after(6, () => UI.hint(''));
   },
   updateFall(dt) {
     this.fallT += dt; const alt = P.pos[1];
@@ -240,6 +239,6 @@ const Flight = {
     // vapor streaks past the face for a sense of speed
     if (Math.random() < .6) { const cp = G.cam.pos; G.particles.push({ p: [cp[0] + rnd(-6, 6), cp[1] - rnd(8, 20), cp[2] + rnd(-6, 6)], v: [0, 52, 0], life: 0, max: .6, s: .5, dir: [0, 1, 0], w: .015, streak: true, c: [.9, .92, .95], a: inDeck ? .35 : .12 }); }
     if (inDeck && Math.random() < .5) G.puff([G.cam.pos[0] + rnd(-12, 12), G.cam.pos[1] - rnd(6, 30), G.cam.pos[2] + rnd(-12, 12)], { s: rnd(6, 12), v: [0, 40, 0], max: 1.5, c: [.92, .93, .95], a: .5, grow: 2, g: 0, drag: 0 });
-    if ((alt < 430 || alt - G.W.th(P.pos[0], P.pos[2]) < 260) && !this.ended) { this.ended = true; Story.ending(); }
+    Crash.update(dt, alt);
   },
 };

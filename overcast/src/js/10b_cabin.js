@@ -89,7 +89,7 @@ const Cabin = {
       yield* Cabin.haleWalk([[1.1, TP.floor, TP.z1 - 1.2]]); H.yaw = Math.PI;
       yield 3; Story.say({ name: 'Raven 2-1 (PA)', vpitch: .9, voiceIdx: 4 }, "Crew, Raven Two-One. We are rolling. Sit back and enjoy the weather.", { radio: true });
       Flight.startEngines(); yield 4; G.setEnv('cabin', 3);
-      Flight.takeoff(); UI.hint('LOOK THROUGH THE WINDOW'); G.after(9, () => Cabin.cruise());
+      Flight.takeoff(); UI.hint('LOOK THROUGH THE WINDOW'); G.after(6, () => Cabin.cruise());
       yield 9; UI.hint('');
       yield () => Flight.phase === 'cruise';
     });
@@ -127,12 +127,12 @@ const Cabin = {
       c = yield* Cabin.choose(["Yeah, why not.", "No thanks. I'm good."]);
       if (c === 0) { yield Story.say(Cabin.me(), "Yeah, why not."); yield* Cabin.playerDrinks(); }
       else { yield Story.say(Cabin.me(), "No thanks. I'm good."); yield Story.say(mox, "More for me, then."); yield* Cabin.moxDrinks(); }
-      yield 2;
+      yield .6;
       yield Story.say(mox, "When we hit the ground, stay on my six. Rally point is the river bend.");
       c = yield* Cabin.choose(["Copy. Your six.", "And if the chute doesn't open?"]);
       if (c === 0) { yield Story.say(Cabin.me(), "Copy. Your six."); yield Story.say(mox, "Good man."); }
       else { yield Story.say(Cabin.me(), "And if the chute doesn't open?"); yield Story.say(mox, "Then you get to the ground first and save us a spot."); yield 1; yield Story.say(mox, "Kidding. Pull the reserve. You'll be fine."); }
-      yield () => Flight.phase === 'cruise'; yield 6; Cabin.dropSequence();
+      yield 1.5; Cabin.dropSequence();
     });
   },
   me() { return { name: 'Rook', vpitch: .95, vrate: 1, voiceIdx: 0, pitch: 112 }; },
@@ -193,27 +193,27 @@ const Cabin = {
   dropSequence() {
     const S = Story, H = this.hale, pl = S.plane;
     S.run(function* () {
-      AUD.chime(); yield .8;
-      yield Story.say({ name: 'Raven 2-1 (PA)', vpitch: .9, voiceIdx: 4 }, "Jumpmaster, Raven Two-One. Two minutes out. Two minutes. Your aircraft.", { radio: true });
+      yield () => Flight.swapped && Story.plane.pos[1] > 1000; AUD.chime(); yield .4;
+      yield Story.say({ name: 'Raven 2-1 (PA)', vpitch: .9, voiceIdx: 4 }, "Two minutes. Your aircraft.", { radio: true, gap: .1 });
       Flight.phase = 'drop'; Story.cabinLightsOn(true, true);
       H.look = () => G.cam.pos; yield Story.say(H, "TWO MINUTES! STAND UP!");
       for (const a of Cabin.crew) if (a.seated && a !== Cabin.mox) G.after(rnd(.1, 1.4), () => Cabin.standUp(a));
-      yield 1.0; Cabin.standUp(Cabin.mox);
-      UI.hint('[F]  STAND UP'); Story.phase = 'stand';
-      yield () => IN.hit('KeyF'); UI.hint(''); Cabin.playerStand();
-      yield 1.6; yield Story.say(H, "HOOK UP!");
+      yield .5; Cabin.standUp(Cabin.mox);
+      UI.hint('[E]  STAND UP'); Story.phase = 'stand';
+      yield () => IN.hit('KeyE'); UI.hint(''); Cabin.playerStand();
+      yield .8; yield Story.say(H, "HOOK UP!", { gap: .1 });
       for (const a of Cabin.crew) if (a !== H) a.hook = true;
-      yield 1.5; yield Story.say(H, "Check your equipment! Sound off when ready!");
-      yield 1.2; yield Story.say(Cabin.crew[8] || Cabin.mox, "Ready!", { gap: .1 }); yield Story.say(Cabin.mox, "Ready!", { gap: .1 });
+      yield .6; yield Story.say(H, "Sound off when ready!", { gap: .1 });
+      yield .3; yield Story.say(Cabin.crew[8] || Cabin.mox, "Ready!", { gap: .1 }); yield Story.say(Cabin.mox, "Ready!", { gap: .1 });
       yield* Cabin.haleToButton();
       Flight.rampTarget = 1; AUD.buzzer(2); AUD.hydraulic(M4.pt(pl.m, 0, 2, TP.z1), 6); Story.phase = 'ramp';
-      yield 1.5; G.setEnv('aboveCabin', 2); Flight.wind = Flight.wind || AUD.windLoop(); P.shake = .6;
+      yield .8; G.setEnv('aboveCabin', 2); Flight.wind = Flight.wind || AUD.windLoop(); P.shake = .6;
       yield* Cabin.haleWalk([[1.6, TP.floor, TP.z1 - .3]]); H.yaw = Math.PI; H.look = () => G.cam.pos;
-      yield 3.5; pl.red = false; pl.green = true; AUD.buzzer(.6);
+      yield 1.5; pl.red = false; pl.green = true; AUD.buzzer(.6);
       yield Story.say(H, "GREEN LIGHT! GO! GO! GO!", { gap: .1 });
       Story.phase = 'jump';
       const order = Cabin.crew.filter(a => a !== H && a !== Cabin.mox);
-      for (const a of order) { Cabin.runOut(a); yield .9 + Math.random() * .4; }
+      for (const a of order) { Cabin.runOut(a); yield .45 + Math.random() * .25; }
       yield 1; yield Story.say(Cabin.mox, "See you on the ground, Rook!", { gap: .1 });
       Cabin.runOut(Cabin.mox); yield 1.5;
       UI.objective('Jump'); yield Story.say(H, "ROOK! GO!");
@@ -244,7 +244,7 @@ const Cabin = {
     a.rootFn = (r, b) => { const k = smooth(clamp((b.t - b.leapT) / 1.2, 0, 1)); M4.translate(r, r, 0, 1, 0); M4.rotX(r, r, -1.35 * k); M4.translate(r, r, 0, -1, 0); };
     a.leapT = a.t; G.after(1, () => { a.anim = 'freefall'; });
     a.script = (b, dt) => {
-      const v = b.vel; v[1] -= 9.8 * dt; const sp = Math.hypot(v[0], v[1], v[2]); const drag = .0039 * sp * sp; v[0] -= v[0] / sp * drag * dt; v[1] -= v[1] / sp * drag * dt; v[2] -= v[2] / sp * drag * dt;
+      const v = b.vel; v[1] -= 9.8 * dt; const sp = Math.hypot(v[0], v[1], v[2]); const drag = .006 * sp * sp; v[0] -= v[0] / sp * drag * dt; v[1] -= v[1] / sp * drag * dt; v[2] -= v[2] / sp * drag * dt;
       if (b === Cabin.mox && P.state === 'fall') { // Mox drifts over to fly next to you
         const tgt = V.add(P.pos, [Math.cos(P.yaw) * 7, -3, -Math.sin(P.yaw) * 7]); v[0] = damp(v[0], (tgt[0] - b.pos[0]) * .6 + P.fallVel[0], 1.2, dt); v[2] = damp(v[2], (tgt[2] - b.pos[2]) * .6 + P.fallVel[2], 1.2, dt); v[1] = damp(v[1], P.fallVel[1] + (tgt[1] - b.pos[1]) * .5, .8, dt); b.yaw = dampAng(b.yaw, P.yaw, 1, dt);
         if (!b._waved && V.dist(b.pos, P.pos) < 14 && Flight.fallT > 4) { b._waved = true; b.anim = 'freefall'; }

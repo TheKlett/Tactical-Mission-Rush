@@ -30,6 +30,30 @@ const Vignettes = {
     this.weldL = { pos: [0, 0, 0], col: [.6, .75, 1], i: 0, range: 7 }; G.dynLights.push(this.weldL);
     // patrol walker: back and forth along the north apron, heavy steps
     let wph = 0, wdir = 1, wx = 40; this.add({ upd: (dt) => { const p = MW.pose; const spd = 1.6; wph += dt * 1.25; p.amp = damp(p.amp, 1, 1, dt); p.phase = wph; wx += wdir * spd * dt; if (wx > 160) wdir = -1; if (wx < 20) wdir = 1; p.yaw = dampAng(p.yaw, wdir > 0 ? -Math.PI / 2 : Math.PI / 2, .6, dt); p.pos[0] = wx; p.time = G.time; MW.mats = poseMech(MW.bones, p); const s = Math.sin(wph); if (Math.sign(s) !== Math.sign(this._ws || 0)) { AUD.stomp(V.add(p.pos, [0, .5, 0]), 1); const d = V.dist(p.pos, P.pos); if (d < 60) P.shake = Math.max(P.shake, .5 * (1 - d / 60)); G.puff(V.add(p.pos, [0, .2, 0]), { s: 1.5, c: [.45, .45, .42], a: .25, max: 2 }); } this._ws = s; } });
+    // ---------------- mech line: three more walkers parked in a row with their crews ----------------
+    const line = [[-60, -52, '14', 0x5e6454], [-48, -52, '15', 0x585e50], [-36, -52, '16', 0x60665a]];
+    for (const [x, z, num, col] of line) {
+      const mm = mkMech(x, z, Math.PI, { num, paint: col, lights: num !== '15', crouch: num === '15' ? .3 : 0, hatch: num === '16' ? 1 : 0 });
+      const c1 = mk(crewApp({ topCol: 0x6a5a2a, head: 'cap' }), { pos: [x + 2.2, 0, z + 3], yaw: Math.PI * .8, idleKind: rng() < .5 ? 'talk' : 'listen' });
+      const c2 = mk(crewApp({ head: 'headset' }), { pos: [x + 3.1, 0, z + 2.2], yaw: -Math.PI * .7, idleKind: 'listen' }); c1.look = () => c2.headPos(); c2.look = () => c1.headPos();
+      if (num === '16') { const tech = mk(crewApp({ head: 'none', hairStyle: 'short' }), { pos: [x - 1.6, 0, z + 1.5], yaw: Math.PI / 2, idleKind: 'work' }); }
+    }
+    // ---------------- formation: two platoons standing in ranks, an officer in front ----------------
+    { const ox = -150, oz = 52; const off = mk(soldierApp(rng, { head: 'cap', beard: 'none', vest: 'none' }), { name: 'Captain', pos: [ox, 0, oz - 7], yaw: Math.PI, idleKind: 'talk', gear: false, pitch: 100 });
+      const ranks = []; for (let p = 0; p < 2; p++) for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) { const a = mk(soldierApp(rng), { pos: [ox - 7 + p * 8 + c * 1.1, 0, oz - 2 + r * 1.3], yaw: 0, idleKind: 'guard', weapon: 'rifle', weaponMode: 'sling', gear: rng() < .5 }); a.k = rng() * .4; ranks.push(a); }
+      const speech = ["Listen up! Wheels up for Raven Two-One in ten.", "Second platoon, you're on the ground at oh-seven-hundred.", "Keep your heads down and your radios on."]; let st = 3, si = 0;
+      this.add({ upd: (dt) => { st -= dt; if (st <= 0) { st = 9; if (this.near([ox, 0, oz], 28)) G.speak(off, speech[si++ % speech.length]); } } }); }
+    // ---------------- a squad marching in column past the washroom ----------------
+    { const col = []; for (let i = 0; i < 12; i++) { const a = mk(soldierApp(rng), { pos: [-210 - (i >> 1) * 1.4, 0, -28 + (i & 1) * 1.1], yaw: -Math.PI / 2, weapon: 'rifle', weaponMode: 'sling', gear: true }); a.walkSpeed = 1.6; col.push(a); }
+      let dir = 1; const march = () => { for (const [i, a] of col.entries()) { const x = dir > 0 ? 5 - (i >> 1) * 1.4 : -210 + (i >> 1) * 1.4; a.goTo([[x, 0, -28 + (i & 1) * 1.1]], false, i === 0 ? () => { dir = -dir; G.after(6, march); } : null); } }; G.after(1, march);
+      let ct = 0, cs = 0; this.add({ upd: (dt) => { ct += dt; if (col[0].speed > .5 && ct > .55) { ct = 0; if (this.near(col[0].pos, 25)) { AUD.step('water', col[(cs++) % col.length].pos, .35); } } } }); }
+    // ---------------- groups of soldiers around the base: talking, smoking, waiting by the trucks ----------------
+    { const kinds = ['talk', 'listen', 'smoke', 'listen', 'idle', 'radio', 'drink'];
+      for (let g = 0, n = 0; g < 400 && n < 9; g++) { const x = rnd(-215, 20), z = rnd(-95, 70); if (!W.clutterFree(x, z, 3)) continue; n++; const k = 2 + (rng() * 3 | 0); const ms = [];
+        for (let i = 0; i < k; i++) { const a = (i / k) * TAU; const s = mk(soldierApp(rng, { head: rng() < .6 ? 'helmet' : 'cap', vest: rng() < .7 ? 'plate' : 'none' }), { pos: [x + Math.cos(a) * 1.1, 0, z + Math.sin(a) * 1.1], yaw: Math.atan2(Math.cos(a), Math.sin(a)), idleKind: kinds[(rng() * kinds.length) | 0], weapon: rng() < .7 ? 'rifle' : null, weaponMode: 'sling', gear: rng() < .4 }); ms.push(s); }
+        for (const s of ms) s.look = () => ms[(G.time / 5 + ms.indexOf(s)) % ms.length | 0].headPos(); } }
+    // ---------------- runners between buildings ----------------
+    for (let i = 0; i < 6; i++) { const a = mk(soldierApp(rng), { pos: [rnd(-200, 0), 0, rnd(-80, 60)], yaw: 0, weapon: 'rifle', weaponMode: 'sling' }); const go = () => { let x, z, k = 0; do { x = rnd(-210, 10); z = rnd(-90, 70); } while (!W.clutterFree(x, z, 0) && k++ < 30); a.goTo([[x, 0, z]], rng() < .3, () => G.after(rnd(2, 8), go)); }; G.after(rnd(.5, 4), go); }
     // ---------------- drill squad ----------------
     const sgt = mk(soldierApp(rng, { head: 'cap', beard: 'mustache' }), { name: 'Drill sergeant', pos: [-150, 0, -40], yaw: Math.PI / 2, idleKind: 'talk', gear: false, weapon: null, pitch: 95 });
     const squad = []; for (let r = 0; r < 2; r++) for (let c = 0; c < 5; c++) squad.push(mk(soldierApp(rng), { pos: [-157 - r * 1.6, 0, -44 + c * 1.6], yaw: -Math.PI / 2, idleKind: 'guard', weapon: 'rifle', weaponMode: 'low', gear: false }));

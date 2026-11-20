@@ -12,7 +12,7 @@ const P = {
     this.dyn = [{ mesh: this.rig.mesh, bones: this.rig.bones, fullBones: this.rig.fullBones, pos: [0, 0, 0], r: 2 }, { mesh: this.gear, bones: this.rig.bones, fullBones: this.rig.fullBones, pos: [0, 0, 0], r: 2 }];
     this.dyn[1].pos = this.dyn[0].pos; this.k = 1.3; this.t = 0; this.ph = 0; this.props = [];
   },
-  reset() { this.state = 'off'; this.vel = [0, 0, 0]; this.pitch = 0; this.camOv = null; this.inPlane = false; this.prompt = ''; this.cut = null; this.props.length = 0; this.dyn.length = 2; this.ik = []; this.speed = 0; this.shake = 0; this.headExtra = null; },
+  reset() { this.crouch = 0; this.crouchWant = false; this.drawWant = false; this.drawn = 0; this.aim = 0; this.aimSens = 1; this.fovOverride = null; this.handFn = null; this.rootFn = null; this.lockBodyYaw = null; this.state = 'off'; this.vel = [0, 0, 0]; this.pitch = 0; this.camOv = null; this.inPlane = false; this.prompt = ''; this.cut = null; this.props.length = 0; this.dyn.length = 2; this.ik = []; this.speed = 0; this.shake = 0; this.headExtra = null; },
   fwdFlat() { return [-Math.sin(this.yaw), 0, -Math.cos(this.yaw)]; },
   frameM() { return this.inPlane && Story.plane ? Story.plane.m : null; },
   worldPos() { const m = this.frameM(); return m ? M4.pt(m, this.local[0], this.local[1], this.local[2]) : this.pos; },
@@ -23,8 +23,8 @@ const P = {
   update(dt) {
     this.t += dt; this.ik.length = 0; this.prompt = '';
     // mouse look
-    if (!this.camOv && this.state !== 'off') {
-      const sens = .0006 + this.sensK() * .0042;
+    if (!this.camOv && this.state !== 'off' && !this.lookLock) {
+      const sens = (.0006 + this.sensK() * .0042) * (this.zooming ? Math.max(.12, 1 / this.zoom) : 1) * (this.aimSens || 1);
       this.yaw -= IN.mdx * sens; this.pitch -= IN.mdy * sens * (G.settings.invert ? -1 : 1); this.pitch = clamp(this.pitch, -1.45, 1.45);
       if (this.lookLimit) { const L = this.lookLimit; this.yaw = L.yaw + clamp(angDiff(L.yaw, this.yaw), -L.yawR, L.yawR); this.pitch = clamp(this.pitch, L.pMin, L.pMax); }
     }
@@ -39,8 +39,10 @@ const P = {
   sensK() { return clamp(G.settings.sens / 100, 0, 1); },
   moveInput() { let f = 0, s = 0; if (IN.k('KeyW')) f += 1; if (IN.k('KeyS')) f -= 1; if (IN.k('KeyD')) s += 1; if (IN.k('KeyA')) s -= 1; const l = Math.hypot(f, s) || 1; return [f / l * (f || s ? 1 : 0), s / l * (f || s ? 1 : 0)]; },
   updateWalk(dt) {
-    const W = G.W; const [f, s] = this.moveInput(); const jog = IN.k('ShiftLeft') && f > .3;
-    const spd = jog ? 3.9 : 1.75; const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    const W = G.W; const [f, s] = this.moveInput();
+    const cr = IN.k('ControlLeft') || IN.k('KeyC') || this.crouchWant; if (this.crouchWant && (f || s) && IN.k('ShiftLeft')) this.crouchWant = false;
+    this.crouch = damp(this.crouch || 0, cr ? 1 : 0, 9, dt); const jog = IN.k('ShiftLeft') && f > .3 && this.crouch < .5;
+    const spd = (jog ? 3.9 : 1.75) * (1 - this.crouch * .45) * (1 - (this.aim || 0) * .35); const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const tx = (-sy * f + cy * s) * spd, tz = (-cy * f - sy * s) * spd;
     this.vel[0] = damp(this.vel[0], tx, 9, dt); this.vel[2] = damp(this.vel[2], tz, 9, dt);
     const np = [this.pos[0] + this.vel[0] * dt, this.pos[1], this.pos[2] + this.vel[2] * dt];
@@ -48,7 +50,7 @@ const P = {
     const gy = W.ground(np[0], np[2], this.pos[1] + .5, .45, .2);
     np[1] = gy > this.pos[1] ? damp(this.pos[1], gy, 18, dt) : Math.max(gy, this.pos[1] - 6 * dt);
     this.pos = np; this.speed = Math.hypot(this.vel[0], this.vel[2]); this.jog = jog;
-    this.stepAcc = (this.stepAcc || 0) + this.speed * dt; if (this.stepAcc > (jog ? 1.7 : 1.3)) { this.stepAcc = 0; AUD.step(G.env.wet > .5 && !G.isDry(this.pos) ? 'water' : 'metal', null, jog ? .32 : .2); if (G.env.wet > .5 && !G.isDry(this.pos)) for (let i = 0; i < 3; i++) G.particles.push({ p: [this.pos[0] + rnd(-.2, .2), this.pos[1] + .03, this.pos[2] + rnd(-.2, .2)], v: [rnd(-.6, .6), rnd(.8, 1.6), rnd(-.6, .6)], life: 0, max: .4, s: .02, c: [.7, .72, .74], a: .6, g: 9.8, drag: .4 }); }
+    this.stepAcc = (this.stepAcc || 0) + this.speed * dt; if (this.stepAcc > (jog ? 1.7 : 1.3)) { this.stepAcc = 0; AUD.step(Story.phase === 'p2' ? 'mud' : G.env.wet > .5 && !G.isDry(this.pos) ? 'water' : 'metal', null, (jog ? .32 : .2) * (1 - this.crouch * .6)); if (G.env.wet > .5 && !G.isDry(this.pos)) for (let i = 0; i < 3; i++) G.particles.push({ p: [this.pos[0] + rnd(-.2, .2), this.pos[1] + .03, this.pos[2] + rnd(-.2, .2)], v: [rnd(-.6, .6), rnd(.8, 1.6), rnd(-.6, .6)], life: 0, max: .4, s: .02, c: [.7, .72, .74], a: .6, g: 9.8, drag: .4 }); }
   },
   updateCabin(dt) { // walking inside the transport, in plane space
     const [f, s] = this.moveInput(); const spd = IN.k('ShiftLeft') ? 3.6 : 1.7; const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
@@ -65,7 +67,7 @@ const P = {
   },
   updateFall(dt) {
     const v = this.fallVel; const [f, s] = this.moveInput();
-    v[1] -= 9.8 * dt; const sp = Math.hypot(v[0], v[1], v[2]); const drag = .0039 * sp * sp; if (sp > .1) { v[0] -= v[0] / sp * drag * dt; v[1] -= v[1] / sp * drag * dt; v[2] -= v[2] / sp * drag * dt; }
+    v[1] -= 9.8 * dt; const sp = Math.hypot(v[0], v[1], v[2]); const drag = .006 * sp * sp; if (sp > .1) { v[0] -= v[0] / sp * drag * dt; v[1] -= v[1] / sp * drag * dt; v[2] -= v[2] / sp * drag * dt; }
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw); const tx = (-sy * f + cy * s) * 9, tz = (-cy * f - sy * s) * 9;
     v[0] = damp(v[0], tx + (this.drift ? this.drift[0] : 0), .7, dt); v[2] = damp(v[2], tz + (this.drift ? this.drift[2] : 0), .7, dt);
     this.pos[0] += v[0] * dt; this.pos[1] += v[1] * dt; this.pos[2] += v[2] * dt; this.speed = sp;
@@ -93,6 +95,7 @@ const P = {
     else poseIdle(j, this.t, 'idle', this.k);
     // look pitch carried by chest/head (visible in mirrors and in the body's arms)
     if (st !== 'fall') { const hy = clamp(angDiff(this.bodyYaw ?? this.yaw, this.yaw), -1.2, 1.2); j[SK.HD * 3] += -this.pitch * .65; j[SK.CH * 3] += -this.pitch * .2; j[SK.HD * 3 + 1] += hy * .7; j[SK.CH * 3 + 1] += hy * .3; }
+    const cc = (st === 'walk' || st === 'cut') && !this.poseFn ? (this.crouch || 0) : 0; if (cc > .01) { j[SK.THL * 3] += .75 * cc; j[SK.THR * 3] += .75 * cc; j[SK.SHL * 3] -= 1.2 * cc; j[SK.SHR * 3] -= 1.2 * cc; j[SK.FTL * 3] += .4 * cc; j[SK.FTR * 3] += .4 * cc; j[SK.CH * 3] += .22 * cc; py -= .36 * cc; }
     rig.tj.set(j); rig.tpy = py; rig.blend(mv ? 14 : this.blendK || 9, dt);
     // body yaw: follows the view, lags when standing still
     if (this.bodyYaw === undefined || mv || st === 'fall' || st === 'cut') this.bodyYaw = this.yaw;
@@ -107,7 +110,7 @@ const P = {
     if (this.rootFn) this.rootFn(r, this);
     rig.solve(null, false);
     for (const q of this.ik) { if (q.leg) ikLeg(rig, q.left, q.T, q.pole, r); else ikArm(rig, q.left, q.T, q.pole || M4.dir(r, q.left ? -.6 : .6, -1, .2), q.fingers, q.palm); }
-    rig.hide = st === 'fall' ? ((1 << SK.HD) | (1 << SK.CH) | (1 << SK.UAL) | (1 << SK.UAR) | (1 << SK.PEL)) : (1 << SK.HD);
+    rig.hide = st === 'fall' ? ((1 << SK.HD) | (1 << SK.CH) | (1 << SK.UAL) | (1 << SK.UAR) | (1 << SK.PEL)) : (this.drawn > .5 ? (1 << SK.HD) | (1 << SK.UAL) | (1 << SK.UAR) : (1 << SK.HD));
     rigCommit(rig);
     const wp = M4.pos(rig.mats[SK.PEL]); this.dyn[0].pos[0] = wp[0]; this.dyn[0].pos[1] = wp[1]; this.dyn[0].pos[2] = wp[2];
     for (const p of this.props) M4.mul(p.m, rig.mats[p.bone], p.off);
@@ -130,7 +133,14 @@ const P = {
     }
     M4.invert(cam.view, m); cam.pos = M4.pos(m); cam.fwd = V.norm(M4.dir(m, 0, 0, -1)); cam.right = V.norm(M4.dir(m, 1, 0, 0)); cam.up = V.norm(M4.dir(m, 0, 1, 0));
     const fovT = (G.settings.fov + (this.state === 'fall' ? 10 : 0) + (this.jog && this.speed > 2.5 ? 3 : 0)) * DEG;
-    cam.fov = damp(cam.fov, this.fovOverride ? this.fovOverride * DEG : fovT, 4, dt);
+    // binocular-style zoom on the right mouse button (3x, mouse wheel up to 10x); in combat the button aims instead
+    const canZoom = !this.combat && !UI.dlg && G.state === 'play' && this.state !== 'off' && !this.camOv;
+    if (canZoom && IN.mb[2]) { if (!this.zooming) { this.zooming = true; this.zoom = 3; } if (IN.wheel) this.zoom = clamp(this.zoom - IN.wheel * .8, 3, 10); }
+    else this.zooming = false;
+    const zf = this.zooming ? this.zoom : 1;
+    const fovZ = 2 * Math.atan(Math.tan((this.fovOverride ? this.fovOverride * DEG : fovT) / 2) / zf);
+    cam.fov = damp(cam.fov, fovZ, this.zooming ? 9 : 6, dt);
+    UI.zoomInd && UI.zoomInd(this.zooming ? this.zoom : 0);
     cam.near = this.state === 'fall' ? .1 : .035;
   },
 };

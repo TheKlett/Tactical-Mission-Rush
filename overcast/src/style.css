@@ -110,3 +110,21 @@ nav button:hover::after { content: '▌'; animation: blink .8s steps(1) infinite
 #endc .e5 { margin-top: 50px; font-family: var(--m); font-size: 11px; letter-spacing: .3em; color: #4c7a5c; animation-delay: 4.5s; }
 @keyframes up { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
 #err { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 40px; background: #000; color: var(--g); font-family: var(--m); z-index: 99; }
+#zoom { position: absolute; right: 4vw; top: 6vh; font-family: var(--m); font-size: 22px; letter-spacing: .1em; color: #fff; text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .2s; }
+#zoom.on { opacity: .85; }
+#hud.zoomed::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%); }
+#detect { position: absolute; left: 50%; top: 4vh; transform: translateX(-50%); width: 160px; text-align: center; opacity: 0; transition: opacity .4s; }
+#detect.on { opacity: 1; } #detect.hidden { opacity: .45; }
+#detect span { font-family: var(--m); font-size: 11px; letter-spacing: .35em; color: #e8eef0; text-shadow: 0 1px 3px #000; }
+#detect i { display: block; height: 2px; margin-top: 5px; width: 0; background: #fff; box-shadow: 0 0 6px rgba(255,255,255,.5); transition: width .15s; }
+#detect.suspicious span, #detect.noticed span { color: #ffd27a; } #detect.suspicious i, #detect.noticed i { background: #ffd27a; }
+#detect.spotted span, #detect.engaged span { color: #ff5a4a; } #detect.spotted i, #detect.engaged i { background: #ff5a4a; width: 100% !important; }
+#ammoBox { position: absolute; right: 4vw; bottom: 8vh; font-size: 30px; font-weight: 600; color: #fff; text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .3s; }
+#ammoBox.on { opacity: .9; }
+#signal { position: absolute; left: 50%; top: 22vh; transform: translateX(-50%); font-family: var(--m); font-size: 15px; letter-spacing: .3em; color: #ff6a5a; text-shadow: 0 0 10px rgba(255,60,40,.7); display: none; animation: flick 1.2s infinite; }
+#signal.on { display: block; }
+#lostScr, #diedScr { position: fixed; inset: 0; z-index: 55; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #000; font-family: var(--m); }
+#lostScr.on, #diedScr.on { display: flex; }
+#lostScr b { font-size: clamp(30px, 6vw, 64px); letter-spacing: .25em; color: var(--g); text-shadow: 0 0 20px var(--g); animation: flick 1s infinite; }
+#lostScr span, #diedScr span { font-size: 12px; letter-spacing: .3em; color: #6a8a72; }
+#diedScr { background: rgba(20,0,0,.85); } #diedScr b { font-size: clamp(30px, 6vw, 64px); letter-spacing: .35em; color: #ff4a3a; }

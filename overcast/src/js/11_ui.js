@@ -109,7 +109,16 @@ const UI = {
   dlgPick() { if (!this.dlg) return; const { cb, sel } = this.dlg; this.dlg = null; $('dialog').classList.remove('on'); AUD.uiClick && AUD.uiClick(); cb(sel); },
   fadeTo(v, dur) { this._fade = { from: this.fadeV, to: v, t: 0, dur }; },
   _fadeAnim(dt) { const f = this._fade; if (!f) return this.fadeV; f.t += dt; const k = clamp(f.t / f.dur, 0, 1); const v = lerp(f.from, f.to, smooth(k)); if (k >= 1) this._fade = null; $('fadeEl').style.opacity = v; return v; },
-  endCard() { $('endc').classList.add('on'); $('hud').classList.remove('on'); IN.unlock(); setTimeout(() => { $('endc').onclick = () => { $('endc').classList.remove('on'); this.quitToMenu(); }; }, 1500); },
+  endCard(part) { const two = part === 2; $('endc').querySelector('.e1').textContent = two ? 'END OF PART TWO' : 'END OF PART ONE'; $('endc').querySelector('.e3').textContent = two ? 'THE GREEN' : 'THE DROP'; $('endc').querySelector('.e4').textContent = two ? 'Mox is waiting at the river.' : 'The story continues on the ground.'; $('detect').classList.remove('on'); $('ammoBox').classList.remove('on'); $('endc').classList.add('on'); $('hud').classList.remove('on'); IN.unlock(); setTimeout(() => { $('endc').onclick = () => { $('endc').classList.remove('on'); this.quitToMenu(); }; }, 1500); },
+  signal(w) { const el = $('signal'); if (el._w === (w > 0)) { if (w > 0) el.style.opacity = w; return; } el._w = w > 0; el.classList.toggle('on', w > 0); el.style.opacity = w; },
+  lost(on) { $('lostScr').classList.toggle('on', on); },
+  died(on) { $('diedScr').classList.toggle('on', on); },
+  detect(v, ammo, drawn) {
+    const el = $('detect'); const t = v >= 2 ? 'ENGAGED' : v >= 1 ? 'SPOTTED' : v > .35 ? 'SUSPICIOUS' : v > .05 ? 'NOTICED' : 'HIDDEN'; if (el._t !== t) { el._t = t; el.querySelector('span').textContent = t; el.className = 'on ' + t.toLowerCase(); }
+    el.querySelector('i').style.width = (Math.min(v, 1) * 100).toFixed(0) + '%';
+    const am = $('ammoBox'); const at = drawn ? ammo.mag + ' / ' + ammo.res : ''; if (am._t !== at) { am._t = at; am.textContent = at; am.classList.toggle('on', !!at); }
+  },
+  zoomInd(z) { const el = $('zoom'); if (!el) return; const t = z ? z.toFixed(1).replace('.0', '') + '×' : ''; if (el._t !== t) { el._t = t; el.textContent = t; el.classList.toggle('on', !!z); } },
   hudFrame(dt) {
     this.fadeV = this._fadeAnim(dt);
     // prompt

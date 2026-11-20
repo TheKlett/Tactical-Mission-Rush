@@ -119,6 +119,24 @@ nav button:hover::after { content: '▌'; animation: blink .8s steps(1) infinite
 #endc .e5 { margin-top: 50px; font-family: var(--m); font-size: 11px; letter-spacing: .3em; color: #4c7a5c; animation-delay: 4.5s; }
 @keyframes up { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
 #err { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; text-align: center; padding: 40px; background: #000; color: var(--g); font-family: var(--m); z-index: 99; }
+#zoom { position: absolute; right: 4vw; top: 6vh; font-family: var(--m); font-size: 22px; letter-spacing: .1em; color: #fff; text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .2s; }
+#zoom.on { opacity: .85; }
+#hud.zoomed::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%); }
+#detect { position: absolute; left: 50%; top: 4vh; transform: translateX(-50%); width: 160px; text-align: center; opacity: 0; transition: opacity .4s; }
+#detect.on { opacity: 1; } #detect.hidden { opacity: .45; }
+#detect span { font-family: var(--m); font-size: 11px; letter-spacing: .35em; color: #e8eef0; text-shadow: 0 1px 3px #000; }
+#detect i { display: block; height: 2px; margin-top: 5px; width: 0; background: #fff; box-shadow: 0 0 6px rgba(255,255,255,.5); transition: width .15s; }
+#detect.suspicious span, #detect.noticed span { color: #ffd27a; } #detect.suspicious i, #detect.noticed i { background: #ffd27a; }
+#detect.spotted span, #detect.engaged span { color: #ff5a4a; } #detect.spotted i, #detect.engaged i { background: #ff5a4a; width: 100% !important; }
+#ammoBox { position: absolute; right: 4vw; bottom: 8vh; font-size: 30px; font-weight: 600; color: #fff; text-shadow: 0 1px 4px #000; opacity: 0; transition: opacity .3s; }
+#ammoBox.on { opacity: .9; }
+#signal { position: absolute; left: 50%; top: 22vh; transform: translateX(-50%); font-family: var(--m); font-size: 15px; letter-spacing: .3em; color: #ff6a5a; text-shadow: 0 0 10px rgba(255,60,40,.7); display: none; animation: flick 1.2s infinite; }
+#signal.on { display: block; }
+#lostScr, #diedScr { position: fixed; inset: 0; z-index: 55; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: #000; font-family: var(--m); }
+#lostScr.on, #diedScr.on { display: flex; }
+#lostScr b { font-size: clamp(30px, 6vw, 64px); letter-spacing: .25em; color: var(--g); text-shadow: 0 0 20px var(--g); animation: flick 1s infinite; }
+#lostScr span, #diedScr span { font-size: 12px; letter-spacing: .3em; color: #6a8a72; }
+#diedScr { background: rgba(20,0,0,.85); } #diedScr b { font-size: clamp(30px, 6vw, 64px); letter-spacing: .35em; color: #ff4a3a; }
 
 </style>
 </head>
@@ -185,11 +203,17 @@ Thanks for playing.</pre>
   <div id="prompt"></div>
   <div id="subs"></div>
   <div id="dialog"></div>
+  <div id="zoom"></div>
+  <div id="detect"><span>HIDDEN</span><i></i></div>
+  <div id="ammoBox"></div>
+  <div id="signal">SIGNAL WEAK — RETURN TO THE TRAIL</div>
   <div id="alt"><small>ALTITUDE</small><b>0</b><em>M</em><i></i></div>
 </div>
 <div id="pause"><div class="pbox"><div class="ph">// PAUSED</div><button data-act="resume">RESUME</button><button data-act="psettings">SETTINGS</button><button data-act="quit">QUIT TO TERMINAL</button></div></div>
 <div id="loading"><span>DECRYPTING FOB KESTREL</span><i></i></div>
 <div id="endc"><div class="e1">END OF PART ONE</div><div class="e2">OVERCAST</div><div class="e3">THE DROP</div><div class="e4">The story continues on the ground.</div><div class="e5">CLICK TO RETURN TO THE TERMINAL</div></div>
+<div id="lostScr"><b>CONNECTION LOST</b><span>uplink to operator interrupted · re-establishing</span></div>
+<div id="diedScr"><b>K.I.A.</b><span>restarting from the edge of the camp</span></div>
 <div id="fadeEl"></div>
 <div id="err"></div>
 <script>
@@ -892,6 +916,16 @@ Object.assign(AUD, {
       };
     });
   },
+  // distant heavy detonation: delayed by the speed of sound, low and rolling
+  farBoom(dist) {
+    if (!this.ready) return; const d = dist / 340; setTimeout(() => { const C = this.ctx, t = this.t; const k = clamp(600 / (dist + 200), .25, 1.2);
+      const g = C.createGain(); const lp = this.filt('lowpass', 420); lp.connect(g); g.connect(this.sfx); this.env(g.gain, t, .02, 1.6 * k, 4.5); this.noise(lp, t, 5, 'brown');
+      const os = this.osc('sine', 48); os.frequency.exponentialRampToValueAtTime(22, t + 2); const g2 = C.createGain(); os.connect(g2); g2.connect(this.sfx); this.env(g2.gain, t, .01, 1.2 * k, 2.5); os.start(t); os.stop(t + 3);
+      for (let i = 0; i < 5; i++) { const g3 = C.createGain(); const l3 = this.filt('lowpass', 700); l3.connect(g3); g3.connect(this.sfx); const tt = t + .4 + i * (.3 + Math.random() * .5); this.env(g3.gain, tt, .02, .5 * k, 1.2); this.noise(l3, tt, 1.5, 'brown'); } }, d * 1000);
+  },
+  missile(pos) { return this.synthLoop({ ref: 60, roll: .7, noise: [{ type: 'white', ft: 'bandpass', f: 2600, v: 1.2, q: .6 }, { type: 'pink', ft: 'lowpass', f: 600, v: .8 }], osc: [{ type: 'sawtooth', f: 900, v: .02 }] }, pos); },
+  knock() { if (!this.ready) return; const C = this.ctx, t = this.t; const g = C.createGain(); const lp = this.filt('lowpass', 900); lp.connect(g); g.connect(this.master); this.env(g.gain, t, .002, 2.2, .5); this.noise(lp, t, .6, 'brown');
+    const ring = this.osc('sine', 3600); const rg = C.createGain(); ring.connect(rg); rg.connect(this.master); this.env(rg.gain, t + .05, .3, .08, 6); ring.start(t); ring.stop(t + 7); this.impact('metal', null); },
   hackKey() { if (!this.ready) return; this.click(1800 + Math.random() * 2400, .06, null, .008); },
   granted() { if (!this.ready) return; for (const [d, f] of [[0, 660], [.12, 880], [.24, 1320]]) { const C = this.ctx, t = this.t + d; const o = this.osc('square', f); const lp = this.filt('lowpass', 3000); const g = C.createGain(); o.connect(lp); lp.connect(g); g.connect(this.sfx); this.env(g.gain, t, .005, .12, .25); o.start(t); o.stop(t + .3); } },
   denied() { this.beep(220, .12, .15); },
@@ -930,7 +964,7 @@ const FS_MAIN = `#version 300 es
 precision highp float; precision highp int; precision highp sampler2DShadow;
 in vec3 vPos; in vec3 vNor; in vec3 vCol; in vec3 vLoc; flat in int vMat;
 uniform vec3 uSunDir,uSunCol,uSky,uGnd,uFog,uCam; uniform float uFogD,uFogH,uExpo,uTime,uWet,uSnow;
-uniform int uSkin; uniform vec4 uTint; uniform vec4 uClip; uniform sampler2D uMirror; uniform vec2 uRes; uniform float uAlpha;
+uniform int uSkin; uniform vec4 uTint; uniform vec4 uClip; uniform mat4 uPlaneInv; uniform int uPlaneOn; uniform sampler2D uMirror; uniform vec2 uRes; uniform float uAlpha;
 uniform sampler2DShadow uShadow; uniform mat4 uSVP; uniform int uShadowOn; uniform float uSRes;
 uniform vec4 uLP[12]; uniform vec4 uLC[12]; uniform vec4 uLD[12]; uniform int uNL;
 out vec4 frag;
@@ -952,6 +986,7 @@ void main(){
   if(vMat==26){ vec2 suv=gl_FragCoord.xy/uRes; vec3 m=texture(uMirror,vec2(suv.x,suv.y)).rgb; float sm=fbm(vPos.xy*9.+vPos.zy*7.); m=m*.93+vec3(.02)*smoothstep(.55,.8,sm); float ed=fbm(vPos.xy*30.); m*=.97+.03*ed; frag=vec4(m*uTint.rgb,1.); return; }
   vec3 N=normalize(vNor); vec3 Vd=uCam-vPos; float dist=length(Vd); vec3 V=Vd/dist;
   if(dot(N,V)<0.) N=-N;
+  if((vMat==31||vMat==29)&&uPlaneOn==1){ vec3 q=(uPlaneInv*vec4(vPos,1.)).xyz; if(abs(q.x)<4.&&q.y>-1.&&q.y<9.&&q.z>-27.&&q.z<26.) discard; }
   if(vMat==31){ // cumulus puff: wrapped sun lighting, blue-grey shadow side, soft silhouette
     vec3 Nn=N; float w=dot(Nn,uSunDir)*.5+.5; float n=fbm(vPos.xz*.012+vPos.y*.02);
     vec3 shade=mix(uSky*.85+vec3(.08,.09,.12),vec3(1.,.99,.96)*(.5+uSunCol*.32),smoothstep(.15,.95,w+(n-.5)*.35))*vCol;
@@ -1287,7 +1322,7 @@ const R = {
     gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.depthFunc(gl.LEQUAL);
     // opaque
     P = this.pMain; gl.useProgram(P.p); this.setMainUniforms(P, S, cp, shadowOn, vp);
-    gl.uniform4fv(P.u.uClip, o.clip || [0, 0, 0, 0]); gl.uniform2f(P.u.uRes, this.w, this.h); gl.uniform1f(P.u.uAlpha, 1);
+    gl.uniform4fv(P.u.uClip, o.clip || [0, 0, 0, 0]); gl.uniform1i(P.u.uPlaneOn, S.planeInv ? 1 : 0); if (S.planeInv) gl.uniformMatrix4fv(P.u.uPlaneInv, false, S.planeInv); gl.uniform2f(P.u.uRes, this.w, this.h); gl.uniform1f(P.u.uAlpha, 1);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, o.mirrorOn ? this.mt.tex : this.dummy); gl.uniform1i(P.u.uMirror, 1); gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(P.u.uSkin, 0); gl.uniformMatrix4fv(P.u.uModel, false, M4.create()); gl.uniform4f(P.u.uTint, 1, 1, 1, 0);
     gl.disable(gl.CULL_FACE);
@@ -3350,6 +3385,7 @@ const ENV = {
   container: { sunDir: V.norm([.25, .9, .3]), sunCol: [.04, .04, .045], sky: [.05, .055, .06], gnd: [.035, .035, .035], fog: [.6, .63, .66], fogD: .0065, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.0, wet: 0, rain: 0, wind: 1.6 },
   cabin: { sunDir: V.norm([.25, .9, .3]), sunCol: [.12, .12, .13], sky: [.2, .21, .22], gnd: [.1, .1, .1], fog: [.6, .63, .66], fogD: .0065, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.25, wet: 0, rain: 0, wind: 1.6 },
   inCloud: { sunDir: V.norm([.5, .5, -.4]), sunCol: [.8, .78, .75], sky: [.85, .87, .9], gnd: [.6, .62, .64], fog: [.86, .88, .9], fogD: .09, fogH: 0, zen: [.86, .88, .9], hor: [.86, .88, .9], cloud: 0, skyFog: 1, expo: 1.0, wet: 0, rain: 0, wind: 1 },
+  inCloudCabin: { sunDir: V.norm([.5, .5, -.4]), sunCol: [.3, .3, .3], sky: [.42, .44, .46], gnd: [.2, .2, .2], fog: [.86, .88, .9], fogD: .006, fogH: 0, zen: [.86, .88, .9], hor: [.86, .88, .9], cloud: 0, skyFog: 1, expo: 1.15, wet: 0, rain: 0, wind: 1 },
   above: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [2.3, 2.05, 1.7], sky: [.42, .55, .78], gnd: [.45, .47, .5], fog: [.62, .7, .82], fogD: .00032, fogH: 0, zen: [.1, .24, .58], hor: [.58, .7, .86], cloud: .15, skyFog: .2, expo: 1.0, wet: 0, rain: 0, wind: 1 },
   aboveCabin: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [.5, .45, .38], sky: [.16, .17, .2], gnd: [.1, .1, .1], fog: [.72, .78, .86], fogD: .00045, fogH: 0, zen: [.16, .32, .66], hor: [.66, .76, .88], cloud: .15, skyFog: .35, expo: 1.2, wet: 0, rain: 0, wind: 1 },
   below: { sunDir: V.norm([-.55, .42, -.45]), sunCol: [1.7, 1.55, 1.3], sky: [.45, .56, .72], gnd: [.3, .34, .3], fog: [.6, .68, .78], fogD: .00028, fogH: 0, zen: [.14, .3, .62], hor: [.6, .7, .84], cloud: .3, skyFog: .3, expo: 1.0, wet: 0, rain: 0, wind: 1 },
@@ -3622,6 +3658,7 @@ class Actor {
       const m = this.wl.m; M4.ident(m);
       if (this.weaponMode === 'low') { M4.translate(m, m, .08, .1, -.26); M4.rotY(m, m, .55); M4.rotX(m, m, -.6); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'chest') { M4.translate(m, m, .02, .2, -.25); M4.rotY(m, m, .9); M4.rotX(m, m, -.15); M4.rotZ(m, m, 1.2); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
+      else if (this.weaponMode === 'aim') { M4.translate(m, m, .1, .33, -.24); M4.rotY(m, m, -.32); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'knees') { wl = this.wl; wl.knees = true; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'lap' || this.weaponMode === 'hidden') { wl = null; }
       else { M4.translate(m, m, .02, .08, -.2); M4.rotZ(m, m, -.95); M4.rotY(m, m, Math.PI / 2); wl = { m, gr: null, gl: null }; } // slung diagonally across the chest
@@ -3672,7 +3709,7 @@ const P = {
     this.dyn = [{ mesh: this.rig.mesh, bones: this.rig.bones, fullBones: this.rig.fullBones, pos: [0, 0, 0], r: 2 }, { mesh: this.gear, bones: this.rig.bones, fullBones: this.rig.fullBones, pos: [0, 0, 0], r: 2 }];
     this.dyn[1].pos = this.dyn[0].pos; this.k = 1.3; this.t = 0; this.ph = 0; this.props = [];
   },
-  reset() { this.state = 'off'; this.vel = [0, 0, 0]; this.pitch = 0; this.camOv = null; this.inPlane = false; this.prompt = ''; this.cut = null; this.props.length = 0; this.dyn.length = 2; this.ik = []; this.speed = 0; this.shake = 0; this.headExtra = null; },
+  reset() { this.crouch = 0; this.crouchWant = false; this.drawWant = false; this.drawn = 0; this.aim = 0; this.aimSens = 1; this.fovOverride = null; this.handFn = null; this.rootFn = null; this.lockBodyYaw = null; this.state = 'off'; this.vel = [0, 0, 0]; this.pitch = 0; this.camOv = null; this.inPlane = false; this.prompt = ''; this.cut = null; this.props.length = 0; this.dyn.length = 2; this.ik = []; this.speed = 0; this.shake = 0; this.headExtra = null; },
   fwdFlat() { return [-Math.sin(this.yaw), 0, -Math.cos(this.yaw)]; },
   frameM() { return this.inPlane && Story.plane ? Story.plane.m : null; },
   worldPos() { const m = this.frameM(); return m ? M4.pt(m, this.local[0], this.local[1], this.local[2]) : this.pos; },
@@ -3683,8 +3720,8 @@ const P = {
   update(dt) {
     this.t += dt; this.ik.length = 0; this.prompt = '';
     // mouse look
-    if (!this.camOv && this.state !== 'off') {
-      const sens = .0006 + this.sensK() * .0042;
+    if (!this.camOv && this.state !== 'off' && !this.lookLock) {
+      const sens = (.0006 + this.sensK() * .0042) * (this.zooming ? Math.max(.12, 1 / this.zoom) : 1) * (this.aimSens || 1);
       this.yaw -= IN.mdx * sens; this.pitch -= IN.mdy * sens * (G.settings.invert ? -1 : 1); this.pitch = clamp(this.pitch, -1.45, 1.45);
       if (this.lookLimit) { const L = this.lookLimit; this.yaw = L.yaw + clamp(angDiff(L.yaw, this.yaw), -L.yawR, L.yawR); this.pitch = clamp(this.pitch, L.pMin, L.pMax); }
     }
@@ -3699,8 +3736,10 @@ const P = {
   sensK() { return clamp(G.settings.sens / 100, 0, 1); },
   moveInput() { let f = 0, s = 0; if (IN.k('KeyW')) f += 1; if (IN.k('KeyS')) f -= 1; if (IN.k('KeyD')) s += 1; if (IN.k('KeyA')) s -= 1; const l = Math.hypot(f, s) || 1; return [f / l * (f || s ? 1 : 0), s / l * (f || s ? 1 : 0)]; },
   updateWalk(dt) {
-    const W = G.W; const [f, s] = this.moveInput(); const jog = IN.k('ShiftLeft') && f > .3;
-    const spd = jog ? 3.9 : 1.75; const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    const W = G.W; const [f, s] = this.moveInput();
+    const cr = IN.k('ControlLeft') || IN.k('KeyC') || this.crouchWant; if (this.crouchWant && (f || s) && IN.k('ShiftLeft')) this.crouchWant = false;
+    this.crouch = damp(this.crouch || 0, cr ? 1 : 0, 9, dt); const jog = IN.k('ShiftLeft') && f > .3 && this.crouch < .5;
+    const spd = (jog ? 3.9 : 1.75) * (1 - this.crouch * .45) * (1 - (this.aim || 0) * .35); const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const tx = (-sy * f + cy * s) * spd, tz = (-cy * f - sy * s) * spd;
     this.vel[0] = damp(this.vel[0], tx, 9, dt); this.vel[2] = damp(this.vel[2], tz, 9, dt);
     const np = [this.pos[0] + this.vel[0] * dt, this.pos[1], this.pos[2] + this.vel[2] * dt];
@@ -3708,7 +3747,7 @@ const P = {
     const gy = W.ground(np[0], np[2], this.pos[1] + .5, .45, .2);
     np[1] = gy > this.pos[1] ? damp(this.pos[1], gy, 18, dt) : Math.max(gy, this.pos[1] - 6 * dt);
     this.pos = np; this.speed = Math.hypot(this.vel[0], this.vel[2]); this.jog = jog;
-    this.stepAcc = (this.stepAcc || 0) + this.speed * dt; if (this.stepAcc > (jog ? 1.7 : 1.3)) { this.stepAcc = 0; AUD.step(G.env.wet > .5 && !G.isDry(this.pos) ? 'water' : 'metal', null, jog ? .32 : .2); if (G.env.wet > .5 && !G.isDry(this.pos)) for (let i = 0; i < 3; i++) G.particles.push({ p: [this.pos[0] + rnd(-.2, .2), this.pos[1] + .03, this.pos[2] + rnd(-.2, .2)], v: [rnd(-.6, .6), rnd(.8, 1.6), rnd(-.6, .6)], life: 0, max: .4, s: .02, c: [.7, .72, .74], a: .6, g: 9.8, drag: .4 }); }
+    this.stepAcc = (this.stepAcc || 0) + this.speed * dt; if (this.stepAcc > (jog ? 1.7 : 1.3)) { this.stepAcc = 0; AUD.step(Story.phase === 'p2' ? 'mud' : G.env.wet > .5 && !G.isDry(this.pos) ? 'water' : 'metal', null, (jog ? .32 : .2) * (1 - this.crouch * .6)); if (G.env.wet > .5 && !G.isDry(this.pos)) for (let i = 0; i < 3; i++) G.particles.push({ p: [this.pos[0] + rnd(-.2, .2), this.pos[1] + .03, this.pos[2] + rnd(-.2, .2)], v: [rnd(-.6, .6), rnd(.8, 1.6), rnd(-.6, .6)], life: 0, max: .4, s: .02, c: [.7, .72, .74], a: .6, g: 9.8, drag: .4 }); }
   },
   updateCabin(dt) { // walking inside the transport, in plane space
     const [f, s] = this.moveInput(); const spd = IN.k('ShiftLeft') ? 3.6 : 1.7; const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
@@ -3725,7 +3764,7 @@ const P = {
   },
   updateFall(dt) {
     const v = this.fallVel; const [f, s] = this.moveInput();
-    v[1] -= 9.8 * dt; const sp = Math.hypot(v[0], v[1], v[2]); const drag = .0039 * sp * sp; if (sp > .1) { v[0] -= v[0] / sp * drag * dt; v[1] -= v[1] / sp * drag * dt; v[2] -= v[2] / sp * drag * dt; }
+    v[1] -= 9.8 * dt; const sp = Math.hypot(v[0], v[1], v[2]); const drag = .006 * sp * sp; if (sp > .1) { v[0] -= v[0] / sp * drag * dt; v[1] -= v[1] / sp * drag * dt; v[2] -= v[2] / sp * drag * dt; }
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw); const tx = (-sy * f + cy * s) * 9, tz = (-cy * f - sy * s) * 9;
     v[0] = damp(v[0], tx + (this.drift ? this.drift[0] : 0), .7, dt); v[2] = damp(v[2], tz + (this.drift ? this.drift[2] : 0), .7, dt);
     this.pos[0] += v[0] * dt; this.pos[1] += v[1] * dt; this.pos[2] += v[2] * dt; this.speed = sp;
@@ -3753,6 +3792,7 @@ const P = {
     else poseIdle(j, this.t, 'idle', this.k);
     // look pitch carried by chest/head (visible in mirrors and in the body's arms)
     if (st !== 'fall') { const hy = clamp(angDiff(this.bodyYaw ?? this.yaw, this.yaw), -1.2, 1.2); j[SK.HD * 3] += -this.pitch * .65; j[SK.CH * 3] += -this.pitch * .2; j[SK.HD * 3 + 1] += hy * .7; j[SK.CH * 3 + 1] += hy * .3; }
+    const cc = (st === 'walk' || st === 'cut') && !this.poseFn ? (this.crouch || 0) : 0; if (cc > .01) { j[SK.THL * 3] += .75 * cc; j[SK.THR * 3] += .75 * cc; j[SK.SHL * 3] -= 1.2 * cc; j[SK.SHR * 3] -= 1.2 * cc; j[SK.FTL * 3] += .4 * cc; j[SK.FTR * 3] += .4 * cc; j[SK.CH * 3] += .22 * cc; py -= .36 * cc; }
     rig.tj.set(j); rig.tpy = py; rig.blend(mv ? 14 : this.blendK || 9, dt);
     // body yaw: follows the view, lags when standing still
     if (this.bodyYaw === undefined || mv || st === 'fall' || st === 'cut') this.bodyYaw = this.yaw;
@@ -3767,7 +3807,7 @@ const P = {
     if (this.rootFn) this.rootFn(r, this);
     rig.solve(null, false);
     for (const q of this.ik) { if (q.leg) ikLeg(rig, q.left, q.T, q.pole, r); else ikArm(rig, q.left, q.T, q.pole || M4.dir(r, q.left ? -.6 : .6, -1, .2), q.fingers, q.palm); }
-    rig.hide = st === 'fall' ? ((1 << SK.HD) | (1 << SK.CH) | (1 << SK.UAL) | (1 << SK.UAR) | (1 << SK.PEL)) : (1 << SK.HD);
+    rig.hide = st === 'fall' ? ((1 << SK.HD) | (1 << SK.CH) | (1 << SK.UAL) | (1 << SK.UAR) | (1 << SK.PEL)) : (this.drawn > .5 ? (1 << SK.HD) | (1 << SK.UAL) | (1 << SK.UAR) : (1 << SK.HD));
     rigCommit(rig);
     const wp = M4.pos(rig.mats[SK.PEL]); this.dyn[0].pos[0] = wp[0]; this.dyn[0].pos[1] = wp[1]; this.dyn[0].pos[2] = wp[2];
     for (const p of this.props) M4.mul(p.m, rig.mats[p.bone], p.off);
@@ -3790,7 +3830,14 @@ const P = {
     }
     M4.invert(cam.view, m); cam.pos = M4.pos(m); cam.fwd = V.norm(M4.dir(m, 0, 0, -1)); cam.right = V.norm(M4.dir(m, 1, 0, 0)); cam.up = V.norm(M4.dir(m, 0, 1, 0));
     const fovT = (G.settings.fov + (this.state === 'fall' ? 10 : 0) + (this.jog && this.speed > 2.5 ? 3 : 0)) * DEG;
-    cam.fov = damp(cam.fov, this.fovOverride ? this.fovOverride * DEG : fovT, 4, dt);
+    // binocular-style zoom on the right mouse button (3x, mouse wheel up to 10x); in combat the button aims instead
+    const canZoom = !this.combat && !UI.dlg && G.state === 'play' && this.state !== 'off' && !this.camOv;
+    if (canZoom && IN.mb[2]) { if (!this.zooming) { this.zooming = true; this.zoom = 3; } if (IN.wheel) this.zoom = clamp(this.zoom - IN.wheel * .8, 3, 10); }
+    else this.zooming = false;
+    const zf = this.zooming ? this.zoom : 1;
+    const fovZ = 2 * Math.atan(Math.tan((this.fovOverride ? this.fovOverride * DEG : fovT) / 2) / zf);
+    cam.fov = damp(cam.fov, fovZ, this.zooming ? 9 : 6, dt);
+    UI.zoomInd && UI.zoomInd(this.zooming ? this.zoom : 0);
     cam.near = this.state === 'fall' ? .1 : .035;
   },
 };
@@ -4028,7 +4075,7 @@ function clutterFOB(W) {
   const R = () => W.R(); const B = W.B, D = W.D;
   // keep-out: the walking route container → ramp, and the vignette stages
   const route = [[-126, -19], [-110, -60], [-90, -100], [-78, -120]];
-  const keep = [[FOB.mech.x, FOB.mech.z, 9], [FOB.tent.x, FOB.tent.z, 7], [FOB.pad.x, FOB.pad.z, 17], [-120, -45, 4], [-155, -40, 7], [FOB.cont.x, FOB.cont.z, 6], [-190, -104, 9], [-30, -42, 7], [-12, -42, 6], [-58, -120, 30], [-92, -126, 6]];
+  const keep = [[FOB.mech.x, FOB.mech.z, 9], [FOB.tent.x, FOB.tent.z, 7], [FOB.pad.x, FOB.pad.z, 17], [-120, -45, 4], [-155, -40, 7], [FOB.cont.x, FOB.cont.z, 6], [-190, -104, 9], [-30, -42, 7], [-12, -42, 6], [-48, -52, 14], [-150, 52, 15], [-178, -30, 8], [-20, 30, 8], [-58, -120, 30], [-92, -126, 6]];
   const segD = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1]; const t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz), 0, 1); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); };
   const taken = [];
   const free = (x, z, r) => {
@@ -4037,6 +4084,7 @@ function clutterFOB(W) {
     if (Math.abs(z + 10) < 2.5 + r && x > -205 && x < -55) return false; if (Math.abs(z - 90) < 2.5 + r && x > -205 && x < -55) return false; // jogging loop
     if (Math.abs(x + 200) < 2.5 + r && z > -12 && z < 92) return false; if (Math.abs(x + 60) < 2.5 + r && z > -12 && z < 92) return false;
     if (Math.abs(x + 100) < 2.5 + r && z > -82 && z < 12) return false; if (Math.abs(x + 70) < 2.5 + r && z > -82 && z < 12) return false; if (Math.abs(z + 80) < 2.5 + r && x > -102 && x < -68) return false;
+    if (Math.abs(z + 28) < 3 + r && x > -215 && x < 10) return false; // marching column
     if (Math.abs(z - FOB.runway.z) < FOB.runway.w / 2 + 2 && x > -230) return false;
     for (const t of taken) if (Math.hypot(x - t[0], z - t[1]) < t[2] + r) return false;
     taken.push([x, z, r]); return true;
@@ -4070,15 +4118,15 @@ function clutterFOB(W) {
   };
   const names = Object.keys(kinds); const size = { truck: 4.5, stack2: 4.2, crates: 2.5, drums: 2.2, pallets: 3.5, ammo: 1.5, tires: 1.4, gen: 2.5, cones: 4.5, jersey: 6.5, toilets: 2.6, canopy: 4.2, conex: 4, bladder: 4, lights: 1.5, bikes: 2.2, mesh: 2.8 };
   let placed = 0;
-  const weighted = names.concat(['truck', 'truck', 'stack2', 'conex', 'canopy', 'crates', 'drums', 'mesh', 'pallets']);
-  for (let n = 0; n < 12000 && placed < 700; n++) {
+  const weighted = ['truck', 'truck', 'truck', 'stack2', 'stack2', 'conex', 'canopy', 'canopy', 'crates', 'mesh', 'mesh', 'jersey', 'gen', 'lights', 'bladder', 'ammo', 'pallets', 'drums'];
+  for (let n = 0; n < 12000 && placed < 260; n++) {
     // denser near the walking route, the plane and the tents
     const near = R() < .7; const x = near ? rnd(-215, -20) : rnd(-310, 300), z = near ? rnd(-100, 60) : rnd(-90, 120);
     const k = weighted[R() * weighted.length | 0]; if (!free(x, z, size[k])) continue; kinds[k](x, z); placed++;
   }
   // scattered small junk right along the route edges (crates, cases, drums) so the walk feels busy
-  for (let i = 0; i < route.length - 1; i++) { const a = route[i], b = route[i + 1]; for (let t = .03; t < 1; t += .05) { const x = lerp(a[0], b[0], t), z = lerp(a[1], b[1], t); const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); const nx = -dz / L, nz = dx / L; const sd = R() < .5 ? -1 : 1; const px = x + nx * sd * rnd(5.5, 8), pz = z + nz * sd * rnd(5.5, 8); if (!free(px, pz, 1)) continue; if (R() < .5) W.crateStack(px, pz, 0); else drum(px, pz, 0x3a4a2a); } }
-  W.clutterTaken = taken;
+  for (let i = 0; i < route.length - 1; i++) { const a = route[i], b = route[i + 1]; for (let t = .03; t < 1; t += .1) { const x = lerp(a[0], b[0], t), z = lerp(a[1], b[1], t); const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); const nx = -dz / L, nz = dx / L; const sd = R() < .5 ? -1 : 1; const px = x + nx * sd * rnd(5.5, 8), pz = z + nz * sd * rnd(5.5, 8); if (!free(px, pz, 1)) continue; if (R() < .5) W.crateStack(px, pz, 0); else drum(px, pz, 0x3a4a2a); } }
+  W.clutterTaken = taken; W.clutterFree = free;
 }
 
 /* ---------------- the cargo cabin, packed ---------------- */
@@ -4161,7 +4209,7 @@ function puffAt(p) { for (const b of PUFFS.blobs) { const dx = p[0] - b[0], dy =
 function buildDropZone(W) {
   const river = (x, z) => Math.abs(z - Math.sin(x * .0011) * 900 - Math.sin(x * .0037) * 160 - 200);
   W.initTerrain((x, z) => {
-    const r = Math.hypot(x, z); let h = fbm(x * .0009, z * .0009, 5) * 320 + fbm(x * .005, z * .005, 3) * 55;
+    const r = Math.hypot(x, z); let h = fbm(x * .0009, z * .0009, 5) * 150 + fbm(x * .005, z * .005, 3) * 40;
     h += smooth((r - 2600) / 4200) * (fbm(x * .0005 + 7, z * .0005, 5) * 1900 + 300);           // mountain ranges ringing the valley
     h -= Math.max(0, 70 - river(x, z) * .25) * 2.2;                                             // the river valley
     return h;
@@ -4203,7 +4251,7 @@ const Story = {
     setTimeout(() => { try { this.build(); UI.loading(false); G.state = 'play'; IN.lock(); this.begin(); } catch (e) { console.error(e); UI.fatal(e); } }, 60);
   },
   build() {
-    this.cos = []; this.interacts = []; this.flags = {}; this.phase = 'none'; this.t = 0; this.rainOpen = 1; this.titles = []; this.planeDry = null; Cabin.drank = false; Cabin.juice = null;
+    this.cos = []; this.interacts = []; this.flags = {}; this.phase = 'none'; this.t = 0; this.rainOpen = 1; this.titles = []; this.planeDry = null; Cabin.drank = false; Crash.reset(); P.lookLock = false; P.combat = false; Cabin.juice = null;
     Object.assign(Flight, { phase: 'parked', t: 0, lifted: false, cloudIn: false, swapped: false, above: false, inDeck: false, below: false, ended: false, rampTarget: undefined, fallT: undefined, engine: null, extEngine: null, wind: null }); G.raysOn = 0; R.post.grade = [1, 1, 1]; G.actors = []; G.extraDyn = []; G.glass = []; G.updaters = []; G.particles = []; G.timers = []; G.time = 0; G.dynLights = [];
     const W = new World(4400, 11); buildFOB(W); W.chunks = buildChunks(W.B, W.D, 60); W.B = null; W.D = null; this.FW = W;
     const Z = new World(16000, 23); buildDropZone(Z); Z.chunks = buildChunks(Z.B, Z.D, 800); Z.B = null; Z.D = null; this.ZW = Z;
@@ -4237,7 +4285,7 @@ const Story = {
     const p = this.plane; const m = p.m; M4.ident(m); M4.translate(m, m, p.pos[0], p.pos[1], p.pos[2]); M4.rotY(m, m, p.yaw); M4.rotX(m, m, p.pitch); M4.rotZ(m, m, p.roll);
     if (p.shake > .001) { M4.rotX(m, m, Math.sin(G.time * 23) * .0025 * p.shake); M4.rotZ(m, m, Math.sin(G.time * 17.3) * .003 * p.shake); M4.translate(m, m, 0, Math.sin(G.time * 13.1) * .015 * p.shake, 0); }
     poseTransport(p.bones, { m, ramp: p.ramp, door: p.door, fan: p.fan, btn: p.btn, red: p.red, green: p.green });
-    p.rampAng = lerp(-1.32, .23, p.ramp); p.inv = M4.invert(p.inv || M4.create(), m);
+    p.rampAng = lerp(-1.32, .23, p.ramp); p.inv = M4.invert(p.inv || M4.create(), m); G.S.planeInv = P.inPlane ? p.inv : null;
     if (!this.planeDry) { this.planeDry = { m: true, inv: p.inv, mn: [-3, 0, -25], mx: [3, 7, TP.z1 + .3] }; G.dry.push(this.planeDry); } this.planeDry.inv = p.inv;
     if (this.cabinLights) for (const L of this.cabinLights) { const w = M4.pt(m, L.lp[0], L.lp[1], L.lp[2]); L.pos[0] = w[0]; L.pos[1] = w[1]; L.pos[2] = w[2]; }
   },
@@ -4287,7 +4335,7 @@ const Story = {
       const bar = [D.hinge[0] - .08, C.fy + 1.0, D.hinge[2] + D.w - .2]; const doorBar = () => { const ang = D.ang; return [D.hinge[0] - .08 * Math.cos(ang) + Math.sin(ang) * (D.w - .2), C.fy + 1.0, D.hinge[2] + Math.cos(ang) * (D.w - .2) + .08 * Math.sin(ang)]; };
       const reach = smooth((t - .25) / .35) * (1 - smooth((t - 1.25) / .3));
       if (reach > .01) { const tgt = t < .62 ? bar : doorBar(); const rest = M4.pt(P.rig.root, .25, .95, -.1); p.ik.push({ left: false, T: V.lerp(rest, tgt, reach), pole: [0, -1, .3], fingers: [0, -.2, 1] }); }
-      if (t > .62 && !pushed) { pushed = true; D.vel = 3.4; AUD.creak(D.hinge); AUD.swoosh(.35, D.hinge, 600, .5); G.setEnv('overcast', 2.6); R.post.grade = [1.55, 1.55, 1.6]; Story.rainOpen = 0; W.door.col.mn[1] = -100; W.door.col.mx[1] = -99; }
+      if (t > .62 && !pushed) { pushed = true; D.vel = 4.6; AUD.creak(D.hinge); AUD.swoosh(.35, D.hinge, 600, .5); G.setEnv('overcast', 2.6); R.post.grade = [1.55, 1.55, 1.6]; Story.rainOpen = 0; W.door.col.mn[1] = -100; W.door.col.mx[1] = -99; }
       if (t > .62) Story.rainOpen = Math.min(1, (Story.rainOpen || 0) + dt / 1.4);
       // step through, down the steel step, into the rain
       if (t > .75) {
@@ -4314,11 +4362,11 @@ const Story = {
   /* ---------------- per frame ---------------- */
   update(dt) {
     this.t += dt; this.updateCos(dt);
-    { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; const hi = alt > 150; R.drawDist = hi ? 14000 : 900; R.detailDist = hi ? 0 : 70; G.cam.far = hi ? 16000 : 4200; G.S.maxDraw = hi ? 16000 : 4200; }
+    if (this.phase !== 'p2') { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; const hi = alt > 150; R.drawDist = hi ? 14000 : 900; R.detailDist = hi ? 0 : 70; G.cam.far = hi ? 16000 : 4200; G.S.maxDraw = hi ? 16000 : 4200; }
     // door physics: swing, slam against the container wall, settle
     const D = this.door; if (D) {
-      if (D.vel) { D.ang += D.vel * dt; D.vel *= Math.exp(-.9 * dt); if (D.ang > 1.62) { D.ang = 1.62; if (Math.abs(D.vel) > .5) { AUD.doorBang([D.hinge[0] + .5, D.hinge[1] + 1, D.hinge[2] + .9], Math.min(1, Math.abs(D.vel) / 3)); P.shake = Math.max(P.shake, .2); } D.vel = -D.vel * .28; } if (D.ang < 1.15 && D.vel < 0) D.vel += 3 * dt; if (Math.abs(D.vel) < .02 && D.ang > 1.2) D.vel = 0; }
-      const m = D.dyn.m; M4.ident(m); M4.translate(m, m, D.hinge[0], D.hinge[1], D.hinge[2]); M4.rotY(m, m, -D.ang);
+      if (D.vel) { D.ang += D.vel * dt; D.vel *= Math.exp(-.9 * dt); if (D.ang > 3.02) { D.ang = 3.02; if (Math.abs(D.vel) > .5) { AUD.doorBang([D.hinge[0] + .1, D.hinge[1] + 1, D.hinge[2] - .5], Math.min(1, Math.abs(D.vel) / 3)); P.shake = Math.max(P.shake, .2); } D.vel = -D.vel * .28; } if (D.ang < 2.4 && D.vel < 0) D.vel += 3 * dt; if (Math.abs(D.vel) < .02 && D.ang > 2.5) D.vel = 0; }
+      const m = D.dyn.m; M4.ident(m); M4.translate(m, m, D.hinge[0], D.hinge[1], D.hinge[2]); M4.rotY(m, m, D.ang);
     }
     // exposure "eye adaptation" after stepping outside
     R.post.grade = R.post.grade.map(v => damp(v, 1, .9, dt));
@@ -4366,15 +4414,16 @@ const Flight = {
       this.climbT += dt; pl.fan += dt * pl.fanSpd * 3; pl.speed = Math.min(82, pl.speed + 1.2 * dt);
       pl.pitch = damp(pl.pitch, .24, .6, dt); if (this.climbT > 6) { pl.yaw -= .055 * dt * smooth((this.climbT - 6) / 4); pl.roll = damp(pl.roll, -.32, .7, dt); }
       pl.shake = .5 + (pl.pos[1] > 360 && pl.pos[1] < 480 ? 1.6 : 0);
-      if (pl.pos[1] > 300 && !this.cloudIn) { this.cloudIn = true; G.setEnv('inCloud', 4); }
+      if (pl.pos[1] > 300 && !this.cloudIn) { this.cloudIn = true; G.setEnv(P.inPlane ? 'inCloudCabin' : 'inCloud', 6); }
       if (pl.pos[1] > 430 && !this.swapped) this.swapWorld();
     } else if (this.phase === 'climb2') {
-      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .16 : 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, -.17, .5, dt);
+      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .32 : 0, .5, dt); pl.speed = Math.max(pl.speed, 70); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, -.17, .5, dt);
       pl.shake = pl.pos[1] < 920 ? 1.5 : .35;
       if (pl.pos[1] > 920 && !this.above) { this.above = true; G.setEnv('aboveCabin', 3); G.raysOn = 1; AUD.whoosh(.2); Cabin.sunShafts(true); }
       if (pl.pos[1] >= 1500) { this.phase = 'cruise'; }
     } else if (this.phase === 'cruise' || this.phase === 'drop') {
-      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, this.phase === 'drop' ? -.05 : -.15, .4, dt); pl.pos[1] = damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
+      if (!this.above && pl.pos[1] > 920) { this.above = true; G.setEnv('aboveCabin', 3); G.raysOn = 1; Cabin.sunShafts(true); }
+      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); const orbit = Story.phase === 'fall'; pl.yaw -= pl.speed / (orbit ? 380 : 1800) * dt; pl.roll = damp(pl.roll, orbit ? -.32 : this.phase === 'drop' ? -.05 : -.15, .4, dt); if (orbit) pl.pos[1] = damp(pl.pos[1], 1180, .12, dt); if (Story.phase !== 'fall') pl.pos[1] = pl.pos[1] < 1500 ? pl.pos[1] + 14 * dt : damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
     }
     if (this.phase !== 'parked') { const f = fwd(); pl.vel = V.sc(f, pl.speed); pl.pos[0] += pl.vel[0] * dt; pl.pos[1] = Math.max(0, pl.pos[1] + pl.vel[1] * dt); pl.pos[2] += pl.vel[2] * dt; }
     if (this.engine) this.engine.set(clamp(pl.fanSpd / 9, .15, 1) * (P.inPlane ? 1 : .6), null, .8 + pl.fanSpd / 30);
@@ -4406,11 +4455,9 @@ const Flight = {
     P.lookLimit = null; UI.objective(''); UI.hint(''); UI.marker(null);
     G.setEnv('above', 1.2); G.raysOn = 1; AUD.whoosh(.8); P.shake = 1;
     if (this.engine) this.engine.stop(); this.engine = null;
-    this.fallT = 0; this.titleBuilt = false; Story.buildTitle(P.pos, P.yaw); Story.clearFallPath();
+    this.fallT = 0; this.titleBuilt = false; Story.titles = []; Story.clearFallPath();
     if (!this.wind) this.wind = AUD.windLoop();
     Story.titleMusic = AUD.pad('title');
-    G.after(1.5, () => UI.hint('WASD  STEER   ·   MOUSE  LOOK'));
-    G.after(6, () => UI.hint(''));
   },
   updateFall(dt) {
     this.fallT += dt; const alt = P.pos[1];
@@ -4423,7 +4470,7 @@ const Flight = {
     // vapor streaks past the face for a sense of speed
     if (Math.random() < .6) { const cp = G.cam.pos; G.particles.push({ p: [cp[0] + rnd(-6, 6), cp[1] - rnd(8, 20), cp[2] + rnd(-6, 6)], v: [0, 52, 0], life: 0, max: .6, s: .5, dir: [0, 1, 0], w: .015, streak: true, c: [.9, .92, .95], a: inDeck ? .35 : .12 }); }
     if (inDeck && Math.random() < .5) G.puff([G.cam.pos[0] + rnd(-12, 12), G.cam.pos[1] - rnd(6, 30), G.cam.pos[2] + rnd(-12, 12)], { s: rnd(6, 12), v: [0, 40, 0], max: 1.5, c: [.92, .93, .95], a: .5, grow: 2, g: 0, drag: 0 });
-    if ((alt < 430 || alt - G.W.th(P.pos[0], P.pos[2]) < 260) && !this.ended) { this.ended = true; Story.ending(); }
+    Crash.update(dt, alt);
   },
 };
 
@@ -4519,7 +4566,7 @@ const Cabin = {
       yield* Cabin.haleWalk([[1.1, TP.floor, TP.z1 - 1.2]]); H.yaw = Math.PI;
       yield 3; Story.say({ name: 'Raven 2-1 (PA)', vpitch: .9, voiceIdx: 4 }, "Crew, Raven Two-One. We are rolling. Sit back and enjoy the weather.", { radio: true });
       Flight.startEngines(); yield 4; G.setEnv('cabin', 3);
-      Flight.takeoff(); UI.hint('LOOK THROUGH THE WINDOW'); G.after(9, () => Cabin.cruise());
+      Flight.takeoff(); UI.hint('LOOK THROUGH THE WINDOW'); G.after(6, () => Cabin.cruise());
       yield 9; UI.hint('');
       yield () => Flight.phase === 'cruise';
     });
@@ -4557,12 +4604,12 @@ const Cabin = {
       c = yield* Cabin.choose(["Yeah, why not.", "No thanks. I'm good."]);
       if (c === 0) { yield Story.say(Cabin.me(), "Yeah, why not."); yield* Cabin.playerDrinks(); }
       else { yield Story.say(Cabin.me(), "No thanks. I'm good."); yield Story.say(mox, "More for me, then."); yield* Cabin.moxDrinks(); }
-      yield 2;
+      yield .6;
       yield Story.say(mox, "When we hit the ground, stay on my six. Rally point is the river bend.");
       c = yield* Cabin.choose(["Copy. Your six.", "And if the chute doesn't open?"]);
       if (c === 0) { yield Story.say(Cabin.me(), "Copy. Your six."); yield Story.say(mox, "Good man."); }
       else { yield Story.say(Cabin.me(), "And if the chute doesn't open?"); yield Story.say(mox, "Then you get to the ground first and save us a spot."); yield 1; yield Story.say(mox, "Kidding. Pull the reserve. You'll be fine."); }
-      yield () => Flight.phase === 'cruise'; yield 6; Cabin.dropSequence();
+      yield 1.5; Cabin.dropSequence();
     });
   },
   me() { return { name: 'Rook', vpitch: .95, vrate: 1, voiceIdx: 0, pitch: 112 }; },
@@ -4623,27 +4670,27 @@ const Cabin = {
   dropSequence() {
     const S = Story, H = this.hale, pl = S.plane;
     S.run(function* () {
-      AUD.chime(); yield .8;
-      yield Story.say({ name: 'Raven 2-1 (PA)', vpitch: .9, voiceIdx: 4 }, "Jumpmaster, Raven Two-One. Two minutes out. Two minutes. Your aircraft.", { radio: true });
+      yield () => Flight.swapped && Story.plane.pos[1] > 1000; AUD.chime(); yield .4;
+      yield Story.say({ name: 'Raven 2-1 (PA)', vpitch: .9, voiceIdx: 4 }, "Two minutes. Your aircraft.", { radio: true, gap: .1 });
       Flight.phase = 'drop'; Story.cabinLightsOn(true, true);
       H.look = () => G.cam.pos; yield Story.say(H, "TWO MINUTES! STAND UP!");
       for (const a of Cabin.crew) if (a.seated && a !== Cabin.mox) G.after(rnd(.1, 1.4), () => Cabin.standUp(a));
-      yield 1.0; Cabin.standUp(Cabin.mox);
-      UI.hint('[F]  STAND UP'); Story.phase = 'stand';
-      yield () => IN.hit('KeyF'); UI.hint(''); Cabin.playerStand();
-      yield 1.6; yield Story.say(H, "HOOK UP!");
+      yield .5; Cabin.standUp(Cabin.mox);
+      UI.hint('[E]  STAND UP'); Story.phase = 'stand';
+      yield () => IN.hit('KeyE'); UI.hint(''); Cabin.playerStand();
+      yield .8; yield Story.say(H, "HOOK UP!", { gap: .1 });
       for (const a of Cabin.crew) if (a !== H) a.hook = true;
-      yield 1.5; yield Story.say(H, "Check your equipment! Sound off when ready!");
-      yield 1.2; yield Story.say(Cabin.crew[8] || Cabin.mox, "Ready!", { gap: .1 }); yield Story.say(Cabin.mox, "Ready!", { gap: .1 });
+      yield .6; yield Story.say(H, "Sound off when ready!", { gap: .1 });
+      yield .3; yield Story.say(Cabin.crew[8] || Cabin.mox, "Ready!", { gap: .1 }); yield Story.say(Cabin.mox, "Ready!", { gap: .1 });
       yield* Cabin.haleToButton();
       Flight.rampTarget = 1; AUD.buzzer(2); AUD.hydraulic(M4.pt(pl.m, 0, 2, TP.z1), 6); Story.phase = 'ramp';
-      yield 1.5; G.setEnv('aboveCabin', 2); Flight.wind = Flight.wind || AUD.windLoop(); P.shake = .6;
+      yield .8; G.setEnv('aboveCabin', 2); Flight.wind = Flight.wind || AUD.windLoop(); P.shake = .6;
       yield* Cabin.haleWalk([[1.6, TP.floor, TP.z1 - .3]]); H.yaw = Math.PI; H.look = () => G.cam.pos;
-      yield 3.5; pl.red = false; pl.green = true; AUD.buzzer(.6);
+      yield 1.5; pl.red = false; pl.green = true; AUD.buzzer(.6);
       yield Story.say(H, "GREEN LIGHT! GO! GO! GO!", { gap: .1 });
       Story.phase = 'jump';
       const order = Cabin.crew.filter(a => a !== H && a !== Cabin.mox);
-      for (const a of order) { Cabin.runOut(a); yield .9 + Math.random() * .4; }
+      for (const a of order) { Cabin.runOut(a); yield .45 + Math.random() * .25; }
       yield 1; yield Story.say(Cabin.mox, "See you on the ground, Rook!", { gap: .1 });
       Cabin.runOut(Cabin.mox); yield 1.5;
       UI.objective('Jump'); yield Story.say(H, "ROOK! GO!");
@@ -4674,7 +4721,7 @@ const Cabin = {
     a.rootFn = (r, b) => { const k = smooth(clamp((b.t - b.leapT) / 1.2, 0, 1)); M4.translate(r, r, 0, 1, 0); M4.rotX(r, r, -1.35 * k); M4.translate(r, r, 0, -1, 0); };
     a.leapT = a.t; G.after(1, () => { a.anim = 'freefall'; });
     a.script = (b, dt) => {
-      const v = b.vel; v[1] -= 9.8 * dt; const sp = Math.hypot(v[0], v[1], v[2]); const drag = .0039 * sp * sp; v[0] -= v[0] / sp * drag * dt; v[1] -= v[1] / sp * drag * dt; v[2] -= v[2] / sp * drag * dt;
+      const v = b.vel; v[1] -= 9.8 * dt; const sp = Math.hypot(v[0], v[1], v[2]); const drag = .006 * sp * sp; v[0] -= v[0] / sp * drag * dt; v[1] -= v[1] / sp * drag * dt; v[2] -= v[2] / sp * drag * dt;
       if (b === Cabin.mox && P.state === 'fall') { // Mox drifts over to fly next to you
         const tgt = V.add(P.pos, [Math.cos(P.yaw) * 7, -3, -Math.sin(P.yaw) * 7]); v[0] = damp(v[0], (tgt[0] - b.pos[0]) * .6 + P.fallVel[0], 1.2, dt); v[2] = damp(v[2], (tgt[2] - b.pos[2]) * .6 + P.fallVel[2], 1.2, dt); v[1] = damp(v[1], P.fallVel[1] + (tgt[1] - b.pos[1]) * .5, .8, dt); b.yaw = dampAng(b.yaw, P.yaw, 1, dt);
         if (!b._waved && V.dist(b.pos, P.pos) < 14 && Flight.fallT > 4) { b._waved = true; b.anim = 'freefall'; }
@@ -4719,6 +4766,30 @@ const Vignettes = {
     this.weldL = { pos: [0, 0, 0], col: [.6, .75, 1], i: 0, range: 7 }; G.dynLights.push(this.weldL);
     // patrol walker: back and forth along the north apron, heavy steps
     let wph = 0, wdir = 1, wx = 40; this.add({ upd: (dt) => { const p = MW.pose; const spd = 1.6; wph += dt * 1.25; p.amp = damp(p.amp, 1, 1, dt); p.phase = wph; wx += wdir * spd * dt; if (wx > 160) wdir = -1; if (wx < 20) wdir = 1; p.yaw = dampAng(p.yaw, wdir > 0 ? -Math.PI / 2 : Math.PI / 2, .6, dt); p.pos[0] = wx; p.time = G.time; MW.mats = poseMech(MW.bones, p); const s = Math.sin(wph); if (Math.sign(s) !== Math.sign(this._ws || 0)) { AUD.stomp(V.add(p.pos, [0, .5, 0]), 1); const d = V.dist(p.pos, P.pos); if (d < 60) P.shake = Math.max(P.shake, .5 * (1 - d / 60)); G.puff(V.add(p.pos, [0, .2, 0]), { s: 1.5, c: [.45, .45, .42], a: .25, max: 2 }); } this._ws = s; } });
+    // ---------------- mech line: three more walkers parked in a row with their crews ----------------
+    const line = [[-60, -52, '14', 0x5e6454], [-48, -52, '15', 0x585e50], [-36, -52, '16', 0x60665a]];
+    for (const [x, z, num, col] of line) {
+      const mm = mkMech(x, z, Math.PI, { num, paint: col, lights: num !== '15', crouch: num === '15' ? .3 : 0, hatch: num === '16' ? 1 : 0 });
+      const c1 = mk(crewApp({ topCol: 0x6a5a2a, head: 'cap' }), { pos: [x + 2.2, 0, z + 3], yaw: Math.PI * .8, idleKind: rng() < .5 ? 'talk' : 'listen' });
+      const c2 = mk(crewApp({ head: 'headset' }), { pos: [x + 3.1, 0, z + 2.2], yaw: -Math.PI * .7, idleKind: 'listen' }); c1.look = () => c2.headPos(); c2.look = () => c1.headPos();
+      if (num === '16') { const tech = mk(crewApp({ head: 'none', hairStyle: 'short' }), { pos: [x - 1.6, 0, z + 1.5], yaw: Math.PI / 2, idleKind: 'work' }); }
+    }
+    // ---------------- formation: two platoons standing in ranks, an officer in front ----------------
+    { const ox = -150, oz = 52; const off = mk(soldierApp(rng, { head: 'cap', beard: 'none', vest: 'none' }), { name: 'Captain', pos: [ox, 0, oz - 7], yaw: Math.PI, idleKind: 'talk', gear: false, pitch: 100 });
+      const ranks = []; for (let p = 0; p < 2; p++) for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) { const a = mk(soldierApp(rng), { pos: [ox - 7 + p * 8 + c * 1.1, 0, oz - 2 + r * 1.3], yaw: 0, idleKind: 'guard', weapon: 'rifle', weaponMode: 'sling', gear: rng() < .5 }); a.k = rng() * .4; ranks.push(a); }
+      const speech = ["Listen up! Wheels up for Raven Two-One in ten.", "Second platoon, you're on the ground at oh-seven-hundred.", "Keep your heads down and your radios on."]; let st = 3, si = 0;
+      this.add({ upd: (dt) => { st -= dt; if (st <= 0) { st = 9; if (this.near([ox, 0, oz], 28)) G.speak(off, speech[si++ % speech.length]); } } }); }
+    // ---------------- a squad marching in column past the washroom ----------------
+    { const col = []; for (let i = 0; i < 12; i++) { const a = mk(soldierApp(rng), { pos: [-210 - (i >> 1) * 1.4, 0, -28 + (i & 1) * 1.1], yaw: -Math.PI / 2, weapon: 'rifle', weaponMode: 'sling', gear: true }); a.walkSpeed = 1.6; col.push(a); }
+      let dir = 1; const march = () => { for (const [i, a] of col.entries()) { const x = dir > 0 ? 5 - (i >> 1) * 1.4 : -210 + (i >> 1) * 1.4; a.goTo([[x, 0, -28 + (i & 1) * 1.1]], false, i === 0 ? () => { dir = -dir; G.after(6, march); } : null); } }; G.after(1, march);
+      let ct = 0, cs = 0; this.add({ upd: (dt) => { ct += dt; if (col[0].speed > .5 && ct > .55) { ct = 0; if (this.near(col[0].pos, 25)) { AUD.step('water', col[(cs++) % col.length].pos, .35); } } } }); }
+    // ---------------- groups of soldiers around the base: talking, smoking, waiting by the trucks ----------------
+    { const kinds = ['talk', 'listen', 'smoke', 'listen', 'idle', 'radio', 'drink'];
+      for (let g = 0, n = 0; g < 400 && n < 9; g++) { const x = rnd(-215, 20), z = rnd(-95, 70); if (!W.clutterFree(x, z, 3)) continue; n++; const k = 2 + (rng() * 3 | 0); const ms = [];
+        for (let i = 0; i < k; i++) { const a = (i / k) * TAU; const s = mk(soldierApp(rng, { head: rng() < .6 ? 'helmet' : 'cap', vest: rng() < .7 ? 'plate' : 'none' }), { pos: [x + Math.cos(a) * 1.1, 0, z + Math.sin(a) * 1.1], yaw: Math.atan2(Math.cos(a), Math.sin(a)), idleKind: kinds[(rng() * kinds.length) | 0], weapon: rng() < .7 ? 'rifle' : null, weaponMode: 'sling', gear: rng() < .4 }); ms.push(s); }
+        for (const s of ms) s.look = () => ms[(G.time / 5 + ms.indexOf(s)) % ms.length | 0].headPos(); } }
+    // ---------------- runners between buildings ----------------
+    for (let i = 0; i < 6; i++) { const a = mk(soldierApp(rng), { pos: [rnd(-200, 0), 0, rnd(-80, 60)], yaw: 0, weapon: 'rifle', weaponMode: 'sling' }); const go = () => { let x, z, k = 0; do { x = rnd(-210, 10); z = rnd(-90, 70); } while (!W.clutterFree(x, z, 0) && k++ < 30); a.goTo([[x, 0, z]], rng() < .3, () => G.after(rnd(2, 8), go)); }; G.after(rnd(.5, 4), go); }
     // ---------------- drill squad ----------------
     const sgt = mk(soldierApp(rng, { head: 'cap', beard: 'mustache' }), { name: 'Drill sergeant', pos: [-150, 0, -40], yaw: Math.PI / 2, idleKind: 'talk', gear: false, weapon: null, pitch: 95 });
     const squad = []; for (let r = 0; r < 2; r++) for (let c = 0; c < 5; c++) squad.push(mk(soldierApp(rng), { pos: [-157 - r * 1.6, 0, -44 + c * 1.6], yaw: -Math.PI / 2, idleKind: 'guard', weapon: 'rifle', weaponMode: 'low', gear: false }));
@@ -4890,6 +4961,101 @@ Story.clearFallPath = function () {
   const add = buildCumulus(991, below[0], below[2], 1, { maxR: 1, base: c[1] - 330, spread: 1 }); for (const it of add) { this.puffs.push(it); G.glass.push(it); }
 };
 
+/* ---- 10e_crash.js ---- */
+/* =====================================================================
+   OVERCAST — the crash: at 800 m you look up, a missile streaks in and
+   guts Raven 2-1; the blast throws its energy forward along the flight
+   path, wreckage rains down, and ten seconds later a piece finds you.
+   ===================================================================== */
+function buildDebris(kind) {
+  const B = new MB(3000); B.b(0); const paint = 0x6c726c, burnt = 0x1e1c1a;
+  if (kind === 'wing') { B.col(paint, MAT.PAINT).box(0, 0, 0, 9, .35, 3.2); B.col(burnt, MAT.RUST).box(-4.3, 0, 0, .6, .4, 3.3); B.col(0x3a3e3a, MAT.PAINT).box(1, -.2, 1.4, 6, .1, .4); }
+  else if (kind === 'tail') { B.col(paint, MAT.PAINT).box(0, 2.5, 0, .5, 5.5, 3.4).box(0, 5.3, .6, 9, .35, 2.8); B.col(burnt, MAT.RUST).box(0, 0, 0, 1.6, 1.2, 3.6); }
+  else if (kind === 'engine') { B.col(paint, MAT.PAINT).cylZ(0, 0, 0, 1.05, 4.2, 14); B.col(burnt, MAT.RUST).cylZ(0, 0, 2.1, .9, .4, 12); B.col(0x111111, MAT.METAL).cylZ(0, 0, -2.15, .95, .1, 14); }
+  else if (kind === 'hull') { for (let i = 0; i < 9; i++) { const a = i / 14 * TAU + .3; B.col(i % 3 ? paint : burnt, i % 3 ? MAT.PAINT : MAT.RUST).push().rz(a).box(0, 3, 0, 2.2, .2, 5 + Math.sin(i) * 1.5).pop(); } B.col(0x5a604f, MAT.CANVAS).box(0, 2.2, 0, 3, .1, 4.5); }
+  else { // panel: a jagged chunk of skin with a rib — the piece that finds you
+    B.col(paint, MAT.PAINT).box(0, 0, 0, 1.6, .06, 1.1).box(.5, 0, .7, .7, .06, .5); B.col(0x4e5446, MAT.METAL).box(0, -.08, 0, .12, .14, 1.4); B.col(burnt, MAT.RUST).box(-.75, 0, -.1, .25, .08, .9); B.col(0x7a1a14, MAT.CANVAS).box(.2, -.05, -.3, .6, .03, .5); }
+  return B.mesh();
+}
+const Crash = {
+  stage: 0, t: 0, debris: [],
+  reset() { this.stage = 0; this.t = 0; this.debris = []; this.missile = null; this.knockT = 0; },
+  update(dt, alt) {
+    const pl = Story.plane; this.t += dt;
+    // 1) launch: the missile comes up from the jungle ahead of the aircraft
+    if (this.stage === 0 && alt < 920) {
+      this.stage = 1; const f = M4.dir(pl.m, 0, 0, -1); const st = V.add(pl.pos, V.sc([f[0], 0, f[2]], 2600)); st[1] = G.W.th(st[0], st[2]) + 30;
+      const B = new MB(400); B.b(0); B.col(0xd8d8d0, MAT.PAINT).cylZ(0, 0, 0, .12, 2.6, 8); B.col(0xffe0a0, MAT.EMIT).cylZ(0, 0, 1.4, .1, .3, 8);
+      this.missile = { p: st, from: V.copy(st), t: 0, dur: 5, mesh: B.mesh(), m: M4.create(), snd: AUD.missile(st) }; this.missile.dyn = { mesh: this.missile.mesh, m: this.missile.m, pos: this.missile.p, r: 3 }; G.extraDyn.push(this.missile.dyn);
+    }
+    const M = this.missile;
+    if (this.stage === 1) {
+      M.t += dt; const k = clamp(M.t / M.dur, 0, 1); const tgt = M4.pt(pl.m, 0, 4, -4); const mid = V.add(V.lerp(M.from, tgt, .5), [0, 300, 0]);
+      const a = V.lerp(M.from, mid, k), b = V.lerp(mid, tgt, k); const np = V.lerp(a, b, k); const dir = V.norm(V.sub(np, M.p)); M.p[0] = np[0]; M.p[1] = np[1]; M.p[2] = np[2];
+      M4.basis(M.m, V.norm(V.cross([0, 1, 0], dir)), V.cross(dir, V.norm(V.cross([0, 1, 0], dir))), V.sc(dir, -1), M.p);
+      for (let i = 0; i < 3; i++) G.puff(V.sub(M.p, V.sc(dir, i * 3)), { s: rnd(2, 3.5), grow: 3, c: [.8, .8, .78], a: .55, max: 9, v: [rnd(-.5, .5), rnd(0, 1), rnd(-.5, .5)], drag: .1, g: 0 });
+      G.particles.push({ p: V.copy(M.p), v: [0, 0, 0], life: 0, max: .12, s: 4, c: [1, .85, .5], a: 1, add: true });
+      if (M.snd) M.snd.set(1.4, M.p);
+      if (k >= 1) this.explode();
+    }
+    // 2) at 800 m: the head turns up, smoothly, to the aircraft — then follows the wreckage
+    if (alt < 800 && !this.look) this.look = { t: 0 };
+    if (this.look && this.stage < 4) {
+      this.look.t += dt; const tgtP = this.stage >= 2 && this.hunter && this.hunter.rem < 2.2 ? this.hunter.p : (this.stage >= 2 ? this.blastPos : pl.pos);
+      const d = V.sub(tgtP, G.cam.pos); const wy = Math.atan2(-d[0], -d[2]), wp = Math.atan2(d[1], Math.hypot(d[0], d[2]));
+      const k = smooth(clamp(this.look.t / 2.5, 0, 1)) * 2.2 + .3; P.yaw = dampAng(P.yaw, wy, k, dt); P.pitch = damp(P.pitch, clamp(wp, -1.4, 1.4), k, dt);
+      P.lookLock = true;
+    }
+    if (this.stage >= 2 && this.stage < 4) this.updateDebris(dt);
+  },
+  explode() {
+    const pl = Story.plane; const M = this.missile; this.stage = 2; this.boomT = 0;
+    if (M.snd) M.snd.stop(); G.extraDyn.splice(G.extraDyn.indexOf(M.dyn), 1);
+    const pos = M4.pt(pl.m, 0, 4, -4); this.blastPos = V.copy(pos); const fwd = V.norm(pl.vel); const v0 = V.sc(pl.vel, .85);
+    pl.dyn.hidden = true; pl.gdyn.hidden = true; Flight.phase = 'dead'; if (Flight.extEngine) Flight.extEngine.stop(); if (Flight.engine) Flight.engine.stop();
+    AUD.farBoom(V.dist(pos, P.pos)); R.post.grade = [1.5, 1.35, 1.2]; G.raysOn = 1;
+    // fireball: most of the energy carried forward along the flight path, a lighter spray in every other direction
+    const cone = (spread) => V.norm(V.add(fwd, [rnd(-spread, spread), rnd(-spread * .7, spread * .7), rnd(-spread, spread)]));
+    for (let i = 0; i < 160; i++) { const fw = Math.random() < .78; const d = fw ? cone(.55) : V.norm([rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)]); const sp = fw ? rnd(25, 90) : rnd(6, 25);
+      G.particles.push({ p: V.add(pos, [rnd(-3, 3), rnd(-2, 2), rnd(-3, 3)]), v: V.add(v0, V.sc(d, sp)), life: 0, max: rnd(1.5, 3.5), s: rnd(10, 26), grow: rnd(8, 16), c: [1, rnd(.35, .7), rnd(.08, .2)], a: 1, add: true, drag: rnd(.6, 1.2) }); }
+    for (let i = 0; i < 90; i++) { const fw = Math.random() < .75; const d = fw ? cone(.6) : V.norm([rnd(-1, 1), rnd(-.3, 1), rnd(-1, 1)]);
+      G.particles.push({ p: V.add(pos, [rnd(-4, 4), rnd(-2, 2), rnd(-4, 4)]), v: V.add(v0, V.sc(d, fw ? rnd(15, 55) : rnd(4, 14))), life: 0, max: rnd(12, 20), s: rnd(14, 30), grow: rnd(5, 9), c: [.12, .11, .1], a: .75, drag: rnd(.25, .5), g: -.4, fadeIn: true }); }
+    for (let i = 0; i < 80; i++) { const d = cone(.9); G.particles.push({ p: V.copy(pos), v: V.add(v0, V.sc(d, rnd(40, 140))), dir: d, w: .25, life: 0, max: rnd(1, 3), s: rnd(3, 8), c: [1, .8, .4], a: 1, add: true, streak: true, g: 9.8, drag: .3 }); }
+    G.dynLights.push(this.flash = { pos: V.copy(pos), col: [1, .6, .3], i: 40, range: 400 });
+    // the aircraft breaks apart: big pieces keep the momentum, thrown forward and tumbling, burning
+    const kinds = ['wing', 'wing', 'tail', 'engine', 'engine', 'hull', 'hull', 'hull', 'panel', 'panel', 'panel'];
+    for (const k of kinds) { const d = Math.random() < .8 ? cone(.45) : V.norm([rnd(-1, 1), rnd(-.5, .5), rnd(-1, 1)]);
+      const it = { kind: k, mesh: buildDebris(k), m: M4.create(), p: V.add(pos, [rnd(-6, 6), rnd(-3, 3), rnd(-6, 6)]), v: V.add(v0, V.sc(d, rnd(8, 30))), rot: [rnd(0, TAU), rnd(0, TAU), rnd(0, TAU)], w: [rnd(-1.5, 1.5), rnd(-1.5, 1.5), rnd(-1.5, 1.5)], fire: k !== 'panel' || Math.random() < .5 };
+      it.dyn = { mesh: it.mesh, m: it.m, pos: it.p, r: 12 }; G.extraDyn.push(it.dyn); this.debris.push(it); }
+    // the piece that finds you, ten seconds from now
+    const h = { kind: 'panel', mesh: buildDebris('panel'), m: M4.create(), p: V.copy(pos), v: [0, 0, 0], rot: [0, 0, 0], w: [3.2, 4.1, 2.3], fire: true, hunter: true, rem: 10 };
+    h.dyn = { mesh: h.mesh, m: h.m, pos: h.p, r: 4 }; G.extraDyn.push(h.dyn); this.debris.push(h); this.hunter = h;
+    G.after(.8, () => { if (Cabin.mox) G.speak(Cabin.mox, "RAVEN! NO — RAVEN'S HIT!", { radio: true }); });
+    G.after(4.5, () => { if (Cabin.mox) G.speak(Cabin.mox, "Rook! Debris! Track left — TRACK LEFT!", { radio: true }); });
+  },
+  updateDebris(dt) {
+    this.boomT += dt; if (this.flash) { this.flash.i = Math.max(0, 40 * (1 - this.boomT / 2.5)); }
+    for (const it of this.debris) {
+      if (it.hunter) {
+        it.rem -= dt; const tgt = V.add(G.cam.pos, V.sc(G.cam.fwd, .4)); const side = V.sc(G.cam.right, Math.sin(it.rem * 1.3) * Math.min(40, it.rem * 6));
+        const want = V.add(tgt, side); const r = Math.max(it.rem, .03); it.p[0] += (want[0] - it.p[0]) / r * dt; it.p[1] += (want[1] - it.p[1]) / r * dt; it.p[2] += (want[2] - it.p[2]) / r * dt;
+        if (it.rem < 1.5 && !this.warned) { this.warned = true; AUD.whoosh(1); }
+        if (it.rem <= 0) { this.knockout(); return; }
+      } else { it.v[1] -= 9.8 * dt; const k = Math.exp(-.08 * dt); it.v[0] *= k; it.v[2] *= k; it.p[0] += it.v[0] * dt; it.p[1] += it.v[1] * dt; it.p[2] += it.v[2] * dt; }
+      for (let a = 0; a < 3; a++) it.rot[a] += it.w[a] * dt;
+      M4.ident(it.m); M4.translate(it.m, it.m, it.p[0], it.p[1], it.p[2]); M4.rotX(it.m, it.m, it.rot[0]); M4.rotY(it.m, it.m, it.rot[1]); M4.rotZ(it.m, it.m, it.rot[2]);
+      if (it.fire && Math.random() < (it.hunter ? .9 : .7)) { G.particles.push({ p: V.add(it.p, [rnd(-.5, .5), rnd(-.5, .5), rnd(-.5, .5)]), v: [rnd(-1, 1), rnd(0, 2), rnd(-1, 1)], life: 0, max: rnd(.4, .9), s: it.hunter ? rnd(.6, 1.2) : rnd(2, 4), grow: 1.5, c: [1, rnd(.4, .6), .15], a: 1, add: true });
+        G.puff(it.p, { s: it.hunter ? .8 : rnd(2.5, 4), grow: 2.5, c: [.14, .13, .12], a: .6, max: it.hunter ? 3 : 9, v: [0, 1, 0], g: -.2, drag: .2 }); }
+    }
+  },
+  knockout() {
+    this.stage = 4; P.lookLock = false; AUD.knock(); P.shake = 3; R.post.grade = [3, 3, 3]; UI.fadeTo(1, .08);
+    try { if (Flight.wind) Flight.wind.stop(); } catch (e) { } Flight.wind = null; if (window.speechSynthesis) speechSynthesis.cancel();
+    Story.phase = 'out'; P.state = 'off';
+    setTimeout(() => { AUD.stopAllLoops(); Part2.start(); }, 3500);
+  },
+};
+
 /* ---- 11_ui.js ---- */
 /* =====================================================================
    OVERCAST — interface: matrix terminal menu with a hack-to-start breach,
@@ -5002,7 +5168,16 @@ const UI = {
   dlgPick() { if (!this.dlg) return; const { cb, sel } = this.dlg; this.dlg = null; $('dialog').classList.remove('on'); AUD.uiClick && AUD.uiClick(); cb(sel); },
   fadeTo(v, dur) { this._fade = { from: this.fadeV, to: v, t: 0, dur }; },
   _fadeAnim(dt) { const f = this._fade; if (!f) return this.fadeV; f.t += dt; const k = clamp(f.t / f.dur, 0, 1); const v = lerp(f.from, f.to, smooth(k)); if (k >= 1) this._fade = null; $('fadeEl').style.opacity = v; return v; },
-  endCard() { $('endc').classList.add('on'); $('hud').classList.remove('on'); IN.unlock(); setTimeout(() => { $('endc').onclick = () => { $('endc').classList.remove('on'); this.quitToMenu(); }; }, 1500); },
+  endCard(part) { const two = part === 2; $('endc').querySelector('.e1').textContent = two ? 'END OF PART TWO' : 'END OF PART ONE'; $('endc').querySelector('.e3').textContent = two ? 'THE GREEN' : 'THE DROP'; $('endc').querySelector('.e4').textContent = two ? 'Mox is waiting at the river.' : 'The story continues on the ground.'; $('detect').classList.remove('on'); $('ammoBox').classList.remove('on'); $('endc').classList.add('on'); $('hud').classList.remove('on'); IN.unlock(); setTimeout(() => { $('endc').onclick = () => { $('endc').classList.remove('on'); this.quitToMenu(); }; }, 1500); },
+  signal(w) { const el = $('signal'); if (el._w === (w > 0)) { if (w > 0) el.style.opacity = w; return; } el._w = w > 0; el.classList.toggle('on', w > 0); el.style.opacity = w; },
+  lost(on) { $('lostScr').classList.toggle('on', on); },
+  died(on) { $('diedScr').classList.toggle('on', on); },
+  detect(v, ammo, drawn) {
+    const el = $('detect'); const t = v >= 2 ? 'ENGAGED' : v >= 1 ? 'SPOTTED' : v > .35 ? 'SUSPICIOUS' : v > .05 ? 'NOTICED' : 'HIDDEN'; if (el._t !== t) { el._t = t; el.querySelector('span').textContent = t; el.className = 'on ' + t.toLowerCase(); }
+    el.querySelector('i').style.width = (Math.min(v, 1) * 100).toFixed(0) + '%';
+    const am = $('ammoBox'); const at = drawn ? ammo.mag + ' / ' + ammo.res : ''; if (am._t !== at) { am._t = at; am.textContent = at; am.classList.toggle('on', !!at); }
+  },
+  zoomInd(z) { const el = $('zoom'); if (!el) return; const t = z ? z.toFixed(1).replace('.0', '') + '×' : ''; if (el._t !== t) { el._t = t; el.textContent = t; el.classList.toggle('on', !!z); } },
   hudFrame(dt) {
     this.fadeV = this._fadeAnim(dt);
     // prompt
@@ -5041,6 +5216,394 @@ window.addEventListener('load', () => {
   try { G.init(); UI.init(); }
   catch (e) { console.error(e); const el = document.getElementById('err'); el.style.display = 'flex'; el.innerHTML = 'OVERCAST could not start.<br><br>' + (e && e.message ? e.message : e) + '<br><br>A desktop browser with WebGL2 support (Chrome, Edge, Firefox) is required.'; }
 });
+
+/* ---- 13_part2.js ---- */
+/* =====================================================================
+   OVERCAST — PART TWO: THE GREEN. Waking up under the canopy, the dirt
+   trail (stray too far and the uplink drops), and the mafia camp.
+   ===================================================================== */
+const TRAIL = [[0, 330], [14, 290], [-6, 245], [-22, 200], [-8, 160], [18, 120], [26, 80], [8, 40], [-14, 5], [-20, -30], [-4, -65], [10, -95], [6, -122]];
+const CAMP = { x: 4, z: -160, r: 34 };
+ENV.jungle = { sunDir: V.norm([.35, .85, .25]), sunCol: [.75, .72, .55], sky: [.32, .42, .3], gnd: [.1, .14, .08], fog: [.36, .44, .34], fogD: .024, fogH: 0, zen: [.45, .55, .5], hor: [.5, .58, .5], cloud: .8, skyFog: .95, expo: 1.15, wet: .45, rain: 0, wind: .6 };
+function trailDist(x, z) { let best = 1e9, bi = 0, bt = 0; for (let k = 0; k < TRAIL.length - 1; k++) { const a = TRAIL[k], b = TRAIL[k + 1]; const dx = b[0] - a[0], dz = b[1] - a[1]; const L2 = dx * dx + dz * dz; const t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / L2, 0, 1); const d = Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); if (d < best) { best = d; bi = k; bt = t; } } return { d: best, i: bi, t: bt, p: [lerp(TRAIL[bi][0], TRAIL[bi + 1][0], bt), lerp(TRAIL[bi][1], TRAIL[bi + 1][1], bt)] }; }
+function buildJungle(W) {
+  const R = () => W.R();
+  W.initTerrain((x, z) => fbm(x * .012, z * .012, 4) * 9 + fbm(x * .05, z * .05, 3) * 1.6 - 2, 2);
+  W.flattenPath(TRAIL.map(p => [p[0], p[1]]), 2.2, 3);
+  W.flatten(CAMP.x - CAMP.r, CAMP.z - CAMP.r, CAMP.x + CAMP.r, CAMP.z + CAMP.r, W.th(CAMP.x, CAMP.z), 8);
+  W.buildTerrainMesh((x, z, y, n) => {
+    const td = trailDist(x, z).d, cd = Math.hypot(x - CAMP.x, z - CAMP.z) - CAMP.r; const v = vnoise(x * .3, z * .3);
+    if (td < 1.3 || cd < -4) return { c: lin(v > .5 ? 0x4a3a28 : 0x3e3020).map(q => q * (.8 + v * .3)), m: MAT.MUD };
+    if (td < 2.4 || cd < 0) return { c: lin(0x3a3a22), m: MAT.MUD };
+    return { c: lin(v > .5 ? 0x1e3416 : 0x253c1a).map(q => q * (.75 + v * .4)), m: MAT.GRASS };
+  });
+  W.surfFn = (x, z) => 'mud';
+  // vegetation: dense along the band the player can reach, thick walls beyond
+  const ok = (x, z, m) => trailDist(x, z).d > m && Math.hypot(x - CAMP.x, z - CAMP.z) > CAMP.r + m * .5;
+  for (let i = 0; i < 1500; i++) { const k = (R() * (TRAIL.length - 1)) | 0, t = R(); const a = TRAIL[k], b = TRAIL[k + 1]; const off = (R() < .5 ? -1 : 1) * (5 + Math.pow(R(), .8) * 60); const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const x = lerp(a[0], b[0], t) - (b[1] - a[1]) / L * off, z = lerp(a[1], b[1], t) + (b[0] - a[0]) / L * off; if (!ok(x, z, 4.5)) continue; jungleTree(W, x, z, .7 + R() * .7, R); }
+  for (let i = 0; i < 260; i++) { const a = R() * TAU, d = CAMP.r + 4 + R() * 40; const x = CAMP.x + Math.cos(a) * d, z = CAMP.z + Math.sin(a) * d; if (!ok(x, z, 4)) continue; jungleTree(W, x, z, .8 + R() * .6, R); }
+  for (let i = 0; i < 3200; i++) { const k = (R() * (TRAIL.length - 1)) | 0, t = R(); const a = TRAIL[k], b = TRAIL[k + 1]; const off = (R() < .5 ? -1 : 1) * (1.9 + Math.pow(R(), 1.4) * 30); const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const x = lerp(a[0], b[0], t) - (b[1] - a[1]) / L * off, z = lerp(a[1], b[1], t) + (b[0] - a[0]) / L * off; if (!ok(x, z, 1.8)) continue; const r = R(); if (r < .45) fernClump(W, x, z, R); else if (r < .8) W.bush(x, z, .8 + R() * 1.4, [0x2a4a22, 0x335a26, 0x1f3a1a, 0x3a5a2a][R() * 4 | 0]); else W.grass(x, z, 10, R() < .5 ? 0x3a5226 : 0x4a5a2a); }
+  for (let i = 0; i < 70; i++) { const k = (R() * (TRAIL.length - 1)) | 0; const a = TRAIL[k]; const x = a[0] + rnd(-25, 25), z = a[1] + rnd(-25, 25); if (ok(x, z, 4)) W.tree(x, z, 'palm', .8 + R() * .4); }
+  for (let i = 0; i < 60; i++) { const k = (R() * (TRAIL.length - 1)) | 0; const a = TRAIL[k]; const x = a[0] + rnd(-12, 12), z = a[1] + rnd(-12, 12); if (ok(x, z, 2.5)) W.log(x, z, 2 + R() * 4, R() * TAU); }
+  for (let i = 0; i < 50; i++) { const k = (R() * (TRAIL.length - 1)) | 0; const a = TRAIL[k]; const x = a[0] + rnd(-14, 14), z = a[1] + rnd(-14, 14); if (ok(x, z, 2.5)) W.rock(x, z, .4 + R() * .8, 0x4a4a40); }
+  // hanging vines across the trail
+  const D = W.D; D.col(0x2a3a1a, MAT.LEAF); for (let i = 0; i < 160; i++) { const k = (R() * (TRAIL.length - 1)) | 0, t = R(); const a = TRAIL[k], b = TRAIL[k + 1]; const x = lerp(a[0], b[0], t) + rnd(-4, 4), z = lerp(a[1], b[1], t) + rnd(-4, 4); const y = W.th(x, z); D.tube([x, y + 9 + R() * 5, z], [x + rnd(-.4, .4), y + 2.6 + R() * 2, z + rnd(-.4, .4)], .025, .02, 4); }
+  // the wake-up spot: tangled reserve canopy in the branches, a broken branch, scattered kit
+  const wk = TRAIL[0], wy = W.th(wk[0], wk[1]); const B = W.B;
+  B.col(0x3a3f30, MAT.CANVAS); for (let i = 0; i < 6; i++) B.push().t(wk[0] + 2 + i * .9, wy + 7 + Math.sin(i) * .8, wk[1] - 3 + Math.cos(i * 1.3)).rz(Math.sin(i) * .5).rx(.4 + i * .1).box(0, 0, 0, 1.4, .02, 2.2).pop();
+  B.col(0xbbbbb0, MAT.PAINT); for (let i = 0; i < 8; i++) B.tube([wk[0] + 3 + i * .5, wy + 6.6, wk[1] - 3], [wk[0] + .3, wy + .4, wk[1] + .3], .006, .006, 3);
+  B.col(0x4a3a2a, MAT.BARK).tube([wk[0] - 1.5, wy + .1, wk[1] + 1.2], [wk[0] + 1.8, wy + .3, wk[1] + 2.3], .09, .05, 6);
+  B.col(0x3a3f30, MAT.CANVAS).box(wk[0] - 1.1, wy + .12, wk[1] - .8, .38, .2, .5); B.col(0x111111, MAT.RUBBER).box(wk[0] + 1.2, wy + .05, wk[1] - .2, .2, .06, .1);
+  // ---------- the camp ----------
+  const cx = CAMP.x, cz = CAMP.z, cy = W.th(cx, cz);
+  tent(W, cx - 10, cz + 4, .3, 5, 7, 0x4a5a6a, { open: true }); tent(W, cx + 9, cz - 6, -.5, 6, 6, 0x6a5a3a, { open: true });
+  // campfire, logs as seats, cooking pot
+  B.col(0x2a2622, MAT.ROCK); for (let i = 0; i < 9; i++) { const a = i / 9 * TAU; B.blob(cx + Math.cos(a) * .7, cy + .1, cz + Math.sin(a) * .7, .2, .13, i, .3, 6, 4); }
+  B.col(0x1a1410, MAT.BARK); for (let i = 0; i < 5; i++) { const a = i / 5 * TAU; B.tube([cx + Math.cos(a) * .5, cy + .05, cz + Math.sin(a) * .5], [cx, cy + .45, cz], .05, .03, 5); }
+  for (const a of [0, 2.1, 4.2]) W.log(cx + Math.cos(a) * 2.4, cz + Math.sin(a) * 2.4, 2.2, a + Math.PI / 2);
+  B.col(0x333333, MAT.METAL).tube([cx - .7, cy, cz - .7], [cx, cy + 1.3, cz], .02, .02, 4).tube([cx + .7, cy, cz - .7], [cx, cy + 1.3, cz], .02, .02, 4).tube([cx, cy, cz + .8], [cx, cy + 1.3, cz], .02, .02, 4); B.col(0x1a1a1a, MAT.METAL).cyl(cx, cy + .7, cz, .22, .2, .3, 12);
+  W.fire = [cx, cy + .3, cz];
+  // tables, crates of contraband, a truck, generator + string lights, hammock, drug-cook drums
+  B.col(0x5a4a32, MAT.WOOD).box(cx + 6, cy + .78, cz + 6, 2.2, .08, 1); for (const s of [-1, 1]) for (const e of [-1, 1]) B.box(cx + 6 + s * 1, cy + .38, cz + 6 + e * .4, .08, .76, .08);
+  W.colBox(cx + 6, cy + .4, cz + 6, 2.2, .8, 1, {}); B.col(0xd8d0b0, MAT.PAINT).box(cx + 5.6, cy + .83, cz + 6, .5, .02, .35); B.col(0xe8e8e0, MAT.PLASTIC); for (let i = 0; i < 6; i++) B.box(cx + 6.2 + (i % 3) * .2, cy + .86, cz + 5.9 + (i / 3 | 0) * .2, .16, .06, .12);
+  B.col(0x2a2a2a, MAT.METAL).box(cx + 6.7, cy + .92, cz + 6.1, .18, .2, .12); B.col(0xc8a020, MAT.PAINT).box(cx + 5.3, cy + .86, cz + 6.2, .3, .04, .2);
+  for (let i = 0; i < 8; i++) W.crate(cx - 14 + (i % 4) * 1, cz - 8 + (i / 4 | 0) * 1, cy, .9, .8, .9, 0x6a5a3a);
+  for (let i = 0; i < 5; i++) W.barrel(cx - 3 + i * .7, cz - 13, cy, i % 2 ? 0x2a4a6a : 0x6a6a5a);
+  W.tires(cx + 13, cz + 2, cy);
+  const truck = buildCar('pickup', 0x7a2a20); W.campTruck = { car: truck, pos: [cx + 15, cy, cz + 9], yaw: 2.2 }; W.colBox(cx + 15, cy + 1, cz + 9, 3.4, 2, 3.4, {});
+  W.campGen = W.generator(cx - 16, cz + 9, 1);
+  const bulbs = []; B.col(0x111111, MAT.RUBBER); let prev = [cx - 15, cy + 3, cz + 8]; for (let i = 1; i <= 10; i++) { const p = [lerp(cx - 15, cx + 12, i / 10), cy + 3 - Math.sin(i / 10 * Math.PI) * .6, lerp(cz + 8, cz - 4, i / 10)]; B.tube(prev, p, .01, .01, 3); B.col(0xffe0a0, MAT.EMIT).sph(p[0], p[1] - .08, p[2], .05, .07, .05, 6, 4); B.col(0x111111, MAT.RUBBER); bulbs.push(p); prev = p; }
+  for (const p of [[cx - 15, cz + 8], [cx + 12, cz - 4]]) B.col(0x5a4a32, MAT.WOOD).cyl(p[0], cy, p[1], .07, .06, 3.1, 6);
+  W.light([cx - 2, cy + 2.6, cz + 2], 0xffd8a0, 1.2, 14); W.light([cx + 8, cy + 2.6, cz - 1], 0xffd8a0, 1.0, 12);
+  B.col(0x8a4a2a, MAT.CANVAS); B.begin(); B.quad([cx - 6, cy + 1.1, cz - 12], [cx - 2, cy + 1.1, cz - 12], [cx - 2.3, cy + .8, cz - 11.4], [cx - 5.7, cy + .8, cz - 11.4]);
+  B.col(0x2a2826, MAT.METAL).cyl(cx - 7, cy, cz + 12, .45, .45, 1.0, 12).cyl(cx - 5.8, cy, cz + 12, .45, .45, 1.0, 12); B.col(0x1a1a1a, MAT.METAL).box(cx - 6.4, cy + 1.05, cz + 12, 2.2, .08, .9);
+  // the trail continues beyond the camp (where Mox is — next time)
+  W.campCenter = [cx, cy, cz];
+}
+
+/* ======================= PART TWO DIRECTOR ======================= */
+const Part2 = {
+  start() {
+    const S = Story; S.cos = []; G.timers = []; P.handFn = null; S.interacts = []; G.actors = []; G.extraDyn = []; G.glass = []; G.updaters = []; G.particles = []; G.dynLights = []; G.dry = []; G.S.mirror = null; G.S.planeInv = null;
+    Story.phase = 'p2'; Story.plane = null; R.drawDist = 260; R.detailDist = 60; G.cam.far = 900; G.S.maxDraw = 900; G.raysOn = .55; R.post.grade = [1, 1, 1];
+    UI.loading(true);
+    setTimeout(() => {
+      try {
+        if (!this.W) { const W = new World(900, 31); buildJungle(W); W.chunks = buildChunks(W.B, W.D, 40); W.B = null; W.D = null; W.buildNav(1); this.W = W; }
+        Story.useWorld(this.W); G.env = Object.assign({}, ENV.jungle, { sunDir: V.copy(ENV.jungle.sunDir) }); G.envT = 1;
+        const v = this.W.campTruck; const b = new Float32Array(7 * 16); const m = M4.create(); M4.translate(m, m, v.pos[0], v.pos[1], v.pos[2]); M4.rotY(m, m, v.yaw); const t = M4.create(); b.set(m, 0); for (let i = 0; i < 4; i++) { const wp = v.car.wheelPos[i]; M4.translate(t, m, wp[0], wp[1], wp[2]); b.set(t, (1 + i) * 16); } b.set(m, 80); b.set(m, 96); G.extraDyn.push({ mesh: v.car.mesh, bones: b, pos: v.pos, r: 5 });
+        UI.loading(false); this.begin();
+      } catch (e) { console.error(e); UI.fatal(e); }
+    }, 60);
+  },
+  begin() {
+    const W = this.W; UI.card(['PART TWO', 'THE GREEN', '']); P.reset(); P.combat = false; P.lookLock = false; P.inPlane = false; P.health = 100;
+    // lying on your back in the leaves
+    const wk = TRAIL[0]; P.pos = [wk[0] + .3, W.th(wk[0] + .3, wk[1] + .2), wk[1] + .2]; P.yaw = Math.PI * .1; P.pitch = .9; P.state = 'locked'; P.backOff = 0;
+    P.lookLimit = { yaw: P.yaw, yawR: .9, pMin: .2, pMax: 1.35 };
+    const lie = { k: 1 }; this.lie = lie;
+    P.poseFn = (j) => { pj(j, SK.UAL, .2, 0, -.5); pj(j, SK.UAR, .3, 0, .6); pj(j, SK.FAL, .4, 0, 0); pj(j, SK.FAR, .2, 0, 0); pj(j, SK.THL, .2, .1, -.1); pj(j, SK.SHL, -.4, 0, 0); pj(j, SK.HD, .2 * lie.k, .3 * lie.k, 0); return 0; };
+    P.rootFn = (r) => { const k = lie.k; M4.translate(r, r, 0, .18 * k, .0); M4.rotX(r, r, 1.5 * k); if (lie.sit) { M4.translate(r, r, 0, -.0, 0); } };
+    this.ambience = AUD.ambience('swamp'); this.birdT = 2;
+    G.updaters.push(dt => this.update(dt));
+    UI.fadeV = 1; R.post.fade = 1; this.blur = 1;
+    const me = Cabin.me();
+    Story.run(function* () {
+      yield 2; UI.hint('[E]  WAKE UP'); yield () => IN.hit('KeyE'); UI.hint('');
+      // eyes open: three heavy blinks
+      for (const [to, d] of [[.35, .5], [.9, .35], [.15, .6], [.7, .3], [0, 1.2]]) { UI.fadeTo(to, d); yield d; }
+      AUD.hurt && AUD.hurt(); P.shake = .4;
+      yield Story.say(me, "...ngh. Where—");
+      yield .6; UI.hint('[E]  SIT UP'); yield () => IN.hit('KeyE'); UI.hint('');
+      let t = 0; P.lookLimit = null; G.updaters.push(dt => { if (t > 1.6) return; t += dt; lie.k = 1 - smooth(t / 1.4); P.pitch = lerp(.9, -.25, smooth(t / 1.4)); });
+      P.poseFn = (j) => { if (lie.k > .2) { pj(j, SK.HD, .2, .3, 0); return 0; } pj(j, SK.THL, 1.45, .2, -.15); pj(j, SK.THR, 1.25, -.3, .2); pj(j, SK.SHL, -.5, 0, 0); pj(j, SK.SHR, -1.2, 0, 0); pj(j, SK.CH, .25, 0, 0); pj(j, SK.UAL, -.3, 0, -.3); pj(j, SK.FAL, .3, 0, 0); pj(j, SK.UAR, .5, 0, .2); pj(j, SK.FAR, 1.2, 0, 0); return -.82; };
+      P.blendK = 3; yield 1.8;
+      P.lookLimit = { yaw: P.yaw, yawR: 1.6, pMin: -.8, pMax: .9 };
+      yield Story.say(me, "Raven... the missile. They hit Raven.");
+      yield .5; AUD.click(1600, .2, null, .03); yield Story.say(me, "Mox? Mox, come in. Anyone on this net?");
+      yield .4; AUD.radioCrackle(1.6); yield 1.8;
+      yield Story.say(me, "Nothing. Radio's half dead.");
+      yield .4; yield Story.say(me, "Rally point was the river bend. There's a trail... has to lead somewhere.");
+      yield .4; UI.hint('[E]  STAND UP'); yield () => IN.hit('KeyE'); UI.hint('');
+      let u = 0; P.poseFn = (j) => { u += G.dt; const k = smooth(u / 1.2); poseIdle(j, G.time, 'idle', 1.3); pj(j, SK.THL, 1.45 * (1 - k), .2, -.15); pj(j, SK.THR, 1.25 * (1 - k), -.3, .2); pj(j, SK.SHL, -.5 - k * 0, 0, 0); pj(j, SK.CH, .25 * (1 - k), 0, 0); return -.82 * (1 - k); };
+      yield 1.4; P.poseFn = null; P.rootFn = null; P.lookLimit = null; P.backOff = null; P.blendK = 9; P.state = 'walk'; P.shake = .3;
+      UI.objective('Follow the trail'); UI.hint('WASD  MOVE   ·   SHIFT  JOG   ·   CTRL  CROUCH   ·   RMB  ZOOM'); G.after(6, () => UI.hint(''));
+      Part2.lastSafe = V.copy(P.pos);
+    });
+  },
+  update(dt) {
+    // ambience: birds, insects, distant howler monkeys
+    this.birdT -= dt; if (this.birdT <= 0) { this.birdT = 1.5 + Math.random() * 4; const a = Math.random() * TAU; const p = V.add(P.pos, [Math.cos(a) * 25, 8 + Math.random() * 10, Math.sin(a) * 25]); if (AUD.ready) { if (Math.random() < .7) AUD.bird(p); else AUD.cricket(p); } }
+    // sun shafts and drifting pollen in the canopy
+    if (Math.random() < .4) G.particles.push({ p: V.add(G.cam.pos, [rnd(-6, 6), rnd(-1, 4), rnd(-6, 6)]), v: [rnd(-.05, .05), rnd(-.03, .02), rnd(-.05, .05)], life: 0, max: 6, s: .01, c: [1, .95, .7], a: .7, add: true, fadeIn: true });
+    if (Math.random() < .08) G.puff(V.add(P.pos, [rnd(-15, 15), rnd(0, .6), rnd(-15, 15)]), { s: rnd(1.5, 3), grow: .4, c: [.5, .58, .48], a: .12, max: 9, v: [rnd(-.1, .1), .03, rnd(-.1, .1)], g: 0, drag: 0 });
+    // the uplink: wander off the trail and the signal (and you) are lost
+    if (P.state === 'walk' && !this.lost) {
+      const td = trailDist(P.pos[0], P.pos[2]); const cd = Math.hypot(P.pos[0] - CAMP.x, P.pos[2] - CAMP.z) - CAMP.r; const d = Math.min(td.d, Math.max(0, cd));
+      const warn = clamp((d - 8) / 7, 0, 1); R.post.slow = warn * .8; UI.signal(warn);
+      if (d < 6) this.lastSafe = [td.p[0], this.W.th(td.p[0], td.p[1]), td.p[1]];
+      if (d > 15) this.connectionLost();
+    }
+    if (P.combat) Combat.update(dt);
+    if (!P.combat && !this.campSeen && Math.hypot(P.pos[0] - CAMP.x, P.pos[2] - CAMP.z) < 95) this.approachCamp();
+  },
+  connectionLost() {
+    this.lost = true; UI.lost(true); AUD.denied(); P.state = 'off'; R.post.slow = 1;
+    setTimeout(() => { const s = this.lastSafe || [TRAIL[0][0], 0, TRAIL[0][1]]; P.pos = V.copy(s); P.vel = [0, 0, 0]; const nx = TRAIL[Math.min(trailDist(s[0], s[2]).i + 1, TRAIL.length - 1)]; P.yaw = Math.atan2(-(nx[0] - s[0]), -(nx[1] - s[2])); P.state = 'walk'; R.post.slow = 0; UI.lost(false); this.lost = false; }, 2600);
+  },
+  approachCamp() {
+    this.campSeen = true; const me = Cabin.me(); Combat.build(this.W);
+    Story.run(function* () {
+      yield .3; UI.hint(''); yield Story.say(me, "Voices. Up ahead.");
+      yield Story.say(me, "...those aren't our guys. Cartel. Better stay low.");
+      UI.objective('Deal with the camp'); P.combat = true; Combat.tutorial();
+    });
+  },
+};
+
+/* ---- 14_combat.js ---- */
+/* =====================================================================
+   OVERCAST — combat: your sidearm (Q draw/holster, RMB aim, LMB fire),
+   crouching, silent takedowns, cartel guards with sight, hearing and
+   a rough idea of where a shot came from, blood and death.
+   ===================================================================== */
+function buildPistol() {
+  const B = new MB(3000); B.b(0); const blk = 0x1c1d1f;
+  B.col(blk, MAT.METAL).box(0, .022, -.08, .03, .032, .19); B.col(0x111111, MAT.METAL); for (let i = 0; i < 7; i++) B.box(.0152, .026, -.01 + i * .008, .001, .018, .003).box(-.0152, .026, -.01 + i * .008, .001, .018, .003);
+  B.col(0x0a0a0a, MAT.METAL).cylZ(0, .022, -.176, .006, .004, 8); B.col(0x111111, MAT.METAL).box(0, .041, -.165, .005, .006, .006).box(0, .041, -.005, .014, .007, .006);
+  B.col(0x2a2b2d, MAT.PLASTIC).box(0, -.002, -.09, .028, .022, .15); B.push().t(0, -.01, -.01).rx(-.28).box(0, -.05, 0, .03, .1, .042).pop();
+  B.col(0x151515, MAT.RUBBER); for (let i = 0; i < 4; i++) B.push().t(0, -.02 - i * .02, -.004 + i * .006).rx(-.28).box(0, 0, -.021, .031, .004, .003).pop();
+  B.col(0x111111, MAT.METAL).box(0, -.016, -.05, .005, .004, .045).push().t(0, -.012, -.055).rx(.3).box(0, -.008, 0, .005, .016, .005).pop();
+  B.col(0xd8d8d0, MAT.PAINT).box(-.004, .042, -.005, .002, .002, .001).box(.004, .042, -.005, .002, .002, .001).box(0, .0445, -.165, .002, .002, .001);
+  return B.mesh();
+}
+const PISTOL = { mag: 12, dmg: 55, rpm: 320, spread: .03, adsSpread: .004, recoil: .045, noise: 85 };
+const Combat = {
+  enemies: [], built: false,
+  build(W) {
+    if (this.built) return; this.built = true; this.W = W;
+    this.gun = { mesh: buildPistol(), m: M4.create(), pos: [0, 0, 0], r: 1, hidden: true }; G.extraDyn.push(this.gun);
+    P.handFn = (p, dt) => Combat.preBody(dt);
+    this.ammo = { mag: 12, res: 48 }; P.drawn = 0; P.drawT = 0; P.aim = 0; P.kick = 0; P.health = 100; P.lastHurt = -10; this.fireCd = 0; this.dead = 0; this.spawn();
+  },
+  spawn() {
+    for (const e of this.enemies) { const i = G.actors.indexOf(e); if (i >= 0) G.actors.splice(i, 1); if (e.pool) { const k = G.extraDyn.indexOf(e.pool); if (k >= 0) G.extraDyn.splice(k, 1); } }
+    this.enemies = []; const W = this.W, c = W.campCenter, rng = mulberry(555);
+    const plan = [
+      // [x, z, yaw, behaviour, weapon]
+      [c[0] + 2.2, c[2] + 1.0, -2, 'sitfire', 'ak'], [c[0] - 2.1, c[2] + 1.2, 2.1, 'sitfire', 'pistol'], [c[0] + .3, c[2] - 2.3, 0, 'sitfire', 'smg'],
+      [c[0] + 5.2, c[2] + 5.4, Math.PI, 'table', 'pistol'], [c[0] + 6.8, c[2] + 6.8, Math.PI * .8, 'table', 'ak'],
+      [c[0] - 8, c[2] + 9, 2.6, 'smoke', 'ak'], [c[0] - 6.6, c[2] + 9.7, -2.2, 'talk', 'shotgun'],
+      [c[0] + 14, c[2] + 6, .4, 'guard', 'ak'], [c[0] - 12, c[2] - 6, -1.2, 'guard', 'ak'],
+      [c[0] + 3, c[2] + 26, 0, 'post', 'ak'],                                     // trail sentry facing you
+      [c[0] - 18, c[2] + 18, 0, 'patrol', 'ak'], [c[0] + 18, c[2] - 14, 0, 'patrol', 'smg'],
+      [c[0] - 4, c[2] - 12.6, 0, 'work', 'pistol'], [c[0] + 9, c[2] - 6, -.5, 'sleep', 'pistol'], [c[0] + 15, c[2] + 9, 2, 'truck', 'shotgun'],
+    ];
+    const pts = { 0: [[c[0] - 22, c[2] + 20], [c[0] - 26, c[2] - 10], [c[0] - 10, c[2] + 28], [c[0] + 4, c[2] + 30]], 1: [[c[0] + 22, c[2] - 16], [c[0] + 26, c[2] + 12], [c[0] + 8, c[2] - 26]] };
+    let pi = 0; const names = ['Chucho', 'El Flaco', 'Ramón', 'Beto', 'Güero', 'Nacho', 'Toño', 'Pelón', 'Chato', 'Memo', 'Lalo', 'Pancho', 'Rafa', 'Tito', 'Gordo'];
+    plan.forEach(([x, z, yaw, beh, wk], n) => {
+      const app = appearanceFor('cartel', rng, {}); app.female = false;
+      const a = new Actor(app, { name: names[n], pos: [x, W.th(x, z), z], yaw, weapon: wk, weaponMode: beh === 'guard' || beh === 'post' || beh === 'patrol' ? 'low' : 'sling', gear: false, pitch: 95 + rng() * 30, voiceIdx: n });
+      a.groundFn = (gx, gz) => W.th(gx, gz); a.hp = 100; a.alert = 0; a.state = { mode: 'calm' }; a.beh = beh; a.home = [x, z, yaw]; a.enemy = true; a.wk = wk;
+      if (beh === 'sitfire' || beh === 'table') { a.anim = 'sit'; a.seat = beh === 'table' ? 'lean' : n % 2 ? 'talk' : 'plain'; a.sitY = -.5; }
+      else if (beh === 'smoke') a.idleKind = 'smoke'; else if (beh === 'talk') a.idleKind = 'talk'; else if (beh === 'work') a.idleKind = 'work'; else if (beh === 'sleep') { a.anim = 'sit'; a.seat = 'sleep'; }
+      else if (beh === 'guard' || beh === 'post') a.idleKind = 'guard';
+      if (beh === 'patrol') { a.route = pts[pi++]; a.ri = 0; }
+      a.script = (b, dt) => Combat.think(b, dt);
+      G.actors.push(a); this.enemies.push(a);
+    });
+    // chatter at the fire
+    this.chatT = 4;
+  },
+  tutorial() {
+    const steps = [['[Q]  DRAW / HOLSTER YOUR SIDEARM', () => P.drawn > .5], ['[RMB]  AIM   ·   [LMB]  FIRE', () => P.aim > .5], ['[CTRL]  CROUCH — HARDER TO SPOT. GUNFIRE GIVES YOUR POSITION AWAY.', () => P.crouch > .5], ['APPROACH A GUARD FROM BEHIND  ·  [F]  SILENT TAKEDOWN', () => this.dead > 0]];
+    Story.run(function* () { for (const [t, done] of steps) { UI.hint(t); yield () => done() || Combat.anyAlert(); yield .8; if (Combat.anyAlert()) break; } UI.hint(''); });
+  },
+  anyAlert() { return this.enemies.some(e => !e.dead && e.state.mode === 'combat'); },
+  /* ---------------- per frame ---------------- */
+  update(dt) {
+    if (!this.built) return; this.fireCd -= dt;
+    // draw / holster
+    if (IN.hit('KeyQ') && P.state === 'walk' && !this.td) { P.drawWant = !P.drawWant; AUD.mech('draw'); }
+    P.drawn = damp(P.drawn, P.drawWant ? 1 : 0, 9, dt);
+    P.aim = damp(P.aim, P.drawWant && IN.mb[2] && P.state === 'walk' && !this.td ? 1 : 0, 12, dt); P.aimSens = 1 - P.aim * .45;
+    P.fovOverride = P.aim > .05 ? G.settings.fov - P.aim * 12 : null;
+    if (P.drawWant && P.drawn > .8 && IN.mbHit[0] && this.fireCd <= 0 && P.state === 'walk' && !this.td) this.fire();
+    if (IN.hit('KeyR') && P.drawWant && this.ammo.mag < PISTOL.mag && this.ammo.res > 0 && !this.reloadT) { this.reloadT = 1.4; AUD.mech('magOut'); G.after(.8, () => AUD.mech('magIn')); G.after(1.2, () => AUD.mech('slide')); }
+    if (this.reloadT) { this.reloadT -= dt; if (this.reloadT <= 0) { this.reloadT = 0; const n = Math.min(PISTOL.mag - this.ammo.mag, this.ammo.res); this.ammo.mag += n; this.ammo.res -= n; } }
+    // takedown prompt
+    if (!this.td && P.state === 'walk') { const t = this.takedownTarget(); if (t) { P.prompt = '[F]  SILENT TAKEDOWN'; if (IN.hit('KeyF')) this.startTakedown(t); } }
+    // health
+    if (G.time - P.lastHurt > 5) P.health = Math.min(100, P.health + 12 * dt);
+    R.post.hurt = damp(R.post.hurt || 0, clamp((70 - P.health) / 70, 0, 1) + (G.time - P.lastHurt < .3 ? .6 : 0), 5, dt);
+    // detection readout
+    let det = 0, combat = false; for (const e of this.enemies) { if (e.dead) continue; det = Math.max(det, e.alert); if (e.state.mode === 'combat') combat = true; }
+    UI.detect(combat ? 2 : det, this.ammo, P.drawWant);
+    // fire-side chatter
+    this.chatT -= dt; if (this.chatT <= 0 && !combat) { this.chatT = 7 + Math.random() * 6; const sp = this.enemies.filter(e => !e.dead && (e.beh === 'sitfire' || e.beh === 'talk' || e.beh === 'table') && e.state.mode === 'calm'); if (sp.length && V.dist(sp[0].pos, P.pos) < 45) G.speak(sp[(Math.random() * sp.length) | 0], ['Oye, pásame la botella.', 'Did you hear the plane go down? Boom. Like fireworks.', 'El jefe wants the survivors alive. Or not. Whatever.', 'This rain never stops, man.', 'Ha! You owe me fifty pesos.'][(Math.random() * 5) | 0]); }
+    // all down: the camp is clear
+    if (!this.cleared && this.enemies.every(e => e.dead)) { this.cleared = true; this.campCleared(); }
+  },
+  preBody(dt) { if (!P.combat) return; this.poseGun(dt); if (this.td) this.updateTakedown(dt); },
+  // the view basis for this frame (the camera itself is updated after the body)
+  view() { const cp = Math.cos(P.pitch), f = [-Math.sin(P.yaw) * cp, Math.sin(P.pitch), -Math.cos(P.yaw) * cp]; const r = [Math.cos(P.yaw), 0, -Math.sin(P.yaw)]; const u = V.cross(r, f); const d = P._pp ? V.sub(P.pos, P._pp) : [0, 0, 0]; P._pp = V.copy(P.pos); return { pos: V.add(G.cam.pos, d), fwd: f, right: r, up: u }; },
+  /* ---------------- the weapon in your hands ---------------- */
+  poseGun(dt) {
+    const g = this.gun; const d = P.drawn; g.hidden = d < .05 || P.state === 'off';
+    if (g.hidden) return;
+    const c = this.view(); const a = P.aim; P.kick = damp(P.kick, 0, 14, dt); const bob = Math.sin(P.ph || 0) * .006 * clamp(P.speed, 0, 3) * (1 - a);
+    const hip = V.add(V.add(V.add(c.pos, V.sc(c.fwd, .5)), V.sc(c.right, .17)), V.sc(c.up, -.22 + bob));
+    const ads = V.add(V.add(c.pos, V.sc(c.fwd, .52 - P.kick * .05)), V.sc(c.up, -.047));
+    const holster = M4.pt(P.rig.mats[SK.PEL], .22, -.05, .02);
+    let p = V.lerp(hip, ads, smooth(a)); p = V.lerp(holster, p, smooth(d)); this.reloadT && (p = V.add(p, V.sc(c.up, -.08 * Math.sin(clamp(this.reloadT / 1.4, 0, 1) * Math.PI))));
+    // orientation: barrel along the view, a touch canted at the hip, kicked up by recoil
+    const fwd = V.norm(V.add(c.fwd, V.add(V.sc(c.up, P.kick * .35), V.sc(c.right, -.06 * (1 - a))))); const right = V.norm(V.cross(fwd, c.up)); const up = V.cross(right, fwd);
+    M4.basis(g.m, right, up, V.sc(fwd, -1), p); g.pos = p;
+    // both hands on it: right on the grip, left cupping underneath
+    const grip = M4.pt(g.m, 0, -.045, .005), sup = M4.pt(g.m, -.012, -.05, -.015);
+    P.ik.push({ left: false, T: grip, pole: V.add(V.add(V.sc(c.right, .35), V.sc(c.up, -2)), V.sc(c.fwd, -.3)), fingers: M4.dir(g.m, 0, -.3, -1) });
+    if (d > .7) P.ik.push({ left: true, T: V.lerp(M4.pt(P.rig.mats[SK.CH], -.25, -.1, -.1), sup, smooth((d - .7) / .3)), pole: V.add(V.add(V.sc(c.right, -.35), V.sc(c.up, -2)), V.sc(c.fwd, -.3)), fingers: M4.dir(g.m, .3, -.2, -1) });
+  },
+  fire() {
+    if (this.reloadT) return; if (this.ammo.mag <= 0) { AUD.mech('dry'); this.fireCd = .25; return; }
+    this.ammo.mag--; this.fireCd = 60 / PISTOL.rpm; const c = G.cam; const sp = lerp(PISTOL.spread, PISTOL.adsSpread, P.aim) * (P.speed > .5 ? 1.6 : 1);
+    const a = Math.random() * TAU, m = Math.sqrt(Math.random()) * sp; const dir = V.norm(V.add(c.fwd, V.add(V.sc(c.right, Math.cos(a) * m), V.sc(c.up, Math.sin(a) * m))));
+    AUD.shot('pistol', null); P.kick = 1; P.pitch += PISTOL.recoil * (P.aim > .5 ? .6 : 1); P.yaw += (Math.random() - .5) * .02; P.shake = Math.max(P.shake, .15);
+    const mz = M4.pt(this.gun.m, 0, .022, -.19); for (let i = 0; i < 6; i++) G.particles.push({ p: V.copy(mz), v: V.add(V.sc(dir, rnd(2, 6)), [rnd(-.5, .5), rnd(-.5, .5), rnd(-.5, .5)]), life: 0, max: .06, s: rnd(.03, .07), c: [1, .8, .4], a: 1, add: true });
+    G.puff(mz, { s: .08, grow: .5, c: [.6, .6, .6], a: .25, max: 1.5, v: V.sc(dir, .6), g: -.1 }); G.dynLights.push(this.mf = { pos: mz, col: [1, .7, .35], i: 4, range: 8 }); G.after(.05, () => { const k = G.dynLights.indexOf(this.mf); if (k >= 0) G.dynLights.splice(k, 1); });
+    G.particles.push({ p: M4.pt(this.gun.m, .02, .03, -.06), v: V.add(V.sc(c.right, rnd(1.5, 2.5)), [0, rnd(1.5, 2.5), 0]), life: 0, max: 1, s: .008, c: [.8, .6, .25], a: 1, g: 9.8, drag: .2 });
+    // what did we hit?
+    const wh = this.W.ray(c.pos, dir, 200, { bullet: true }); let wt = wh ? wh.t : 200; let best = null, bt = wt;
+    for (const e of this.enemies) { if (e.dead) continue; for (const [bone, r, part] of [[SK.HD, .13, 'head'], [SK.CH, .24, 'chest'], [SK.PEL, .2, 'body']]) { const cp = bone === SK.HD ? M4.pt(e.rig.mats[SK.HD], 0, .1, 0) : bone === SK.CH ? M4.pt(e.rig.mats[SK.CH], 0, .2, 0) : e.rig.bonePos(SK.PEL); const oc = V.sub(cp, c.pos); const tt = V.dot(oc, dir); if (tt < 0 || tt > bt) continue; const dd = V.len(V.sub(oc, V.sc(dir, tt))); if (dd < r) { bt = tt; best = { e, part, p: V.add(c.pos, V.sc(dir, tt)) }; } } }
+    if (best) this.hitEnemy(best.e, best.part, best.p, dir);
+    else if (wh) { for (let i = 0; i < 6; i++) G.particles.push({ p: V.add(wh.p, V.sc(wh.n, .03)), v: V.add(V.sc(wh.n, rnd(1, 3)), [rnd(-1, 1), rnd(0, 2), rnd(-1, 1)]), life: 0, max: rnd(.3, .7), s: rnd(.02, .05), c: [.3, .26, .18], a: .9, g: 9.8, drag: 1 }); G.puff(wh.p, { s: .2, grow: .6, c: [.45, .42, .35], a: .4, max: 1.5 }); AUD.impact(wh.surf === 'wood' ? 'wood' : 'mud', wh.p); }
+    // everyone in earshot now knows roughly where you are
+    for (const e of this.enemies) { if (e.dead) continue; const d = V.dist(e.pos, P.pos); if (d > PISTOL.noise) continue; const err = 4 + d * .12; this.alarm(e, [P.pos[0] + rnd(-err, err), P.pos[1], P.pos[2] + rnd(-err, err)], d < 25); }
+  },
+  hitEnemy(e, part, p, dir) {
+    const dmg = part === 'head' ? 300 : part === 'chest' ? PISTOL.dmg : PISTOL.dmg * .8; e.hp -= dmg; AUD.impact('flesh', p);
+    // blood: exit spray, mist, drops; a hit to the head is final
+    for (let i = 0; i < (part === 'head' ? 34 : 18); i++) G.particles.push({ p: V.copy(p), v: V.add(V.sc(dir, rnd(1, part === 'head' ? 7 : 4)), [rnd(-1.2, 1.2), rnd(-.3, 1.6), rnd(-1.2, 1.2)]), life: 0, max: rnd(.4, 1.1), s: rnd(.015, .05), c: [.42, .02, .02], a: 1, g: 9.8, drag: .6 });
+    for (let i = 0; i < 3; i++) G.particles.push({ p: V.copy(p), v: V.sc(dir, rnd(.5, 1.5)), life: 0, max: .6, s: rnd(.12, .25), grow: .9, c: [.38, .03, .03], a: .5, drag: 2 });
+    this.splatter(V.add(p, V.sc(dir, .8)), dir);
+    e.flinch = 1;
+    if (e.hp <= 0) this.kill(e, dir, part === 'head');
+    else this.alarm(e, V.copy(P.pos), true);
+  },
+  splatter(p, dir) { // blood on whatever is behind the target
+    const h = this.W.ray(p, dir, 2.5, { bullet: true }); const q = h ? h.p : [p[0] + dir[0], this.W.th(p[0] + dir[0], p[2] + dir[2]) + .02, p[2] + dir[2]]; const n = h ? h.n : [0, 1, 0];
+    const B = new MB(600); B.col(0x5a0606, MAT.BLOOD); const t1 = V.norm(V.cross(n, Math.abs(n[1]) > .9 ? [1, 0, 0] : [0, 1, 0])), t2 = V.cross(n, t1);
+    for (let i = 0; i < 6; i++) { const o = V.add(V.sc(t1, rnd(-.25, .25)), V.sc(t2, rnd(-.25, .25))); const s = rnd(.03, .12); const c0 = V.add(V.add(q, o), V.sc(n, .006)); B.begin(); B.quad(V.add(c0, V.add(V.sc(t1, -s), V.sc(t2, -s))), V.add(c0, V.add(V.sc(t1, s), V.sc(t2, -s))), V.add(c0, V.add(V.sc(t1, s), V.sc(t2, s))), V.add(c0, V.add(V.sc(t1, -s), V.sc(t2, s)))); }
+    G.extraDyn.push({ mesh: B.mesh(), m: M4.create(), pos: q, r: 1, noShadow: true });
+  },
+  kill(e, dir, head, silent) {
+    e.dead = true; e.path = null; e.script = null; e.post = null; e.look = null; e.weaponMode = 'hidden'; e.state.mode = 'dead'; this.dead++;
+    if (!silent) G.speak(e, head ? '' : ['¡Ahh—!', 'Ngh—', '¡Me dieron!'][(Math.random() * 3) | 0]);
+    const fall = Math.random() < .5 ? 1 : -1; let t = 0; const k0 = e.k; e.anim = 'custom'; e.blendK = 9; e.extraYaw = 0;
+    e.customPose = (j) => { poseDead(j, k0 % 1); return 0; };
+    e.rootFn = (r, b) => { t = Math.min(t + G.dt, 1); const ee = ease(t / .85); M4.translate(r, r, 0, .13 * ee, 0); M4.rotX(r, r, fall * Math.PI / 2 * ee); };
+    // the dropped weapon and a slowly spreading pool
+    const w = new MB(2000); w.b(0); buildNpcWeapon(w, e.wk); const wm = M4.create(); const wp = [e.pos[0] + rnd(-.6, .6), this.W.th(e.pos[0], e.pos[2]) + .04, e.pos[2] + rnd(-.6, .6)]; M4.translate(wm, wm, wp[0], wp[1], wp[2]); M4.rotY(wm, wm, rnd(0, TAU)); M4.rotZ(wm, wm, Math.PI / 2);
+    G.extraDyn.push({ mesh: w.mesh(), m: wm, pos: wp, r: 1 });
+    const pb = new MB(300); pb.col(0x4a0404, MAT.BLOOD).blob(0, 0, 0, 1, .02, e.id, .35, 12, 3); const pool = { mesh: pb.mesh(), m: M4.create(), pos: V.copy(e.pos), r: 2, noShadow: true, s: .05 }; e.pool = pool; G.extraDyn.push(pool);
+    const at = V.add(e.pos, [-Math.sin(e.yaw) * fall * -.8, 0, -Math.cos(e.yaw) * fall * -.8]);
+    G.updaters.push(dt => { if (pool.s < 1) { pool.s = Math.min(1, pool.s + dt * .08); M4.ident(pool.m); M4.translate(pool.m, pool.m, at[0], this.W.th(at[0], at[2]) + .015, at[2]); M4.scale(pool.m, pool.m, pool.s * .9, 1, pool.s * .7); } });
+    // witnesses
+    for (const o of this.enemies) { if (o.dead || o === e) continue; if (this.sees(o, V.add(e.pos, [0, .8, 0]), 22)) this.alarm(o, V.copy(e.pos), !silent); }
+  },
+  /* ---------------- perception & behaviour ---------------- */
+  sees(e, target, range) {
+    const eye = e.rig.bonePos(SK.HD); const d = V.dist(eye, target); if (d > range) return false;
+    const f = [-Math.sin(e.yaw + e.headYaw * e.lookAmt), 0, -Math.cos(e.yaw + e.headYaw * e.lookAmt)]; const to = V.norm(V.sub(target, eye)); const cosA = (to[0] * f[0] + to[2] * f[2]) / (Math.hypot(to[0], to[2]) || 1);
+    if (cosA < (e.state.mode === 'combat' ? -.2 : .35) && d > 2.5) return false;
+    if (!this.W.los(eye, target)) return false;
+    return this.W.foliage(eye, target) < .85;
+  },
+  alarm(e, where, sure) {
+    if (e.dead) return; e.state.last = where; e.state.lastT = G.time;
+    if (sure || e.state.mode === 'combat') { if (e.state.mode !== 'combat') { e.state.mode = 'combat'; e.state.engT = G.time; e.fireCd = rnd(1, 2.2); G.speak(e, ['¡Allá! ¡Disparen!', "There! Someone's out there!", '¡Nos atacan!', 'Contact! In the trees!'][(Math.random() * 4) | 0]); } }
+    else if (e.state.mode === 'calm') { e.state.mode = 'search'; G.speak(e, ['¿Qué fue eso?', 'You hear that?', 'Hey... over there.'][(Math.random() * 3) | 0]); }
+    if (e.anim === 'sit') { e.anim = 'idle'; e.blendK = 4; } e.weaponMode = 'aim';
+  },
+  think(e, dt) {
+    if (e.dead || e === (this.td && this.td.e)) return;
+    const st = e.state; const pe = V.add(P.pos, [0, P.crouch > .5 ? 1.0 : 1.6, 0]);
+    // vision → suspicion
+    const seeR = (st.mode === 'combat' ? 55 : 30) * (P.crouch > .5 ? .55 : 1) * (P.speed > 2.5 ? 1.25 : 1) * (e.anim === 'sit' ? .8 : 1) * (e.seat === 'sleep' ? 0 : 1);
+    const can = P.state === 'walk' && this.sees(e, pe, seeR);
+    if (can) { const d = V.dist(e.pos, P.pos); e.alert = Math.min(1.2, e.alert + dt * (1.6 - d / seeR) * (P.crouch > .5 ? .45 : 1) * (P.drawWant ? 1.2 : 1) * (st.mode !== 'calm' ? 2 : 1)); if (e.alert > .35) { e.look = () => pe; } if (e.alert >= 1) this.alarm(e, V.copy(P.pos), true); if (st.mode === 'combat') { st.last = V.copy(P.pos); st.lastT = G.time; } }
+    else e.alert = Math.max(0, e.alert - dt * .15);
+    e.canSee = can;
+    if (st.mode === 'calm') {
+      if (e.beh === 'patrol' && !e.path) { const p = e.route[e.ri++ % e.route.length]; G.after(rnd(1, 4), () => { if (!e.dead && e.state.mode === 'calm') e.goTo([[p[0], 0, p[1]]]); }); e.path = []; }
+      if (e.alert > .45 && e.alert < 1) { e.state.mode = 'search'; e.state.last = V.copy(P.pos); }
+      return;
+    }
+    if (st.mode === 'search') {
+      if (e.anim === 'sit') { e.anim = 'idle'; e.blendK = 4; } e.weaponMode = 'low';
+      if (!e.path || !e.path.length) { const l = st.last; if (V.dist(e.pos, l) > 2) e.goTo([[l[0], 0, l[2]]]); else if (!st.lookT) { st.lookT = G.time; e.look = () => V.add(e.pos, [Math.sin(G.time) * 5, 1.5, Math.cos(G.time) * 5]); } else if (G.time - st.lookT > 8) { st.mode = 'calm'; st.lookT = 0; e.look = null; if (e.home) { e.goTo([[e.home[0], 0, e.home[1]]], false, b => { b.yaw = b.home[2]; }); } } }
+      return;
+    }
+    // combat: face the threat, close in when you can't see them, fire bursts when you can
+    e.weaponMode = 'aim'; e.run = false; const d = V.dist(e.pos, P.pos);
+    const tgt = can ? P.pos : st.last; const want = Math.atan2(-(tgt[0] - e.pos[0]), -(tgt[2] - e.pos[2]));
+    if (can) { e.path = null; e.yaw = dampAng(e.yaw, want, 6, dt); e.look = () => pe; if (d > 22) e.goTo([[e.pos[0] + (tgt[0] - e.pos[0]) * .2, 0, e.pos[2] + (tgt[2] - e.pos[2]) * .2]]); }
+    else if (!e.path || !e.path.length) { if (V.dist(e.pos, st.last) > 3) e.goTo([[st.last[0] + rnd(-3, 3), 0, st.last[2] + rnd(-3, 3)]], d > 15); else e.yaw = dampAng(e.yaw, want + Math.sin(G.time + e.id) * .8, 2, dt); }
+    e.fireCd = (e.fireCd ?? rnd(.6, 1.5)) - dt;
+    if (can && e.fireCd <= 0 && P.state === 'walk') {
+      const burst = e.wk === 'ak' || e.wk === 'smg' ? 3 : 1; e.fireCd = burst > 1 ? rnd(1.1, 2) : rnd(.7, 1.3);
+      for (let i = 0; i < burst; i++) G.after(i * .1, () => {
+        if (e.dead) return; const mz = M4.pt(e.rig.mats[SK.WPN], 0, .05, -.5); AUD.shot(e.wk === 'shotgun' ? 'shotgun' : e.wk === 'pistol' ? 'npcPistol' : 'npcRifle', mz);
+        G.particles.push({ p: mz, v: [0, 0, 0], life: 0, max: .05, s: .18, c: [1, .75, .35], a: 1, add: true });
+        const acc = clamp(.36 - d / 80 - (P.crouch > .5 ? .1 : 0) - (P.speed > 2 ? .12 : 0) + Math.min(.15, (G.time - (e.state.engT || G.time)) * .02), .05, .45);
+        if (Math.random() < acc) this.hurtPlayer(e.wk === 'shotgun' ? (d < 10 ? 30 : 8) : e.wk === 'ak' ? 9 : 7, mz);
+        else { AUD.click(4000 + Math.random() * 2000, .1, V.add(P.pos, [rnd(-2, 2), 1.6, rnd(-2, 2)]), .01); AUD.swoosh(.15, V.add(P.pos, [rnd(-1, 1), 1.7, rnd(-1, 1)]), 2400, .06); }
+      });
+    }
+  },
+  hurtPlayer(dmg, from) {
+    P.health -= dmg; P.lastHurt = G.time; P.shake = Math.max(P.shake, .6); AUD.hurt && AUD.hurt();
+    for (let i = 0; i < 6; i++) G.particles.push({ p: V.add(G.cam.pos, V.add(V.sc(G.cam.fwd, .5), [rnd(-.2, .2), rnd(-.3, 0), rnd(-.2, .2)])), v: [rnd(-1, 1), rnd(-1, .5), rnd(-1, 1)], life: 0, max: .4, s: .02, c: [.42, .02, .02], a: 1, g: 9.8 });
+    if (P.health <= 0) this.playerDown();
+  },
+  playerDown() {
+    P.state = 'off'; P.drawWant = false; UI.fadeTo(1, 1.2); UI.died(true);
+    G.after(3.2, () => { UI.died(false); this.td = null; P.health = 100; this.ammo = { mag: 12, res: 48 }; this.dead = 0; this.cleared = false; this.spawn(); const c = this.W.campCenter; const tp = TRAIL[TRAIL.length - 3]; P.pos = [tp[0], this.W.th(tp[0], tp[1]), tp[1]]; P.yaw = Math.atan2(-(c[0] - tp[0]), -(c[2] - tp[1])); P.pitch = 0; P.state = 'walk'; P.crouchWant = true; UI.fadeTo(0, 1.5); });
+  },
+  /* ---------------- silent takedown ---------------- */
+  takedownTarget() {
+    for (const e of this.enemies) { if (e.dead || e.state.mode === 'combat') continue; const d = Math.hypot(e.pos[0] - P.pos[0], e.pos[2] - P.pos[2]); if (d > 1.6) continue;
+      const toP = Math.atan2(-(P.pos[0] - e.pos[0]), -(P.pos[2] - e.pos[2])); if (Math.abs(angDiff(e.yaw, toP)) < 1.9 && !(e.anim === 'sit' && Math.abs(angDiff(e.yaw, toP)) > 1.3)) continue;
+      const lk = Math.atan2(-(e.pos[0] - P.pos[0]), -(e.pos[2] - P.pos[2])); if (Math.abs(angDiff(P.yaw, lk)) > 1.1) continue; return e; }
+    return null;
+  },
+  startTakedown(e) {
+    this.td = { e, t: 0, from: V.copy(P.pos) }; P.state = 'cut'; P.cut = null; e.path = null; e.look = null; P.drawWantBefore = P.drawWant; P.drawWant = false;
+    const back = [e.pos[0] + Math.sin(e.yaw) * .55, e.pos[1], e.pos[2] + Math.cos(e.yaw) * .55]; this.td.to = back; this.td.yaw = e.yaw;
+    if (e.anim === 'sit') { e.anim = 'idle'; } AUD.swoosh(.3, null, 700, .3);
+  },
+  updateTakedown(dt) {
+    const T = this.td, e = T.e; T.t += dt; const k = smooth(T.t / .35);
+    P.pos = V.lerp(T.from, T.to, k); P.yaw = dampAng(P.yaw, T.yaw, 12, dt); P.pitch = damp(P.pitch, -.25, 6, dt);
+    // arm around the throat, other hand on the head, pull back; he struggles, then goes limp
+    const neck = M4.pt(e.rig.mats[SK.CH], 0, .44, -.02), head = M4.pt(e.rig.mats[SK.HD], .02, .12, .05);
+    P.ik.push({ left: false, T: V.add(neck, M4.dir(e.root, .12, 0, -.05)), pole: M4.dir(e.root, 1, -.5, 0) }); P.ik.push({ left: true, T: head, pole: M4.dir(e.root, -1, 0, .5) });
+    const str = T.t > .35 && T.t < 1.6 ? Math.sin(T.t * 22) * (1.6 - T.t) * .25 : 0; P.shake = Math.max(P.shake, Math.abs(str));
+    e.anim = 'custom'; e.customPose = (j, b) => { poseIdle(j, b.t, 'idle', b.k); const s = Math.sin(T.t * 19); pj(j, SK.UAL, 1.2 + s * .3, .3, -.4); pj(j, SK.FAL, 1.9, 0, 0); pj(j, SK.UAR, 1.1 - s * .3, -.3, .4); pj(j, SK.FAR, 2, 0, 0); pj(j, SK.HD, -.5, s * .2, 0); pj(j, SK.CH, -.25, 0, 0); if (T.t > 1.2) { const l = smooth((T.t - 1.2) / .5); pj(j, SK.THL, l * .8, 0, 0); pj(j, SK.THR, l * .7, 0, 0); pj(j, SK.SHL, -l * 1.4, 0, 0); pj(j, SK.SHR, -l * 1.3, 0, 0); } return T.t > 1.2 ? -.35 * smooth((T.t - 1.2) / .5) : 0; };
+    if (Math.random() < .3 && T.t < 1.4) AUD.squish();
+    if (T.t > 1.9) { this.td = null; P.state = 'walk'; this.kill(e, [0, 0, 0], false, true); e.pool && (e.pool.s = .9); P.drawWant = P.drawWantBefore; P.shake = .2; }
+  },
+  campCleared() {
+    const me = Cabin.me(); UI.objective(''); UI.hint('');
+    Story.run(function* () {
+      yield 1.5; yield Story.say(me, "...clear.");
+      yield .8; AUD.radioCrackle(1.4); yield 1.5;
+      yield Story.say({ name: 'Mox (radio)', vpitch: 1.05, vrate: 1.05, voiceIdx: 1 }, "—ook... Rook, you copy? I'm at the river... they're everywhere. Get here.", { radio: true });
+      yield 1; yield Story.say(me, "Copy, Mox. On my way.");
+      yield 2; UI.fadeTo(1, 2.5); yield 2.8; AUD.stopAllLoops(); UI.endCard(2);
+    });
+  },
+};
 
 </script>
 </body>

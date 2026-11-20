@@ -30,7 +30,7 @@ const FS_MAIN = `#version 300 es
 precision highp float; precision highp int; precision highp sampler2DShadow;
 in vec3 vPos; in vec3 vNor; in vec3 vCol; in vec3 vLoc; flat in int vMat;
 uniform vec3 uSunDir,uSunCol,uSky,uGnd,uFog,uCam; uniform float uFogD,uFogH,uExpo,uTime,uWet,uSnow;
-uniform int uSkin; uniform vec4 uTint; uniform vec4 uClip; uniform sampler2D uMirror; uniform vec2 uRes; uniform float uAlpha;
+uniform int uSkin; uniform vec4 uTint; uniform vec4 uClip; uniform mat4 uPlaneInv; uniform int uPlaneOn; uniform sampler2D uMirror; uniform vec2 uRes; uniform float uAlpha;
 uniform sampler2DShadow uShadow; uniform mat4 uSVP; uniform int uShadowOn; uniform float uSRes;
 uniform vec4 uLP[12]; uniform vec4 uLC[12]; uniform vec4 uLD[12]; uniform int uNL;
 out vec4 frag;
@@ -52,6 +52,7 @@ void main(){
   if(vMat==26){ vec2 suv=gl_FragCoord.xy/uRes; vec3 m=texture(uMirror,vec2(suv.x,suv.y)).rgb; float sm=fbm(vPos.xy*9.+vPos.zy*7.); m=m*.93+vec3(.02)*smoothstep(.55,.8,sm); float ed=fbm(vPos.xy*30.); m*=.97+.03*ed; frag=vec4(m*uTint.rgb,1.); return; }
   vec3 N=normalize(vNor); vec3 Vd=uCam-vPos; float dist=length(Vd); vec3 V=Vd/dist;
   if(dot(N,V)<0.) N=-N;
+  if((vMat==31||vMat==29)&&uPlaneOn==1){ vec3 q=(uPlaneInv*vec4(vPos,1.)).xyz; if(abs(q.x)<4.&&q.y>-1.&&q.y<9.&&q.z>-27.&&q.z<26.) discard; }
   if(vMat==31){ // cumulus puff: wrapped sun lighting, blue-grey shadow side, soft silhouette
     vec3 Nn=N; float w=dot(Nn,uSunDir)*.5+.5; float n=fbm(vPos.xz*.012+vPos.y*.02);
     vec3 shade=mix(uSky*.85+vec3(.08,.09,.12),vec3(1.,.99,.96)*(.5+uSunCol*.32),smoothstep(.15,.95,w+(n-.5)*.35))*vCol;
@@ -387,7 +388,7 @@ const R = {
     gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.depthFunc(gl.LEQUAL);
     // opaque
     P = this.pMain; gl.useProgram(P.p); this.setMainUniforms(P, S, cp, shadowOn, vp);
-    gl.uniform4fv(P.u.uClip, o.clip || [0, 0, 0, 0]); gl.uniform2f(P.u.uRes, this.w, this.h); gl.uniform1f(P.u.uAlpha, 1);
+    gl.uniform4fv(P.u.uClip, o.clip || [0, 0, 0, 0]); gl.uniform1i(P.u.uPlaneOn, S.planeInv ? 1 : 0); if (S.planeInv) gl.uniformMatrix4fv(P.u.uPlaneInv, false, S.planeInv); gl.uniform2f(P.u.uRes, this.w, this.h); gl.uniform1f(P.u.uAlpha, 1);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, o.mirrorOn ? this.mt.tex : this.dummy); gl.uniform1i(P.u.uMirror, 1); gl.activeTexture(gl.TEXTURE0);
     gl.uniform1i(P.u.uSkin, 0); gl.uniformMatrix4fv(P.u.uModel, false, M4.create()); gl.uniform4f(P.u.uTint, 1, 1, 1, 0);
     gl.disable(gl.CULL_FACE);
