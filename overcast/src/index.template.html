@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OVERCAST — Part One: The Drop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<!-- ======================= MENU: green terminal ======================= -->
+<div id="menu" class="on">
+  <canvas id="mx"></canvas>
+  <div id="scan"></div>
+  <div id="term">
+    <div class="tbar"><i></i><i></i><i></i><span>root@kestrel-relay-07: ~/overcast</span><em id="clock"></em></div>
+<pre class="logo">
+ ██████  ██    ██ ███████ ██████   ██████  █████  ███████ ████████
+██    ██ ██    ██ ██      ██   ██ ██      ██   ██ ██         ██
+██    ██ ██    ██ █████   ██████  ██      ███████ ███████    ██
+██    ██  ██  ██  ██      ██   ██ ██      ██   ██      ██    ██
+ ██████    ████   ███████ ██   ██  ██████ ██   ██ ███████    ██
+</pre>
+    <div class="sub">PART ONE <b>//</b> THE DROP</div>
+    <pre id="termLog"></pre>
+    <nav>
+      <button data-act="start"><em>$</em> ./start_operation.sh <small>HACK TO DEPLOY</small></button>
+      <button data-act="settings"><em>$</em> nano config.cfg <small>SETTINGS</small></button>
+      <button data-act="credits"><em>$</em> cat credits.txt <small>CREDITS</small></button>
+    </nav>
+    <div class="foot">MOUSE + KEYBOARD · HEADPHONES RECOMMENDED · ESC TO PAUSE</div>
+  </div>
+  <div id="hack">
+    <div class="hbox">
+      <div class="htitle">BREACHING <b>KESTREL//DEPLOYMENT-ORDERS</b></div>
+      <pre id="hackCode"></pre>
+      <div class="hbar"><i id="hackBar"></i></div>
+      <div class="hrow"><span id="hackMsg"></span><b id="hackPct">0%</b></div>
+      <div class="granted">ACCESS GRANTED</div>
+      <div class="hesc">ESC TO ABORT</div>
+    </div>
+  </div>
+  <div id="set" class="panel"><div class="ph">config.cfg</div><div id="setBody"></div><button data-act="back" class="pb">:wq  SAVE &amp; CLOSE</button></div>
+  <div id="cred" class="panel"><div class="ph">credits.txt</div>
+    <pre class="ctext">OVERCAST — PART ONE: THE DROP
+
+An original first-person story game.
+
+Engine, models, animation, sound and music are
+generated entirely in code at runtime: a custom
+WebGL2 renderer with planar mirrors, light shafts,
+bloom, rain and layered clouds, and a synthesizer
+for every sound you hear.
+
+Voices use your browser's speech synthesis when
+available (toggle in config.cfg).
+
+Thanks for playing.</pre>
+    <button data-act="back" class="pb">:q  CLOSE</button></div>
+</div>
+
+<!-- ======================= HUD (no crosshair) ======================= -->
+<div id="hud">
+  <div id="card"><pre></pre></div>
+  <div id="obj"><i></i><span></span></div>
+  <div id="hint"></div>
+  <div id="marker"><b></b><span></span></div>
+  <div id="prompt"></div>
+  <div id="subs"></div>
+  <div id="dialog"></div>
+  <div id="alt"><small>ALTITUDE</small><b>0</b><em>M</em><i></i></div>
+</div>
+<div id="pause"><div class="pbox"><div class="ph">// PAUSED</div><button data-act="resume">RESUME</button><button data-act="psettings">SETTINGS</button><button data-act="quit">QUIT TO TERMINAL</button></div></div>
+<div id="loading"><span>DECRYPTING FOB KESTREL</span><i></i></div>
+<div id="endc"><div class="e1">END OF PART ONE</div><div class="e2">OVERCAST</div><div class="e3">THE DROP</div><div class="e4">The story continues on the ground.</div><div class="e5">CLICK TO RETURN TO THE TERMINAL</div></div>
+<div id="fadeEl"></div>
+<div id="err"></div>
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>
