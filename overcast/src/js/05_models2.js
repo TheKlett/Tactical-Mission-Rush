@@ -218,6 +218,7 @@ function buildTransport() {
     B.col(0x7a1a14, MAT.CANVAS).box(x + sd * .3, TP.floor + .95, z, .03, .75, .62); B.col(0x8a8c88, MAT.METAL).tube([x + sd * .3, TP.floor + 1.34, z - .33], [x + sd * .3, TP.floor + 1.34, z + .33], .016, .016, 6);
     B.col(0x1a1a1a, MAT.CANVAS).box(x + sd * .26, TP.floor + .85, z - .18, .02, .6, .04).box(x + sd * .26, TP.floor + .85, z + .18, .02, .6, .04); // harness straps
   }
+  cabinCargo(B);
   // overhead: static-line cables, pipes, cable trays, lights
   B.col(0xa0a098, MAT.METAL).tube([-1.0, TP.floor + 2.2, TP.z0 + 1], [-1.0, TP.floor + 2.2, TP.z1], .018, .018, 6).tube([1.0, TP.floor + 2.2, TP.z0 + 1], [1.0, TP.floor + 2.2, TP.z1], .018, .018, 6);
   B.col(0x777770, MAT.METAL); for (let z = TP.z0 + 2; z < TP.z1; z += 3) for (const x of [-1, 1]) B.tube([x, 6.3, z], [x, TP.floor + 2.2, z], .012, .012, 4);
@@ -288,8 +289,8 @@ function buildTransport() {
 function poseTransport(bones, o) {
   const m = o.m; const t = M4.create();
   bones.set(m, TPB.BODY * 16);
-  M4.translate(t, m, 0, TP.floor, TP.z1); M4.rotX(t, t, lerp(1.25, -.2, o.ramp)); bones.set(t, TPB.RAMP * 16);
-  M4.translate(t, m, 0, 6.35, TP.z1 + .2); M4.rotX(t, t, lerp(-.42, .55, o.door)); bones.set(t, TPB.DOOR * 16);
+  M4.translate(t, m, 0, TP.floor, TP.z1); M4.rotX(t, t, lerp(-1.32, .23, o.ramp)); bones.set(t, TPB.RAMP * 16);
+  M4.translate(t, m, 0, 6.35, TP.z1 + .2); M4.rotX(t, t, lerp(-.05, -.6, o.door)); bones.set(t, TPB.DOOR * 16);
   M4.translate(t, m, -2.21 - (o.btn || 0) * .03, 2.68, TP.z1 - .55); bones.set(t, TPB.BTN * 16);
   for (let i = 0; i < 4; i++) { const e = TP['eng' + i]; M4.translate(t, m, e[0], e[1], e[2]); M4.rotZ(t, t, o.fan * (i % 2 ? 1.03 : 1)); bones.set(t, (TPB.F0 + i) * 16); }
   bones.set(o.red ? m : ZERO_M, TPB.RED * 16); bones.set(o.green ? m : ZERO_M, TPB.GREEN * 16);

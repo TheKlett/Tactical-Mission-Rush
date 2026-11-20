@@ -902,7 +902,7 @@ Object.assign(AUD, {
    RENDERER — custom WebGL2 engine: procedural PBR-ish materials, shadow
    mapping, spot/point lights, fog, sky, water, particles, skinning.
    ===================================================================== */
-const MAT = { PAINT: 0, WOOD: 1, CONC: 2, CORR: 3, MUD: 4, GRASS: 5, CLOTH: 6, SKIN: 7, BARK: 8, LEAF: 9, EMIT: 10, GLASS: 11, METAL: 12, RUST: 13, BRICK: 14, SNOW: 15, ASPH: 16, CAMO: 17, ROCK: 18, HAIR: 19, LEATHER: 20, RUBBER: 21, PLASTIC: 22, TILE: 23, CANVAS: 24, CHAIN: 25, MIRROR: 26, BLOOD: 27, CLOUD: 29, WETSKIN: 30 };
+const MAT = { PAINT: 0, WOOD: 1, CONC: 2, CORR: 3, MUD: 4, GRASS: 5, CLOTH: 6, SKIN: 7, BARK: 8, LEAF: 9, EMIT: 10, GLASS: 11, METAL: 12, RUST: 13, BRICK: 14, SNOW: 15, ASPH: 16, CAMO: 17, ROCK: 18, HAIR: 19, LEATHER: 20, RUBBER: 21, PLASTIC: 22, TILE: 23, CANVAS: 24, CHAIN: 25, MIRROR: 26, BLOOD: 27, CLOUD: 29, WETSKIN: 30, PUFF: 31 };
 const STRIDE = 11;
 function lin(h) { const c = hexCol(h); return [Math.pow(c[0], 2.2), Math.pow(c[1], 2.2), Math.pow(c[2], 2.2)]; }
 function linA(a) { return [Math.pow(a[0], 2.2), Math.pow(a[1], 2.2), Math.pow(a[2], 2.2)]; }
@@ -952,6 +952,13 @@ void main(){
   if(vMat==26){ vec2 suv=gl_FragCoord.xy/uRes; vec3 m=texture(uMirror,vec2(suv.x,suv.y)).rgb; float sm=fbm(vPos.xy*9.+vPos.zy*7.); m=m*.93+vec3(.02)*smoothstep(.55,.8,sm); float ed=fbm(vPos.xy*30.); m*=.97+.03*ed; frag=vec4(m*uTint.rgb,1.); return; }
   vec3 N=normalize(vNor); vec3 Vd=uCam-vPos; float dist=length(Vd); vec3 V=Vd/dist;
   if(dot(N,V)<0.) N=-N;
+  if(vMat==31){ // cumulus puff: wrapped sun lighting, blue-grey shadow side, soft silhouette
+    vec3 Nn=N; float w=dot(Nn,uSunDir)*.5+.5; float n=fbm(vPos.xz*.012+vPos.y*.02);
+    vec3 shade=mix(uSky*.85+vec3(.08,.09,.12),vec3(1.,.99,.96)*(.5+uSunCol*.32),smoothstep(.15,.95,w+(n-.5)*.35))*vCol;
+    shade+=uSunCol*.18*pow(max(dot(-V,uSunDir),0.),4.)*(1.-w);
+    float rim=max(dot(Nn,V),0.); float a=smoothstep(.0,.6,rim)*(.75+.5*n);
+    float f=1.-exp(-dist*uFogD); shade=mix(shade,uFog,clamp(f,0.,1.)*.85);
+    frag=vec4(tonemap(shade*uExpo),clamp(a,0.,1.)*uAlpha); return; }
   if(vMat==29){ // layered cloud sheet: procedural density, lit from above, blended
     vec2 q=vPos.xz*.0032+vec2(uTime*.002,uTime*.0007)+vLoc.y*.37; float dd=fbm(q)*.65+fbm(q*3.1+5.)*.35; float th=vCol.r;
     float a=smoothstep(th,th+.22,dd); if(a<.01) discard;
@@ -1599,7 +1606,7 @@ class Rig {
         const poleW = M4.dir(M[SK.CH], side ? -.6 : .6, -1, .25);
         const r = ik2(S, T, .29, .265, V.add(S, poleW));
         const sideAx = M4.dir(M[SK.CH], 1, 0, 0);
-        segMat(M[ua], S, r.E, sideAx); segMat(M[fa], r.E, r.T, sideAx);
+        limbFrames(M[ua], M[fa], S, r.E, r.T, sideAx, false);
         // hand orientation: fingers along weapon forward-down
         const hy = V.norm(M4.dir(W, 0, .5, .9)); const hx = V.norm(M4.dir(W, side ? -1 : 1, 0, 0)); const hz = V.norm(V.cross(hx, hy)); const hx2 = V.cross(hy, hz);
         M4.basis(M[hb], hx2, hy, hz, r.T);
@@ -3139,6 +3146,7 @@ function buildTransport() {
     B.col(0x7a1a14, MAT.CANVAS).box(x + sd * .3, TP.floor + .95, z, .03, .75, .62); B.col(0x8a8c88, MAT.METAL).tube([x + sd * .3, TP.floor + 1.34, z - .33], [x + sd * .3, TP.floor + 1.34, z + .33], .016, .016, 6);
     B.col(0x1a1a1a, MAT.CANVAS).box(x + sd * .26, TP.floor + .85, z - .18, .02, .6, .04).box(x + sd * .26, TP.floor + .85, z + .18, .02, .6, .04); // harness straps
   }
+  cabinCargo(B);
   // overhead: static-line cables, pipes, cable trays, lights
   B.col(0xa0a098, MAT.METAL).tube([-1.0, TP.floor + 2.2, TP.z0 + 1], [-1.0, TP.floor + 2.2, TP.z1], .018, .018, 6).tube([1.0, TP.floor + 2.2, TP.z0 + 1], [1.0, TP.floor + 2.2, TP.z1], .018, .018, 6);
   B.col(0x777770, MAT.METAL); for (let z = TP.z0 + 2; z < TP.z1; z += 3) for (const x of [-1, 1]) B.tube([x, 6.3, z], [x, TP.floor + 2.2, z], .012, .012, 4);
@@ -3209,8 +3217,8 @@ function buildTransport() {
 function poseTransport(bones, o) {
   const m = o.m; const t = M4.create();
   bones.set(m, TPB.BODY * 16);
-  M4.translate(t, m, 0, TP.floor, TP.z1); M4.rotX(t, t, lerp(1.25, -.2, o.ramp)); bones.set(t, TPB.RAMP * 16);
-  M4.translate(t, m, 0, 6.35, TP.z1 + .2); M4.rotX(t, t, lerp(-.42, .55, o.door)); bones.set(t, TPB.DOOR * 16);
+  M4.translate(t, m, 0, TP.floor, TP.z1); M4.rotX(t, t, lerp(-1.32, .23, o.ramp)); bones.set(t, TPB.RAMP * 16);
+  M4.translate(t, m, 0, 6.35, TP.z1 + .2); M4.rotX(t, t, lerp(-.05, -.6, o.door)); bones.set(t, TPB.DOOR * 16);
   M4.translate(t, m, -2.21 - (o.btn || 0) * .03, 2.68, TP.z1 - .55); bones.set(t, TPB.BTN * 16);
   for (let i = 0; i < 4; i++) { const e = TP['eng' + i]; M4.translate(t, m, e[0], e[1], e[2]); M4.rotZ(t, t, o.fan * (i % 2 ? 1.03 : 1)); bones.set(t, (TPB.F0 + i) * 16); }
   bones.set(o.red ? m : ZERO_M, TPB.RED * 16); bones.set(o.green ? m : ZERO_M, TPB.GREEN * 16);
@@ -3344,7 +3352,7 @@ const ENV = {
   inCloud: { sunDir: V.norm([.5, .5, -.4]), sunCol: [.8, .78, .75], sky: [.85, .87, .9], gnd: [.6, .62, .64], fog: [.86, .88, .9], fogD: .09, fogH: 0, zen: [.86, .88, .9], hor: [.86, .88, .9], cloud: 0, skyFog: 1, expo: 1.0, wet: 0, rain: 0, wind: 1 },
   above: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [2.3, 2.05, 1.7], sky: [.42, .55, .78], gnd: [.45, .47, .5], fog: [.62, .7, .82], fogD: .00032, fogH: 0, zen: [.1, .24, .58], hor: [.58, .7, .86], cloud: .15, skyFog: .2, expo: 1.0, wet: 0, rain: 0, wind: 1 },
   aboveCabin: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [.5, .45, .38], sky: [.16, .17, .2], gnd: [.1, .1, .1], fog: [.72, .78, .86], fogD: .00045, fogH: 0, zen: [.16, .32, .66], hor: [.66, .76, .88], cloud: .15, skyFog: .35, expo: 1.2, wet: 0, rain: 0, wind: 1 },
-  below: { sunDir: V.norm([.2, .9, .3]), sunCol: [.35, .37, .36], sky: [.5, .56, .58], gnd: [.2, .24, .2], fog: [.52, .58, .58], fogD: .0012, fogH: 0, zen: [.5, .55, .58], hor: [.6, .65, .66], cloud: 1, skyFog: .9, expo: 1.1, wet: .6, rain: .6, wind: 1.6 },
+  below: { sunDir: V.norm([-.55, .42, -.45]), sunCol: [1.7, 1.55, 1.3], sky: [.45, .56, .72], gnd: [.3, .34, .3], fog: [.6, .68, .78], fogD: .00028, fogH: 0, zen: [.14, .3, .62], hor: [.6, .7, .84], cloud: .3, skyFog: .3, expo: 1.0, wet: 0, rain: 0, wind: 1 },
 };
 function envLerp(out, a, b, t) {
   for (const k in a) { const va = a[k], vb = b[k]; if (Array.isArray(va)) { out[k] = out[k] || [0, 0, 0]; for (let i = 0; i < 3; i++) out[k][i] = lerp(va[i], vb[i], t); } else out[k] = lerp(va, vb, t); }
@@ -3492,6 +3500,12 @@ function segMatX(o, p0, p1, xHint) {
   const y = V.norm(V.sub(p0, p1)); let x = V.sub(xHint, V.sc(y, V.dot(xHint, y))); const l = V.len(x); x = l > 1e-5 ? V.sc(x, 1 / l) : [1, 0, 0]; const z = V.cross(x, y);
   return M4.basis(o, x, y, z, p0);
 }
+// upper + lower limb matrices from the solved joint positions; local X = hinge axis of the bend
+function limbFrames(Mu, Ml, S, E, T, fallback, knee) {
+  const u = V.norm(V.sub(E, S)), f = V.norm(V.sub(T, E)); let h = V.cross(u, f); const hl = V.len(h);
+  if (hl < .08) h = fallback; else { h = V.sc(h, (knee ? -1 : 1) / hl); if (V.dot(h, fallback) < -.2 && hl < .3) h = V.lerp(h, fallback, 1 - hl / .3); }
+  segMatX(Mu, S, E, h); segMatX(Ml, E, T, h); return h;
+}
 function rigCommit(rig) {
   const M = rig.mats;
   for (let i = 0; i < SK.N; i++) { rig.bones.set((rig.hide & (1 << i)) ? ZERO_M : M[i], i * 16); if (rig.fullBones) rig.fullBones.set(M[i], i * 16); }
@@ -3501,15 +3515,15 @@ function ikArm(rig, left, T, pole, fingers, palm) {
   const M = rig.mats, sc = rig.sc || 1; const ua = left ? SK.UAL : SK.UAR, fa = left ? SK.FAL : SK.FAR, h = left ? SK.HL : SK.HR;
   const S = M4.pt(M[ua], 0, 0, 0); const r = ik2(S, T, .29 * sc, .265 * sc, V.add(S, pole));
   const side = palm || M4.dir(M[SK.CH], 1, 0, 0);
-  segMatX(M[ua], S, r.E, side); segMatX(M[fa], r.E, r.T, side);
-  if (fingers) segMatX(M[h], r.T, V.add(r.T, fingers), side);
+  const hx = limbFrames(M[ua], M[fa], S, r.E, r.T, side, false);
+  if (fingers) segMatX(M[h], r.T, V.add(r.T, fingers), hx);
   else { M4.copy(M[h], M[fa]); M[h][12] = r.T[0]; M[h][13] = r.T[1]; M[h][14] = r.T[2]; }
   return r;
 }
 function ikLeg(rig, left, T, pole, yawM) {
   const M = rig.mats, sc = rig.sc || 1; const th = left ? SK.THL : SK.THR, sh = left ? SK.SHL : SK.SHR, ft = left ? SK.FTL : SK.FTR;
   const S = M4.pt(M[th], 0, 0, 0); const r = ik2(S, T, .45 * sc, .42 * sc, V.add(S, pole));
-  const side = M4.dir(yawM, 1, 0, 0); segMatX(M[th], S, r.E, side); segMatX(M[sh], r.E, r.T, side);
+  const side = M4.dir(yawM, 1, 0, 0); limbFrames(M[th], M[sh], S, r.E, r.T, side, true);
   M4.basis(M[ft], M4.dir(yawM, 1, 0, 0), [0, 1, 0], M4.dir(yawM, 0, 0, 1), r.T);
   return r;
 }
@@ -3608,10 +3622,14 @@ class Actor {
       const m = this.wl.m; M4.ident(m);
       if (this.weaponMode === 'low') { M4.translate(m, m, .08, .1, -.26); M4.rotY(m, m, .55); M4.rotX(m, m, -.6); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'chest') { M4.translate(m, m, .02, .2, -.25); M4.rotY(m, m, .9); M4.rotX(m, m, -.15); M4.rotZ(m, m, 1.2); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
-      else if (this.weaponMode === 'knees') { M4.translate(m, m, 0, -.12, -.36); M4.rotX(m, m, 1.3); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
+      else if (this.weaponMode === 'knees') { wl = this.wl; wl.knees = true; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'lap' || this.weaponMode === 'hidden') { wl = null; }
-      else { M4.translate(m, m, .02, .26, .2); M4.rotZ(m, m, 2.3); wl = { m, gr: null, gl: null }; }
+      else { M4.translate(m, m, .02, .08, -.2); M4.rotZ(m, m, -.95); M4.rotY(m, m, Math.PI / 2); wl = { m, gr: null, gl: null }; } // slung diagonally across the chest
     }
+    if (wl && wl.knees) { // butt on the floor between the boots, muzzle up, hands on grip and handguard (pelvis space)
+      const r0 = M4.copy(M4.create(), this.rig.root); this.rig.solve(null, false); M4.copy(this.rig.root, r0); const M = this.rig.mats; const L = M4.create(); M4.translate(L, L, 0, .02, -.44); M4.rotX(L, L, 1.22);
+      M4.mul(wl.m, M4.invert(M4.create(), M[SK.CH]), M4.mul(M4.create(), M[SK.PEL], L)); }
+    else if (wl) wl.knees = false;
     this.rig.solve(wl, false);
     if (this.weaponKind) { if (this.weaponMode === 'hidden') M4.copy(this.wdyn.m, ZERO_M); else if (this.weaponMode === 'lap' && this.lapM) M4.copy(this.wdyn.m, this.lapM(this)); else M4.copy(this.wdyn.m, this.rig.mats[SK.WPN]); }
     if (this.post) this.post(this, dt);
@@ -3696,11 +3714,11 @@ const P = {
     const [f, s] = this.moveInput(); const spd = IN.k('ShiftLeft') ? 3.6 : 1.7; const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const L = this.local; this.vel[0] = damp(this.vel[0], (-sy * f + cy * s) * spd, 9, dt); this.vel[2] = damp(this.vel[2], (-cy * f - sy * s) * spd, 9, dt);
     L[0] += this.vel[0] * dt; L[2] += this.vel[2] * dt;
-    const pl = Story.plane; const rampLen = TP.rampL * Math.cos(-pl.rampAng);
+    const pl = Story.plane; const rampLen = TP.rampL * Math.cos(pl.rampAng);
     const onRamp = L[2] > TP.z1; const hw = onRamp ? 2.1 : 1.85; L[0] = clamp(L[0], -hw, hw);
     L[2] = clamp(L[2], -12, pl.ramp > .9 ? TP.z1 + rampLen + 3 : TP.z1 - .4);
     for (const a of Story.cabinBlockers()) { const dx = L[0] - a[0], dz = L[2] - a[2]; const d = Math.hypot(dx, dz); if (d < .55 && d > 1e-4) { L[0] = a[0] + dx / d * .55; L[2] = a[2] + dz / d * .55; } }
-    L[1] = onRamp ? TP.floor - (L[2] - TP.z1) * Math.tan(-pl.rampAng) : TP.floor;
+    L[1] = onRamp ? TP.floor - (L[2] - TP.z1) * Math.tan(Math.max(0, pl.rampAng)) : TP.floor;
     this.speed = Math.hypot(this.vel[0], this.vel[2]);
     this.stepAcc = (this.stepAcc || 0) + this.speed * dt; if (this.stepAcc > 1.3) { this.stepAcc = 0; AUD.step('metal', null, .22); }
     if (L[2] > TP.z1 + rampLen - .2 && pl.ramp > .9) Story.playerJumped();
@@ -3916,6 +3934,7 @@ function buildFOB(W) {
   W.vehicles.push({ car: truck, pos: [-40, 0, -100], yaw: .3 }, { car: jeep, pos: [-110, 0, -98], yaw: 1.2 }, { car: jeep, pos: [-14, 0, 48], yaw: -.4 }, { car: truck, pos: [-180, 0, 0], yaw: 1.57 });
   for (const v of W.vehicles) W.colBox(v.pos[0], 1, v.pos[2], 3.2, 2, 3.2, {});
   // the parked transport's solid footprint (open at the ramp)
+  clutterFOB(W);
   { const px = FOB.plane.x, pz = FOB.plane.z; W.planeCol = W.col(px - 13.0, 0, pz - 3.4, px + 26, 8, pz + 3.4, { surf: 'metal' }); W.col(px - 6, 0, pz - 4.2, px + 4, 2.2, pz + 4.2, {}); }
 }
 // flat runway numbers
@@ -3950,8 +3969,8 @@ function buildWashroom(W) {
   B.col(0xd8d8d0, MAT.PLASTIC).box(sx, fy + .4, z0 + .12, .12, .8, .12);
   B.col(0xb8bcc0, MAT.METAL).cyl(sx, fy + .88, z0 + .08, .02, .018, .16, 10).tube([sx, fy + 1.03, z0 + .08], [sx, fy + 1.05, z0 + .2], .014, .012, 8); B.col(0x2050c0, MAT.PAINT).cyl(sx - .06, fy + .88, z0 + .07, .018, .018, .03, 8);
   // mirror frame (the reflective quad itself is a dynamic object)
-  B.col(0x8a8c88, MAT.METAL).box(sx, fy + 1.55, z0 + .015, .74, .94, .02); B.col(0x2a2a2a, MAT.METAL).box(sx, fy + 2.06, z0 + .06, .5, .06, .1); B.col(0xfff6e8, MAT.EMIT).box(sx, fy + 2.03, z0 + .1, .44, .015, .02); W.light([sx, fy + 2.0, z0 + .35], 0xfff0dc, .7, 2.6); W.mirror = { p: [sx, fy + 1.55, z0 + .03], n: [0, 0, 1], w: .68, h: .88 };
-  D.col(0x7a5a3a, MAT.RUST).box(sx + .3, fy + 1.12, z0 + .028, .02, .06, .002);
+  B.col(0x8a8c88, MAT.METAL).box(sx, fy + 1.55, z0 + .038, .74, .94, .02); B.col(0x2a2a2a, MAT.METAL).box(sx, fy + 2.06, z0 + .06, .5, .06, .1); B.col(0xfff6e8, MAT.EMIT).box(sx, fy + 2.03, z0 + .1, .44, .015, .02); W.light([sx, fy + 2.0, z0 + .35], 0xfff0dc, .7, 2.6); W.mirror = { p: [sx, fy + 1.55, z0 + .056], n: [0, 0, 1], w: .68, h: .88 };
+  D.col(0x7a5a3a, MAT.RUST).box(sx + .3, fy + 1.1, z0 + .05, .02, .04, .002);
   B.col(0x9a9c98, MAT.METAL).box(sx, fy + 1.06, z0 + .1, .6, .02, .14);                          // shelf
   B.col(0x2a5a8a, MAT.PLASTIC).cyl(sx - .18, fy + 1.07, z0 + .1, .03, .03, .14, 8); B.col(0xd8d8d0, MAT.PLASTIC).cyl(sx + .15, fy + 1.07, z0 + .1, .022, .02, .1, 8); B.col(0x3a3a3a, MAT.PLASTIC).box(sx + .05, fy + 1.09, z0 + .1, .13, .04, .05);
   B.col(0x777777, MAT.METAL).box(sx + .62, fy + 1.3, z0 + .07, .3, .38, .12); B.col(0xeeeeea, MAT.PAINT).box(sx + .62, fy + 1.1, z0 + .1, .2, .04, .06);  // paper towels
@@ -3998,17 +4017,167 @@ function makeCloudDeck(base, top, n, o = {}) {
   return layers;
 }
 
-/* ---------------- the drop zone: endless jungle below the deck ---------------- */
+
+/* ---- 09b_clutter.js ---- */
+/* =====================================================================
+   OVERCAST — dense dressing: base clutter, packed cargo cabin,
+   cumulus cloud field and the huge world below.
+   ===================================================================== */
+/* ---------------- the base: a lot more stuff everywhere ---------------- */
+function clutterFOB(W) {
+  const R = () => W.R(); const B = W.B, D = W.D;
+  // keep-out: the walking route container → ramp, and the vignette stages
+  const route = [[-126, -19], [-110, -60], [-90, -100], [-78, -120]];
+  const keep = [[FOB.mech.x, FOB.mech.z, 9], [FOB.tent.x, FOB.tent.z, 7], [FOB.pad.x, FOB.pad.z, 17], [-120, -45, 4], [-155, -40, 7], [FOB.cont.x, FOB.cont.z, 6], [-190, -104, 9], [-30, -42, 7], [-12, -42, 6], [-58, -120, 30], [-92, -126, 6]];
+  const segD = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1]; const t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz), 0, 1); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); };
+  const taken = [];
+  const free = (x, z, r) => {
+    for (let i = 0; i < route.length - 1; i++) if (segD(x, z, route[i], route[i + 1]) < 4.5 + r) return false;
+    for (const [kx, kz, kr] of keep) if (Math.hypot(x - kx, z - kz) < kr + r) return false;
+    if (Math.abs(z + 10) < 2.5 + r && x > -205 && x < -55) return false; if (Math.abs(z - 90) < 2.5 + r && x > -205 && x < -55) return false; // jogging loop
+    if (Math.abs(x + 200) < 2.5 + r && z > -12 && z < 92) return false; if (Math.abs(x + 60) < 2.5 + r && z > -12 && z < 92) return false;
+    if (Math.abs(x + 100) < 2.5 + r && z > -82 && z < 12) return false; if (Math.abs(x + 70) < 2.5 + r && z > -82 && z < 12) return false; if (Math.abs(z + 80) < 2.5 + r && x > -102 && x < -68) return false;
+    if (Math.abs(z - FOB.runway.z) < FOB.runway.w / 2 + 2 && x > -230) return false;
+    for (const t of taken) if (Math.hypot(x - t[0], z - t[1]) < t[2] + r) return false;
+    taken.push([x, z, r]); return true;
+  };
+  const drum = (x, z, c) => { W.barrel(x, z, 0, c); };
+  const kinds = {
+    crates(x, z) { for (let i = 0; i < 4; i++) W.crateStack(x + (i % 2) * 1.0, z + (i / 2 | 0) * 1.0, 0); B.col(0x2a2c22, MAT.CANVAS); for (const dx of [.5]) B.box(x + dx, 1.85, z + .5, 2.1, .03, 2.1); },
+    drums(x, z) { const c = [0x3a4a2a, 0x7a1a12, 0x2a3a5a, 0x6a6a5a][R() * 4 | 0]; for (let i = 0; i < 6; i++) drum(x + (i % 3) * .66, z + (i / 3 | 0) * .66, c); if (R() < .5) for (let i = 0; i < 2; i++) drum(x + .33 + i * .66, z + .33, c); },
+    pallets(x, z) { for (let i = 0; i < 3; i++) { W.pallet(x + i * 1.4, z, .05); W.sacks(x + i * 1.4, z, .2); } B.col(0x4a5038, MAT.CANVAS).box(x + 1.4, .95, z, 4.2, .05, 1.5); },
+    ammo(x, z) { B.col(0x4a5432, MAT.METAL); for (let i = 0; i < 12; i++) B.box(x + (i % 4) * .34, .14 + (i / 8 | 0) * .28, z + ((i / 4 | 0) % 2) * .22, .3, .25, .18); W.colBox(x + .5, .3, z + .1, 1.4, .6, .5, {}); },
+    tires(x, z) { W.tires(x, z, 0); W.tires(x + .8, z + .3, 0); },
+    gen(x, z) { const g = W.generator(x, z, R() * 4 | 0); W.genPos.push(g); D.col(0x111111, MAT.RUBBER); let px = x, pz = z; for (let i = 0; i < 6; i++) { const nx = px + rnd(-3, 3), nz = pz + rnd(-3, 3); D.tube([px, .04, pz], [nx, .04, nz], .025, .025, 5); px = nx; pz = nz; } },
+    cones(x, z) { for (let i = 0; i < 5; i++) { B.col(0xe05010, MAT.PLASTIC).cyl(x + i * 1.6, 0, z, .18, .03, .55, 8); B.col(0xeeeeee, MAT.PAINT).cyl(x + i * 1.6, .25, z, .11, .08, .08, 8); } },
+    jersey(x, z) { for (let i = 0; i < 4; i++) { B.col(0x8a8680, MAT.CONC).tbox(x + i * 3, .45, z, 2.9, .9, .7, 2.9, .25); W.colBox(x + i * 3, .45, z, 2.9, .9, .7, {}); } },
+    toilets(x, z) { for (let i = 0; i < 3; i++) { const px = x + i * 1.3; B.col(0x2a5a8a, MAT.PLASTIC).box(px, 1.15, z, 1.15, 2.3, 1.15).box(px, 2.35, z, 1.2, .1, 1.2); B.col(0x1a3a5a, MAT.PLASTIC).box(px, 1.1, z - .58, .9, 2, .02); W.colBox(px, 1.15, z, 1.15, 2.3, 1.15, {}); } },
+    canopy(x, z) { // tarp shelter with folding tables, boxes, radios
+      B.col(0x4e5440, MAT.CANVAS).box(x, 2.6, z, 6, .05, 4); for (const s of [-1, 1]) for (const e of [-1, 1]) B.col(0x555555, MAT.METAL).cyl(x + s * 2.9, 0, z + e * 1.9, .04, .04, 2.6, 6);
+      B.col(0x6a6a5a, MAT.METAL).box(x, .75, z, 2.4, .05, .8); for (const s of [-1, 1]) B.box(x + s * 1.1, .37, z, .04, .74, .7);
+      B.col(0x2a2c26, MAT.PLASTIC).box(x - .6, .95, z, .4, .35, .3).box(x + .3, .9, z + .1, .5, .25, .35); B.col(0x30d050, MAT.EMIT).box(x - .6, 1.0, z - .16, .25, .12, .01);
+      B.col(0xd8d0b0, MAT.PAINT).box(x + .7, .78, z - .1, .4, .01, .3); W.colBox(x, .4, z, 2.4, .8, .8, {});
+      for (let i = 0; i < 4; i++) { W.crate(x - 2.4 + i * .5, z + 1.5, 0, .45, .45, .45, 0x5a5a3a); }
+    },
+    conex(x, z) { W.container(x, z, R() < .5 ? 0 : 1, [0x4a5a3a, 0x7a3020, 0x6a6a62, 0x3a3e36][R() * 4 | 0], 0); },
+    bladder(x, z) { B.col(0x2a2c26, MAT.RUBBER).sph(x, .4, z, 2.6, .45, 1.6, 12, 5); W.colBox(x, .4, z, 5, .8, 3, {}); D.col(0x111111, MAT.RUBBER).tube([x + 2.5, .1, z], [x + 6, .05, z + 2], .05, .05, 6); },
+    lights(x, z) { B.col(0xc8a020, MAT.PAINT).box(x, .6, z, 1.6, 1.2, 1.0); B.col(0x555555, MAT.METAL).cyl(x, 1.2, z, .06, .05, 6, 6); B.col(0x2a2a2a, MAT.METAL).box(x, 7.2, z, 1.6, .5, .2); B.col(0xfff6e0, MAT.EMIT); for (let i = 0; i < 4; i++) B.box(x - .6 + i * .4, 7.2, z - .11, .3, .3, .02); W.colBox(x, .6, z, 1.6, 1.2, 1, {}); W.light([x, 7, z - .5], 0xfff0d8, 1.6, 22); },
+    bikes(x, z) { for (let i = 0; i < 3; i++) { const px = x + i * .9; B.col(0x111111, MAT.RUBBER).cylX(px, .33, z - .65, .33, .1, 12).cylX(px, .33, z + .65, .33, .1, 12); B.col(0x3a4030, MAT.PAINT).box(px, .65, z, .2, .3, 1.0); B.col(0x111111, MAT.LEATHER).box(px, .85, z + .15, .22, .1, .55); B.col(0x222222, MAT.METAL).box(px, 1.0, z - .55, .7, .04, .04); } W.colBox(x + .9, .5, z, 2.6, 1, 1.6, {}); },
+    truck(x, z) { const car = W._cars || (W._cars = [buildCar('truck', 0x4a5038), buildCar('pickup', 0x4e5440), buildCar('truck', 0x5a5a48)]); const c = car[R() * 3 | 0]; const yaw = R() * TAU; W.vehicles.push({ car: c, pos: [x, 0, z], yaw }); W.colBox(x, 1.1, z, 3.4, 2.2, 3.4, {}); },
+    stack2(x, z) { W.container(x, z, R() < .5 ? 0 : 1, [0x4a5a3a, 0x7a3020, 0x2a4a6a, 0x6a6a62][R() * 4 | 0], 0); W.container(x, z, R() < .5 ? 0 : 1, [0x3a3e36, 0x5a2a20, 0x8a6a3a][R() * 3 | 0], 2.59); },
+    mesh(x, z) { // camo net over a stack
+      W.crateStack(x, z, 0); W.crateStack(x + 1, z, 0); B.col(0x3a4428, MAT.CAMO); B.begin(); B.quad([x - 1.6, 0, z - 1.5], [x + 2.6, 0, z - 1.5], [x + 1.8, 2.2, z], [x - .8, 2.2, z]); B.quad([x - .8, 2.2, z], [x + 1.8, 2.2, z], [x + 2.6, 0, z + 1.5], [x - 1.6, 0, z + 1.5]); },
+  };
+  const names = Object.keys(kinds); const size = { truck: 4.5, stack2: 4.2, crates: 2.5, drums: 2.2, pallets: 3.5, ammo: 1.5, tires: 1.4, gen: 2.5, cones: 4.5, jersey: 6.5, toilets: 2.6, canopy: 4.2, conex: 4, bladder: 4, lights: 1.5, bikes: 2.2, mesh: 2.8 };
+  let placed = 0;
+  const weighted = names.concat(['truck', 'truck', 'stack2', 'conex', 'canopy', 'crates', 'drums', 'mesh', 'pallets']);
+  for (let n = 0; n < 12000 && placed < 700; n++) {
+    // denser near the walking route, the plane and the tents
+    const near = R() < .7; const x = near ? rnd(-215, -20) : rnd(-310, 300), z = near ? rnd(-100, 60) : rnd(-90, 120);
+    const k = weighted[R() * weighted.length | 0]; if (!free(x, z, size[k])) continue; kinds[k](x, z); placed++;
+  }
+  // scattered small junk right along the route edges (crates, cases, drums) so the walk feels busy
+  for (let i = 0; i < route.length - 1; i++) { const a = route[i], b = route[i + 1]; for (let t = .03; t < 1; t += .05) { const x = lerp(a[0], b[0], t), z = lerp(a[1], b[1], t); const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); const nx = -dz / L, nz = dx / L; const sd = R() < .5 ? -1 : 1; const px = x + nx * sd * rnd(5.5, 8), pz = z + nz * sd * rnd(5.5, 8); if (!free(px, pz, 1)) continue; if (R() < .5) W.crateStack(px, pz, 0); else drum(px, pz, 0x3a4a2a); } }
+  W.clutterTaken = taken;
+}
+
+/* ---------------- the cargo cabin, packed ---------------- */
+function cabinCargo(B) {
+  const f = TP.floor, rng = mulberry(4242), R = () => rng();
+  const bag = (x, y, z, c) => { B.col(c, MAT.CANVAS).sph(x, y + .14, z, .2, .15, .32, 9, 5); B.col(dk(c, .7), MAT.CANVAS).box(x, y + .29, z, .04, .02, .5); B.col(0x111111, MAT.CANVAS).torus(x, y + .3, z - .2, .05, .01, 6, 3); };
+  const ruck = (x, y, z, c) => { B.col(c, MAT.CANVAS).box(x, y + .25, z, .32, .5, .25); B.col(dk(c, .8), MAT.CANVAS).box(x, y + .15, z + (x > 0 ? -.13 : .13) * 0, .26, .18, .27).box(x, y + .52, z, .3, .06, .26); };
+  const can = (x, y, z) => { B.col(0x4a5432, MAT.METAL).box(x, y + .11, z, .14, .22, .28); B.col(0x2a2e1e, MAT.METAL).box(x, y + .23, z, .05, .02, .2); B.col(0xc8a020, MAT.PAINT).box(x + .071, y + .12, z, .002, .05, .15); };
+  const case_ = (x, y, z, c, w = .55, h = .22, d = .4) => { B.col(c, MAT.PLASTIC).box(x, y + h / 2, z, w, h, d); B.col(dk(c, .6), MAT.PLASTIC).box(x, y + h / 2, z, w + .01, .03, d + .01); B.col(0x888888, MAT.METAL).box(x, y + h + .015, z, .14, .03, .03); };
+  // under every seat: rucksacks, duffels, ammo cans, cases
+  for (const s of TP.seats) {
+    const x = s.pos[0] + s.side * .05, z = s.pos[2]; const k = R();
+    if (k < .3) ruck(x, f, z, [0x4a5038, 0x5a5e44, 0x3e4430][R() * 3 | 0]); else if (k < .55) bag(x, f, z, [0x4a5038, 0x2a2e26, 0x5a5440][R() * 3 | 0]); else if (k < .8) { can(x - .08, f, z - .1); can(x + .08, f, z + .12); } else case_(x, f, z, [0x1a1a1a, 0x3a4030][R() * 2 | 0], .4, .2, .5);
+    // helmet bags / canteens hanging off the seat frame
+    if (R() < .4) { B.col(0x3a3f30, MAT.CANVAS).box(s.pos[0] + s.side * .3, f + .3, z + .2, .04, .25, .15); }
+  }
+  // forward cargo bay: palletised load under nets, strapped drums, cases, duffel pile
+  const pal = (x, z) => { B.col(0x6a5640, MAT.WOOD).box(x, f + .07, z, 1.6, .14, 1.2); };
+  pal(-1.2, -17.8); pal(1.2, -17.8); pal(-1.2, -16.3); pal(1.2, -16.3);
+  for (const [x, z] of [[-1.5, -18.1], [-.9, -18.1], [-1.5, -17.5], [-.9, -17.5]]) { B.col(0x3a4a2a, MAT.METAL).cyl(x, f + .14, z, .29, .29, .88, 14); B.col(0x2a3a1a, MAT.METAL).torus(x, f + .45, z, .29, .015, 14, 3).torus(x, f + .8, z, .29, .015, 14, 3); B.col(0x1a1a1a, MAT.METAL).cyl(x + .12, f + 1.02, z, .04, .04, .02, 8); }
+  for (let i = 0; i < 6; i++) case_(.75 + (i % 2) * .7, f + .14 + (i / 2 | 0) * .3, -17.8, [0x2a2e26, 0x4a5038, 0x1a1a1a][i % 3], .62, .28, 1.0);
+  B.col(0x5a5040, MAT.WOOD); for (let i = 0; i < 4; i++) B.box(-1.2 + (i % 2) * .7, f + .5 + (i / 2 | 0) * .7, -16.3, .62, .66, 1.0);
+  for (let i = 0; i < 9; i++) bag(.8 + (i % 3) * .3, f + .14 + (i / 3 | 0) * .22, -16.4 + rnd(-.3, .3), [0x4a5038, 0x2a2e26, 0x5a5440, 0x2a3a5a][i % 4]);
+  // suitcases (yes — somebody brought a suitcase)
+  case_(-1.8, f, -14.2, 0x3a2a20, .5, .7, .25); case_(-1.75, f, -13.6, 0x1a2a4a, .45, .62, .24); B.col(0x888888, MAT.METAL).box(-1.8, f + .78, -14.2, .2, .04, .03);
+  // nets + ratchet straps over the load
+  B.col(0x1a1c16, MAT.CANVAS); for (let i = 0; i < 9; i++) { const z = -18.6 + i * .33; B.beam([-2.1, f + .15, z], [-2.0, f + 1.5, z], .02, .02).beam([-2.0, f + 1.5, z], [2.0, f + 1.5, z], .02, .02).beam([2.0, f + 1.5, z], [2.1, f + .15, z], .02, .02); }
+  for (let i = 0; i < 9; i++) { const x = -2 + i * .5; B.beam([x, f + 1.52, -18.7], [x, f + 1.52, -15.6], .02, .02); }
+  B.col(0xc8a020, MAT.CANVAS); for (const z of [-17.8, -16.3]) B.beam([-2.2, f + .02, z], [-2.0, f + 1.56, z], .05, .01).beam([-2.0, f + 1.56, z], [2.0, f + 1.56, z], .05, .01).beam([2.0, f + 1.56, z], [2.2, f + .02, z], .05, .01);
+  // rear corners behind the last seats: more crates and a stretcher
+  for (const s of [-1, 1]) { for (let i = 0; i < 3; i++) { B.col(0x5a5040, MAT.WOOD).box(s * 2.1, f + .3 + i * .58, 10.5, .7, .56, .9); B.col(0x2a2a20, MAT.PAINT).box(s * 1.74, f + .3 + i * .58, 10.5, .01, .2, .5); } }
+  B.col(0x4a5038, MAT.CANVAS).box(-2.35, f + 2.1, 11.6, .1, 2, .6); B.col(0x777777, MAT.METAL).box(-2.32, f + 2.1, 11.32, .05, 2.1, .04).box(-2.32, f + 2.1, 11.88, .05, 2.1, .04);
+  // walls above the seats: cable looms, hoses, extinguishers, O2 bottles, first-aid bags, hanging straps
+  for (const s of [-1, 1]) {
+    const wx = s * 2.62;
+    for (let k = 0; k < 4; k++) { B.col([0x111111, 0x1a1a1a, 0x3a3a3a, 0x8a2a1a][k], MAT.RUBBER).tube([wx - s * k * .03, 4.55 + k * .05, TP.z0 + 1], [wx - s * k * .03, 4.55 + k * .05, TP.z1 - .3], .018, .018, 5); }
+    B.col(0x666660, MAT.METAL); for (let z = TP.z0 + 1.5; z < TP.z1; z += .9) B.box(wx - s * .04, 4.6, z, .03, .16, .05);
+    for (let z = -10.6; z < 9.6; z += 1.44) { for (let k = 0; k < 3; k++) { const zz = z + k * .06; B.col(0x111111, MAT.RUBBER).tube([wx, 4.5, zz], [wx - s * .05, 4.0 - R() * .4, zz + .25 * (R() - .5)], .007, .007, 4); } }
+    for (const z of [-9.5, -2.3, 4.9]) { B.col(0xa01010, MAT.PAINT).cyl(wx - s * .05, 3.6, z, .07, .07, .45, 10); B.col(0x111111, MAT.METAL).cyl(wx - s * .05, 4.05, z, .03, .03, .08, 6); }
+    for (const z of [-6, 1.2, 8.4]) { B.col(0x3a6a3a, MAT.METAL).cyl(wx - s * .07, 3.5, z, .09, .09, .7, 10); B.col(0xc8c8c0, MAT.METAL).cyl(wx - s * .07, 4.2, z, .04, .04, .06, 8); B.col(0x111111, MAT.RUBBER).tube([wx - s * .07, 4.26, z], [wx - s * .2, 4.0, z + .3], .01, .01, 4); }
+    for (const z of [-4.2, 6.6]) { B.col(0x3a4a2a, MAT.CANVAS).box(wx - s * .1, 3.7, z, .16, .32, .42); B.col(0xeeeeee, MAT.PAINT).box(wx - s * .19, 3.7, z, .005, .16, .16); B.col(0xb01818, MAT.PAINT).box(wx - s * .195, 3.7, z, .004, .1, .03).box(wx - s * .195, 3.7, z, .004, .03, .1); }
+    // cargo net strung along the upper wall with gear stuffed in it
+    B.col(0x1a1c16, MAT.CANVAS); for (let z = -11; z < 10; z += .3) B.beam([wx, 5.1, z], [wx - s * .06, 5.7, z], .012, .012); for (const y of [5.1, 5.4, 5.7]) B.beam([wx - s * .03, y, -11], [wx - s * .03, y, 10], .012, .012);
+    for (let z = -10.5; z < 9.5; z += 1.2 + R()) { if (R() < .6) bag(wx - s * .2, 5.05, z, [0x4a5038, 0x2a2e26, 0x5a5440][R() * 3 | 0]); else B.col(0x3a3e2c, MAT.PAINT).sph(wx - s * .2, 5.3, z, .15, .11, .15, 8, 4); }
+  }
+  // ceiling: extra cable trays, hydraulic lines, hanging straps
+  B.col(0x2a2c28, MAT.METAL).box(-1.2, 6.42, -3, .3, .06, 30).box(1.2, 6.42, -3, .3, .06, 30);
+  for (const x of [-1.2, 1.2]) for (let k = 0; k < 5; k++) B.col([0x111111, 0x8a2a1a, 0x1a3a6a, 0x111111, 0x3a3a3a][k], MAT.RUBBER).tube([x - .1 + k * .05, 6.37, TP.z0 + 1], [x - .1 + k * .05, 6.37, TP.z1 - .2], .015, .015, 5);
+  B.col(0x6a5a2a, MAT.METAL).tube([.4, 6.1, TP.z0 + 1], [.4, 6.1, TP.z1], .03, .03, 8);
+  B.col(0x1a1a1a, MAT.CANVAS); for (let z = -11; z < 11; z += .8) { const x = (R() - .5) * 1.6; B.beam([x, 6.3, z], [x + (R() - .5) * .1, 5.6 - R() * .4, z + (R() - .5) * .2], .03, .006); }
+  // floor: tie-down straps snaking across, spare static lines
+  B.col(0xc8a020, MAT.CANVAS); for (let z = -11; z < 10; z += 2.7) B.beam([-1.7, f + .015, z], [1.7, f + .015, z + .4], .05, .006);
+}
+
+/* ---------------- cumulus field (soft, puffy, sunlit) ---------------- */
+const PUFFS = { blobs: [], items: [] };
+function buildCumulus(seed, cx, cz, n, opt = {}) {
+  const rng = mulberry(seed), R = () => rng(); const items = [];
+  for (let c = 0; c < n; c++) {
+    let x, z; const a = R() * TAU, d = (opt.minR || 0) + Math.pow(R(), .7) * (opt.maxR || 4500); x = cx + Math.cos(a) * d; z = cz + Math.sin(a) * d;
+    const base = (opt.base || 700) + R() * (opt.spread || 350); const size = 50 + Math.pow(R(), 1.5) * 220;
+    const B = new MB(12000); const blobs = [];
+    const k = 6 + (size / 18 | 0);
+    for (let i = 0; i < k; i++) {
+      const ang = R() * TAU, rr = Math.pow(R(), .6) * size * .6; const bx = Math.cos(ang) * rr, bz = Math.sin(ang) * rr;
+      const r = size * (.28 + R() * .3) * (1 - rr / size * .5); const by = r * .45 + R() * size * .25 * (1 - rr / size);
+      const shade = .85 + R() * .15; B.col([shade, shade, shade], MAT.PUFF).sph(bx, by, bz, r, r * (.75 + R() * .25), r, 12, 7);
+      blobs.push([x + bx, base + by, z + bz, r * .85]);
+    }
+    // flat-ish base
+    B.col([.78, .8, .84], MAT.PUFF).sph(0, size * .12, 0, size * .75, size * .14, size * .7, 14, 5);
+    const it = { mesh: B.mesh(), m: M4.trs(M4.create(), M4.create(), x, base, z, 0, 0, 0), pos: [x, base + size * .3, z], r: size * 1.4, alpha: .93, noShadow: true, puff: true, blobs, cx: x, cz: z, base, size };
+    items.push(it); PUFFS.blobs.push(...blobs);
+  }
+  PUFFS.items.push(...items); return items;
+}
+function puffAt(p) { for (const b of PUFFS.blobs) { const dx = p[0] - b[0], dy = p[1] - b[1], dz = p[2] - b[2]; if (dx * dx + dy * dy + dz * dz < b[3] * b[3]) return true; } return false; }
+
+/* ---------------- the huge world below ---------------- */
 function buildDropZone(W) {
-  W.initTerrain((x, z) => fbm(x * .0012, z * .0012, 5) * 260 + fbm(x * .006, z * .006, 3) * 40 - Math.max(0, 40 - Math.abs(z - Math.sin(x * .002) * 300 - 200) * .3) * 2, 40);
+  const river = (x, z) => Math.abs(z - Math.sin(x * .0011) * 900 - Math.sin(x * .0037) * 160 - 200);
+  W.initTerrain((x, z) => {
+    const r = Math.hypot(x, z); let h = fbm(x * .0009, z * .0009, 5) * 320 + fbm(x * .005, z * .005, 3) * 55;
+    h += smooth((r - 2600) / 4200) * (fbm(x * .0005 + 7, z * .0005, 5) * 1900 + 300);           // mountain ranges ringing the valley
+    h -= Math.max(0, 70 - river(x, z) * .25) * 2.2;                                             // the river valley
+    return h;
+  }, 80);
   W.buildTerrainMesh((x, z, y, n) => {
-    const v = vnoise(x * .02, z * .02), r = Math.abs(z - Math.sin(x * .002) * 300 - 200) < 20;
-    if (r) return { c: lin(0x3a4a40), m: MAT.MUD };
-    return { c: lin(v > .5 ? 0x1a3418 : 0x24421e).map(q => q * (.7 + vnoise(x * .1, z * .1) * .5)), m: MAT.LEAF };
+    const v = vnoise(x * .01, z * .01), rv = river(x, z);
+    if (rv < 28) return { c: lin(0x3a5054), m: MAT.TILE };
+    if (rv < 45) return { c: lin(0x6a5e44), m: MAT.MUD };
+    if (y > 1500) return { c: lin(0x8a8a86).map(q => q * (.85 + v * .3)), m: MAT.ROCK };
+    if (n[1] < .72) return { c: lin(0x4a4a3a).map(q => q * (.8 + v * .4)), m: MAT.ROCK };
+    return { c: lin(v > .5 ? 0x1a3418 : 0x24421e).map(q => q * (.7 + vnoise(x * .05, z * .05) * .5)), m: MAT.LEAF };
   });
   const R = () => W.R();
-  // canopy lumps near the fall path for parallax in the last seconds
-  for (let i = 0; i < 260; i++) { const x = rnd(-700, 700), z = rnd(-700, 700); const y = W.th(x, z); W.B.col([0x1f3a1c, 0x2a4a22, 0x335026][R() * 3 | 0], MAT.LEAF).blob(x, y + 18, z, 9 + R() * 8, 6 + R() * 4, i, .4, 8, 5); }
+  for (let i = 0; i < 420; i++) { const a = R() * TAU, d = Math.pow(R(), .7) * 1500; const x = Math.cos(a) * d, z = Math.sin(a) * d; if (river(x, z) < 40) continue; const y = W.th(x, z); W.B.col([0x1f3a1c, 0x2a4a22, 0x335026, 0x3a5a2a][R() * 4 | 0], MAT.LEAF).blob(x, y + 14, z, 10 + R() * 9, 7 + R() * 5, i, .4, 8, 5); }
+  // a clearing with a smoke flare at the rally point by the river bend
+  W.rally = [Math.sin(0) * 0 + 300, 0, Math.sin(300 * .0011) * 900 + 200];
 }
 
 /* ---- 10_story.js ---- */
@@ -4037,7 +4206,7 @@ const Story = {
     this.cos = []; this.interacts = []; this.flags = {}; this.phase = 'none'; this.t = 0; this.rainOpen = 1; this.titles = []; this.planeDry = null; Cabin.drank = false; Cabin.juice = null;
     Object.assign(Flight, { phase: 'parked', t: 0, lifted: false, cloudIn: false, swapped: false, above: false, inDeck: false, below: false, ended: false, rampTarget: undefined, fallT: undefined, engine: null, extEngine: null, wind: null }); G.raysOn = 0; R.post.grade = [1, 1, 1]; G.actors = []; G.extraDyn = []; G.glass = []; G.updaters = []; G.particles = []; G.timers = []; G.time = 0; G.dynLights = [];
     const W = new World(4400, 11); buildFOB(W); W.chunks = buildChunks(W.B, W.D, 60); W.B = null; W.D = null; this.FW = W;
-    const Z = new World(6000, 23); buildDropZone(Z); Z.chunks = buildChunks(Z.B, Z.D, 120); Z.B = null; Z.D = null; this.ZW = Z;
+    const Z = new World(16000, 23); buildDropZone(Z); Z.chunks = buildChunks(Z.B, Z.D, 800); Z.B = null; Z.D = null; this.ZW = Z;
     this.useWorld(W);
     G.dry = W.dryBoxes.slice();
     // mirror + door
@@ -4068,7 +4237,7 @@ const Story = {
     const p = this.plane; const m = p.m; M4.ident(m); M4.translate(m, m, p.pos[0], p.pos[1], p.pos[2]); M4.rotY(m, m, p.yaw); M4.rotX(m, m, p.pitch); M4.rotZ(m, m, p.roll);
     if (p.shake > .001) { M4.rotX(m, m, Math.sin(G.time * 23) * .0025 * p.shake); M4.rotZ(m, m, Math.sin(G.time * 17.3) * .003 * p.shake); M4.translate(m, m, 0, Math.sin(G.time * 13.1) * .015 * p.shake, 0); }
     poseTransport(p.bones, { m, ramp: p.ramp, door: p.door, fan: p.fan, btn: p.btn, red: p.red, green: p.green });
-    p.rampAng = lerp(1.25, -.2, p.ramp); p.inv = M4.invert(p.inv || M4.create(), m);
+    p.rampAng = lerp(-1.32, .23, p.ramp); p.inv = M4.invert(p.inv || M4.create(), m);
     if (!this.planeDry) { this.planeDry = { m: true, inv: p.inv, mn: [-3, 0, -25], mx: [3, 7, TP.z1 + .3] }; G.dry.push(this.planeDry); } this.planeDry.inv = p.inv;
     if (this.cabinLights) for (const L of this.cabinLights) { const w = M4.pt(m, L.lp[0], L.lp[1], L.lp[2]); L.pos[0] = w[0]; L.pos[1] = w[1]; L.pos[2] = w[2]; }
   },
@@ -4084,9 +4253,9 @@ const Story = {
     this.phase = 'mirror'; UI.objective(''); UI.card(['FOB KESTREL', 'SOUTH-EAST ASIA  ·  06:14 LOCAL', 'DAY 41']);
     this.tubeFlicker();
     this.run(function* () {
-      yield 3.5; UI.hint('MOVE THE MOUSE TO LOOK AROUND');
-      yield () => G.time > 13 || Story.flags.lookedAround;
-      yield 1.5;
+      yield 2.5; UI.hint('MOVE THE MOUSE TO LOOK AROUND');
+      yield () => G.time > 5 || Story.flags.lookedAround;
+      yield .3;
       Story.knock(); yield 1.2;
       yield Story.say(Cabin.mox, "Rook! You fall in or what? Wheels up in ten!", { gap: .4 });
       yield 1.0; Story.knock(.6);
@@ -4145,7 +4314,7 @@ const Story = {
   /* ---------------- per frame ---------------- */
   update(dt) {
     this.t += dt; this.updateCos(dt);
-    { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; R.drawDist = alt > 150 ? 4200 : 900; R.detailDist = alt > 150 ? 0 : 70; }
+    { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; const hi = alt > 150; R.drawDist = hi ? 14000 : 900; R.detailDist = hi ? 0 : 70; G.cam.far = hi ? 16000 : 4200; G.S.maxDraw = hi ? 16000 : 4200; }
     // door physics: swing, slam against the container wall, settle
     const D = this.door; if (D) {
       if (D.vel) { D.ang += D.vel * dt; D.vel *= Math.exp(-.9 * dt); if (D.ang > 1.62) { D.ang = 1.62; if (Math.abs(D.vel) > .5) { AUD.doorBang([D.hinge[0] + .5, D.hinge[1] + 1, D.hinge[2] + .9], Math.min(1, Math.abs(D.vel) / 3)); P.shake = Math.max(P.shake, .2); } D.vel = -D.vel * .28; } if (D.ang < 1.15 && D.vel < 0) D.vel += 3 * dt; if (Math.abs(D.vel) < .02 && D.ang > 1.2) D.vel = 0; }
@@ -4155,7 +4324,7 @@ const Story = {
     R.post.grade = R.post.grade.map(v => damp(v, 1, .9, dt));
     // rain loop: indoor drumming vs outdoor hiss
     if (this.rain) { const inCont = G.isDry(P.inPlane ? P.worldPos() : P.pos); const k = G.env.rain; this.rain.set(this.phase === 'fall' || this.phase === 'end' ? 0 : Math.max(k, inCont ? 1 : 0), inCont && this.phase !== 'door' ? 1 : lerp(1, 0, this.rainOpen ?? 1)); }
-    if (this.phase === 'mirror') { this.lookAcc += Math.abs(IN.mdx) + Math.abs(IN.mdy); if (this.lookAcc > 2600) this.flags.lookedAround = true; }
+    if (this.phase === 'mirror') { this.lookAcc += Math.abs(IN.mdx) + Math.abs(IN.mdy); if (this.lookAcc > 1400 && G.time > 4) this.flags.lookedAround = true; }
     // plane + flight
     Flight.update(dt);
     // clouds follow the camera (their pattern is in world space)
@@ -4163,7 +4332,7 @@ const Story = {
     // boarding: step onto the ramp → cabin space
     if (this.phase === 'walk' && P.state === 'walk') {
       const L = M4.pt(this.plane.inv, P.pos[0], P.pos[1], P.pos[2]);
-      if (L[2] < TP.z1 + TP.rampL * Math.cos(.2) - .7 && L[2] > TP.z1 - .5 && Math.abs(L[0]) < 2.3) { P.inPlane = true; P.local = [L[0], L[1], L[2]]; P.yaw = angWrap(P.yaw - this.plane.yaw); P.state = 'cabin'; this.phase = 'board'; Cabin.onBoard(); }
+      if (L[2] < TP.z1 + TP.rampL * Math.cos(.23) - .7 && L[2] > TP.z1 - .5 && Math.abs(L[0]) < 2.3) { P.inPlane = true; P.local = [L[0], L[1], L[2]]; P.yaw = angWrap(P.yaw - this.plane.yaw); P.state = 'cabin'; this.phase = 'board'; Cabin.onBoard(); }
     }
     // mirror only matters near the washroom
     if (G.S.mirror) G.S.mirror.on = !P.inPlane && V.dist(P.pos, this.FW.mirror.p) < 5;
@@ -4203,7 +4372,7 @@ const Flight = {
       pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .16 : 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, -.17, .5, dt);
       pl.shake = pl.pos[1] < 920 ? 1.5 : .35;
       if (pl.pos[1] > 920 && !this.above) { this.above = true; G.setEnv('aboveCabin', 3); G.raysOn = 1; AUD.whoosh(.2); Cabin.sunShafts(true); }
-      if (pl.pos[1] >= 1500) { this.phase = 'cruise'; Cabin.cruise(); }
+      if (pl.pos[1] >= 1500) { this.phase = 'cruise'; }
     } else if (this.phase === 'cruise' || this.phase === 'drop') {
       pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, this.phase === 'drop' ? -.05 : -.15, .4, dt); pl.pos[1] = damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
     }
@@ -4224,7 +4393,8 @@ const Flight = {
     this.swapped = true; const pl = Story.plane; const S = Story;
     pl.pos[0] = -1000; pl.pos[1] = 840; pl.pos[2] = -1800; pl.yaw = -Math.PI / 2; pl.roll = 0; this.phase = 'climb2';
     S.useWorld(S.ZW); G.dry = [S.planeDry];
-    for (const c of S.clouds) { const i = S.clouds.indexOf(c); c.y = lerp(700, 900, i / (S.clouds.length - 1)); }
+    for (const c of S.clouds) c.hidden = true;
+    PUFFS.blobs = []; PUFFS.items = []; S.puffs = buildCumulus(77, 0, 0, 150, { maxR: 6500, base: 620, spread: 520 }); for (const it of S.puffs) G.glass.push(it);
     Vignettes.stop(); for (const a of G.actors.slice()) if (!a.frame && !a.keep) G.actors.splice(G.actors.indexOf(a), 1);
     G.extraDyn = G.extraDyn.filter(d => d === pl.dyn); G.S.mirror = null; G.dynLights = S.cabinLights.slice();
   },
@@ -4236,7 +4406,7 @@ const Flight = {
     P.lookLimit = null; UI.objective(''); UI.hint(''); UI.marker(null);
     G.setEnv('above', 1.2); G.raysOn = 1; AUD.whoosh(.8); P.shake = 1;
     if (this.engine) this.engine.stop(); this.engine = null;
-    this.fallT = 0; this.titleBuilt = false; Story.buildTitle(P.pos, P.yaw);
+    this.fallT = 0; this.titleBuilt = false; Story.buildTitle(P.pos, P.yaw); Story.clearFallPath();
     if (!this.wind) this.wind = AUD.windLoop();
     Story.titleMusic = AUD.pad('title');
     G.after(1.5, () => UI.hint('WASD  STEER   ·   MOUSE  LOOK'));
@@ -4245,15 +4415,15 @@ const Flight = {
   updateFall(dt) {
     this.fallT += dt; const alt = P.pos[1];
     for (const c of Story.clouds) { /* layers stay */ }
-    // inside the deck: white-out and buffeting
-    const inDeck = alt < 920 && alt > 690;
-    if (inDeck && !this.inDeck) { this.inDeck = true; G.setEnv('inCloud', 1.2); G.raysOn = 0; P.shake = 1.4; }
-    if (alt < 690 && !this.below) { this.below = true; G.setEnv('below', 2.5); }
-    if (inDeck) P.shake = Math.max(P.shake, .7);
+    // inside a cumulus: white-out and buffeting; out again: clear air
+    const inC = puffAt(G.cam.pos);
+    if (inC !== !!this.inDeck) { this.inDeck = inC; if (inC) { G.setEnv('inCloud', .35); G.raysOn = 0; P.shake = 1.2; AUD.whoosh(.4); } else { G.setEnv(alt > 700 ? 'above' : 'below', .6); G.raysOn = alt > 700 ? 1 : .4; } }
+    if (!inC && alt < 700 && !this.below) { this.below = true; G.setEnv('below', 2.5); }
+    const inDeck = inC; if (inDeck) P.shake = Math.max(P.shake, .7);
     // vapor streaks past the face for a sense of speed
     if (Math.random() < .6) { const cp = G.cam.pos; G.particles.push({ p: [cp[0] + rnd(-6, 6), cp[1] - rnd(8, 20), cp[2] + rnd(-6, 6)], v: [0, 52, 0], life: 0, max: .6, s: .5, dir: [0, 1, 0], w: .015, streak: true, c: [.9, .92, .95], a: inDeck ? .35 : .12 }); }
     if (inDeck && Math.random() < .5) G.puff([G.cam.pos[0] + rnd(-12, 12), G.cam.pos[1] - rnd(6, 30), G.cam.pos[2] + rnd(-12, 12)], { s: rnd(6, 12), v: [0, 40, 0], max: 1.5, c: [.92, .93, .95], a: .5, grow: 2, g: 0, drag: 0 });
-    if (alt < 430 && !this.ended) { this.ended = true; Story.ending(); }
+    if ((alt < 430 || alt - G.W.th(P.pos[0], P.pos[2]) < 260) && !this.ended) { this.ended = true; Story.ending(); }
   },
 };
 
@@ -4349,7 +4519,7 @@ const Cabin = {
       yield* Cabin.haleWalk([[1.1, TP.floor, TP.z1 - 1.2]]); H.yaw = Math.PI;
       yield 3; Story.say({ name: 'Raven 2-1 (PA)', vpitch: .9, voiceIdx: 4 }, "Crew, Raven Two-One. We are rolling. Sit back and enjoy the weather.", { radio: true });
       Flight.startEngines(); yield 4; G.setEnv('cabin', 3);
-      Flight.takeoff(); UI.hint('LOOK THROUGH THE WINDOW');
+      Flight.takeoff(); UI.hint('LOOK THROUGH THE WINDOW'); G.after(9, () => Cabin.cruise());
       yield 9; UI.hint('');
       yield () => Flight.phase === 'cruise';
     });
@@ -4374,7 +4544,7 @@ const Cabin = {
   cruise() {
     const S = Story, mox = this.mox, pl = S.plane; S.phase = 'cruise';
     S.run(function* () {
-      yield 4; mox.seat = 'plain'; mox.look = () => G.cam.pos;
+      yield 1; mox.seat = 'plain'; mox.look = () => G.cam.pos;
       yield Story.say(mox, "Hey. First real jump, huh?");
       let c = yield* Cabin.choose(["Second. I don't remember much of the first.", "Yeah. Trying not to think about it.", "(say nothing)"]);
       if (c === 0) { yield Story.say(Cabin.me(), "Second. I don't remember much of the first."); yield Story.say(mox, "Ha. That's the right way to do it. Remember the landing, forget the rest."); }
@@ -4392,52 +4562,60 @@ const Cabin = {
       c = yield* Cabin.choose(["Copy. Your six.", "And if the chute doesn't open?"]);
       if (c === 0) { yield Story.say(Cabin.me(), "Copy. Your six."); yield Story.say(mox, "Good man."); }
       else { yield Story.say(Cabin.me(), "And if the chute doesn't open?"); yield Story.say(mox, "Then you get to the ground first and save us a spot."); yield 1; yield Story.say(mox, "Kidding. Pull the reserve. You'll be fine."); }
-      yield 5; Cabin.dropSequence();
+      yield () => Flight.phase === 'cruise'; yield 6; Cabin.dropSequence();
     });
   },
   me() { return { name: 'Rook', vpitch: .95, vrate: 1, voiceIdx: 0, pitch: 112 }; },
   *choose(opts) { let res = -1; UI.dialog(opts, i => { res = i; }); yield () => res >= 0; return res; },
   juice: null,
+  // Mox works the juice box with his LEFT hand (the side facing you); hand-overs happen in the gap between the two seats
+  handoff() { const pl = Story.plane, a = this.seatW(this.seatIdx.player, -1), b = this.seatW(this.seatIdx.mox, -1); return M4.pt(pl.m, a.pos[0] + .42, TP.floor + .98, (a.pos[2] + b.pos[2]) / 2); },
+  moxHand(T, fingers) { return (b) => { b.ik.push({ left: true, T: typeof T === 'function' ? T(b) : T, pole: M4.dir(b.root, -1, -1, .2), fingers: fingers ? fingers(b) : null }); }; },
   *moxPullJuice() {
     const mox = this.mox; let t = 0;
-    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; const k = smooth(t / .6); const vest = M4.pt(c, -.08, .25, -.15); const hold = M4.pt(c, .1, .25, -.38); b.ik.push({ left: false, T: t < .8 ? V.lerp(M4.pt(c, .2, -.05, -.15), vest, k) : V.lerp(vest, hold, smooth((t - .8) / .5)), pole: M4.dir(b.root, 1, -1, 0), fingers: M4.dir(c, -.3, .6, -.7) }); };
-    yield .8; this.juice = mox.addProp(buildJuiceBox(), SK.HR, M4.trs(M4.create(), M4.create(), 0, -.09, -.03, -1.4, 0, .2)); AUD.click(1200, .15, mox.headPos(), .02); yield .8;
+    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; const pouch = M4.pt(c, -.12, .18, -.16), hold = M4.pt(c, -.12, .2, -.36), rest = M4.pt(c, -.22, -.1, -.12);
+      const T = t < .8 ? V.lerp(rest, pouch, smooth(t / .6)) : V.lerp(pouch, hold, smooth((t - .8) / .5)); b.ik.push({ left: true, T, pole: M4.dir(b.root, -1, -1, .1), fingers: M4.dir(c, .2, .5, -.8) }); };
+    yield .8; this.juice = mox.addProp(buildJuiceBox(), SK.HL, M4.trs(M4.create(), M4.create(), 0, -.09, -.03, -1.4, 0, -.2)); AUD.click(1200, .15, mox.headPos(), .02); yield .8;
   },
   *playerDrinks() {
-    Cabin.drank = true; const mox = this.mox; let t = 0; const jb = this.juice;
-    // Mox holds it out
-    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; const out = M4.pt(c, -.32, .18, -.42); b.ik.push({ left: false, T: V.lerp(M4.pt(c, .1, .25, -.38), out, smooth(t / .7)), pole: M4.dir(b.root, 1, -1, 0), fingers: M4.dir(c, -.5, .4, -.6) }); };
-    yield .8;
-    // your hand takes it
-    let u = 0; const handTo = () => mox.rig.bonePos(SK.HR);
-    P.handFn = (p, dt) => { u += dt; const rest = M4.pt(p.rig.mats[SK.CH], .22, .05, -.2); p.ik.push({ left: false, T: V.lerp(rest, handTo(), smooth(u / .6)), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
+    Cabin.drank = true; const mox = this.mox; const jb = this.juice; const H = () => this.handoff();
+    // Mox holds it out into the gap between you
+    let t = 0; mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: true, T: V.lerp(M4.pt(c, -.12, .2, -.36), H(), smooth(t / .8)), pole: M4.dir(b.root, -1, -1, .3), fingers: M4.dir(b.root, 0, .3, -1) }); };
+    yield .9;
+    // your right hand takes it
+    const rest = p => M4.pt(p.rig.mats[SK.PEL], .2, .12, -.32);
+    let u = 0; P.handFn = (p, dt) => { u += dt; p.ik.push({ left: false, T: V.lerp(rest(p), H(), smooth(u / .6)), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
     yield .65; mox.removeProp(jb); const mine = P.addProp(jb.mesh, SK.HR, M4.trs(M4.create(), M4.create(), 0, -.09, -.03, -1.4, 0, .2)); AUD.squish();
-    mox.post = (b, dt) => { const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: M4.pt(c, .22, .0, -.18), pole: M4.dir(b.root, 1, -1, 0) }); };
-    // to the mouth, drink
-    let v = 0; P.handFn = (p, dt) => { v += dt; const mouth = V.add(V.add(G.cam.pos, V.sc(G.cam.fwd, .13)), V.sc(G.cam.up, -.08)); const from = handTo(); p.ik.push({ left: false, T: V.lerp(from, mouth, smooth(v / .8)), pole: M4.dir(p.rig.root, 1, -1, 0), fingers: V.add(V.sc(G.cam.up, 1), V.sc(G.cam.fwd, -.3)) }); p.pitchOff = -smooth(v / .8) * .12; };
-    yield 1.0; AUD.slurp(); yield 1.4; AUD.slurp(); AUD.squish(); yield 1.0;
+    let mt = 0; mox.post = (b, dt) => { mt += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: true, T: V.lerp(H(), M4.pt(c, -.22, -.1, -.12), smooth(mt / .6)), pole: M4.dir(b.root, -1, -1, 0) }); if (mt > .7) b.post = null; };
+    // up to your own mouth, head tips back
+    const mouth = p => M4.pt(p.rig.mats[SK.HD], 0, .015, -.13);
+    let v = 0; P.handFn = (p, dt) => { v += dt; const k = smooth(v / .8); p.ik.push({ left: false, T: V.lerp(H(), mouth(p), k), pole: M4.dir(p.rig.root, 1, -1, 0), fingers: M4.dir(p.rig.mats[SK.HD], -.2, 1, .35) }); p.pitchOff = k * .2; };
+    yield 1.0; AUD.slurp(); yield 1.4; AUD.slurp(); AUD.squish(); yield .8;
+    let d = 0; P.handFn = (p, dt) => { d += dt; const k = smooth(d / .6); p.pitchOff = .2 * (1 - k); p.ik.push({ left: false, T: V.lerp(mouth(p), M4.pt(p.rig.mats[SK.CH], .14, -.05, -.3), k), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
     yield Story.say(Cabin.me(), "Huh. That's... actually really good.");
     yield Story.say(mox, "Right? Emergency juice. Don't tell Hale.");
-    // hand it back
-    let w = 0; const mouthHold = () => V.add(V.add(G.cam.pos, V.sc(G.cam.fwd, .13)), V.sc(G.cam.up, -.08));
-    mox.post = (b, dt) => { const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: M4.pt(c, -.32, .18, -.42), pole: M4.dir(b.root, 1, -1, 0), fingers: M4.dir(c, -.5, .4, -.6) }); };
-    P.handFn = (p, dt) => { w += dt; p.pitchOff = -.12 * (1 - smooth(w / .6)); p.ik.push({ left: false, T: V.lerp(mouthHold(), handTo(), smooth(w / .8)), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
-    yield .85; P.removeProp(mine); this.juice = mox.addProp(jb.mesh, SK.HR, jb.off); AUD.squish();
-    let z = 0; P.handFn = (p, dt) => { z += dt; const rest = M4.pt(p.rig.mats[SK.CH], .22, .05, -.2); p.ik.push({ left: false, T: V.lerp(handTo(), rest, smooth(z / .6)), pole: M4.dir(p.rig.root, 1, -1, 0) }); if (z > .7) p.handFn = null; };
-    yield* this.moxStash();
+    // hand it back across the gap
+    let w = 0; mox.post = (b, dt) => { w += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: true, T: V.lerp(M4.pt(c, -.22, -.1, -.12), H(), smooth(w / .6)), pole: M4.dir(b.root, -1, -1, .3) }); };
+    let w2 = 0; P.handFn = (p, dt) => { w2 += dt; p.pitchOff = 0; p.ik.push({ left: false, T: V.lerp(M4.pt(p.rig.mats[SK.CH], .14, -.05, -.3), H(), smooth(w2 / .7)), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
+    yield .8; P.removeProp(mine); this.juice = mox.addProp(jb.mesh, SK.HL, jb.off); AUD.squish();
+    let z = 0; P.handFn = (p, dt) => { z += dt; p.ik.push({ left: false, T: V.lerp(H(), rest(p), smooth(z / .6)), pole: M4.dir(p.rig.root, 1, -1, 0) }); if (z > .7) p.handFn = null; };
+    yield* this.moxStash(true);
   },
   *moxDrinks() {
     const mox = this.mox; let t = 0;
-    mox.post = (b, dt) => { t += dt; const hp = b.rig.mats[SK.HD]; const mouth = M4.pt(hp, .02, .02, -.16); const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: V.lerp(M4.pt(c, .1, .25, -.38), mouth, smooth(t / .7)), pole: M4.dir(b.root, 1, -1, 0), fingers: M4.dir(hp, 0, 1, .3) }); b.headPitch = .25; };
+    mox.post = (b, dt) => { t += dt; const hp = b.rig.mats[SK.HD]; const c = b.rig.mats[SK.CH]; b.ik.push({ left: true, T: V.lerp(M4.pt(c, -.12, .2, -.36), M4.pt(hp, 0, .015, -.14), smooth(t / .7)), pole: M4.dir(b.root, -1, -1, 0), fingers: M4.dir(hp, .2, 1, .35) }); b.headPitch = .25; };
     yield 1.0; AUD.slurp(); yield 1.6; AUD.squish(); yield .6;
-    yield* this.moxStash();
+    yield* this.moxStash(false);
   },
-  *moxStash() { // he puts it down on the seat on his other side; it vanishes once nobody looks
+  *moxStash(fromGap) { // he sets it down on the empty seat on his far side; it vanishes once nobody looks
     const mox = this.mox; let t = 0; const pl = Story.plane; const s = this.seatW(this.seatIdx.juice, -1); const spot = () => M4.pt(pl.m, s.pos[0] + .05, TP.floor + .48, s.pos[2]);
-    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: V.lerp(M4.pt(c, .1, .25, -.38), V.add(spot(), [0, .08, 0]), smooth(t / .9)), pole: M4.dir(b.root, 1, -.6, 0) }); b.extraYaw = Math.sin(smooth(t / .9) * Math.PI) * -.25; };
-    yield 1.0; const jb = this.juice; mox.removeProp(jb); AUD.click(700, .15, spot(), .02);
-    const d = { mesh: jb.mesh, m: M4.create(), pos: spot(), r: .3 }; G.extraDyn.push(d);
-    G.updaters.push(dt => { if (d.gone) return; M4.trs(d.m, pl.m, s.pos[0] + .05, TP.floor + .48, s.pos[2], 0, .4, 0); d.pos = spot(); const to = V.norm(V.sub(d.pos, G.cam.pos)); if (V.dot(to, G.cam.fwd) < Math.cos(G.cam.fov * .75) && Story.t > 0) { d.gone = true; G.extraDyn.splice(G.extraDyn.indexOf(d), 1); } });
+    // pass it to the right hand in front of the chest, then set it down on his right
+    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; const mid = M4.pt(c, 0, .05, -.32); b.ik.push({ left: true, T: V.lerp(fromGap ? this.handoff() : M4.pt(b.rig.mats[SK.HD], 0, .015, -.14), mid, smooth(t / .6)), pole: M4.dir(b.root, -1, -1, 0) }); if (t > .5) b.ik.push({ left: false, T: V.lerp(M4.pt(c, .22, -.1, -.12), mid, smooth((t - .5) / .3)), pole: M4.dir(b.root, 1, -1, 0) }); };
+    yield .85; const jb = this.juice; mox.removeProp(jb); this.juice = mox.addProp(jb.mesh, SK.HR, M4.trs(M4.create(), M4.create(), 0, -.09, -.03, -1.4, 0, .2)); t = 0;
+    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: V.lerp(M4.pt(c, 0, .05, -.32), V.add(spot(), [0, .08, 0]), smooth(t / .9)), pole: M4.dir(b.root, 1, -.6, 0) }); b.extraYaw = Math.sin(smooth(t / .9) * Math.PI) * .3; };
+    yield 1.0; const jb2 = this.juice; mox.removeProp(jb2); AUD.click(700, .15, spot(), .02);
+    const d = { mesh: jb2.mesh, m: M4.create(), pos: spot(), r: .3 }; G.extraDyn.push(d);
+    G.updaters.push(dt => { if (d.gone) return; M4.trs(d.m, pl.m, s.pos[0] + .05, TP.floor + .48, s.pos[2], 0, .4, 0); d.pos = spot(); const to = V.norm(V.sub(d.pos, G.cam.pos)); if (V.dot(to, G.cam.fwd) < Math.cos(G.cam.fov * .75)) { d.gone = true; G.extraDyn.splice(G.extraDyn.indexOf(d), 1); } });
     let z = 0; mox.post = (b, dt) => { z += dt; b.extraYaw = 0; if (z > .6) b.post = null; };
     yield .8;
   },
@@ -4484,8 +4662,8 @@ const Cabin = {
   },
   runOut(a) {
     const pl = Story.plane; a.post = null; a.hook = false; a.jumping = true; a.look = null; a.script = null;
-    const rampEnd = TP.z1 + TP.rampL * Math.cos(.2) + .3;
-    a.goTo([[clamp(a.pos[0], -.8, .8), TP.floor, Math.min(a.pos[2] + .5, TP.z1 - .5)], [0, TP.floor, TP.z1 + .4], [0, TP.floor - TP.rampL * Math.sin(.2), rampEnd]], true, (b) => Cabin.leap(b));
+    const rampEnd = TP.z1 + TP.rampL * Math.cos(.23) + .3;
+    a.goTo([[clamp(a.pos[0], -.8, .8), TP.floor, Math.min(a.pos[2] + .5, TP.z1 - .5)], [0, TP.floor, TP.z1 + .4], [0, TP.floor - TP.rampL * Math.sin(.23), rampEnd]], true, (b) => Cabin.leap(b));
     a.followY = true;
   },
   leap(a) { // off the ramp: convert to world space and fall with everyone else
@@ -4701,6 +4879,15 @@ Story.ending = function () {
     AUD.stopAllLoops(); if (window.speechSynthesis) speechSynthesis.cancel(); Flight.wind = null;
     UI.endCard(); AUD.pad('title');
   }, 2300);
+};
+
+// keep the titles readable: no cumulus right on the fall line above the deck — then one big one to fall straight through
+Story.clearFallPath = function () {
+  const ts = this.titles || []; const c = ts.length ? ts[ts.length - 1].pos : P.pos; const top = P.pos;
+  const near = it => { const t = clamp((top[1] - it.pos[1]) / Math.max(1, top[1] - c[1]), 0, 1); const px = lerp(top[0], c[0], t), pz = lerp(top[2], c[2], t); return Math.hypot(it.cx - px, it.cz - pz) < it.size * .9 + 70; };
+  for (const it of this.puffs || []) if (it.base + it.size * .8 > c[1] - 40 && near(it)) { it.hidden = true; PUFFS.blobs = PUFFS.blobs.filter(b => !it.blobs.includes(b)); }
+  const below = [c[0] + P.drift[0] * 6, 0, c[2] + P.drift[2] * 6];
+  const add = buildCumulus(991, below[0], below[2], 1, { maxR: 1, base: c[1] - 330, spread: 1 }); for (const it of add) { this.puffs.push(it); G.glass.push(it); }
 };
 
 /* ---- 11_ui.js ---- */

@@ -7,6 +7,12 @@ function segMatX(o, p0, p1, xHint) {
   const y = V.norm(V.sub(p0, p1)); let x = V.sub(xHint, V.sc(y, V.dot(xHint, y))); const l = V.len(x); x = l > 1e-5 ? V.sc(x, 1 / l) : [1, 0, 0]; const z = V.cross(x, y);
   return M4.basis(o, x, y, z, p0);
 }
+// upper + lower limb matrices from the solved joint positions; local X = hinge axis of the bend
+function limbFrames(Mu, Ml, S, E, T, fallback, knee) {
+  const u = V.norm(V.sub(E, S)), f = V.norm(V.sub(T, E)); let h = V.cross(u, f); const hl = V.len(h);
+  if (hl < .08) h = fallback; else { h = V.sc(h, (knee ? -1 : 1) / hl); if (V.dot(h, fallback) < -.2 && hl < .3) h = V.lerp(h, fallback, 1 - hl / .3); }
+  segMatX(Mu, S, E, h); segMatX(Ml, E, T, h); return h;
+}
 function rigCommit(rig) {
   const M = rig.mats;
   for (let i = 0; i < SK.N; i++) { rig.bones.set((rig.hide & (1 << i)) ? ZERO_M : M[i], i * 16); if (rig.fullBones) rig.fullBones.set(M[i], i * 16); }
@@ -16,15 +22,15 @@ function ikArm(rig, left, T, pole, fingers, palm) {
   const M = rig.mats, sc = rig.sc || 1; const ua = left ? SK.UAL : SK.UAR, fa = left ? SK.FAL : SK.FAR, h = left ? SK.HL : SK.HR;
   const S = M4.pt(M[ua], 0, 0, 0); const r = ik2(S, T, .29 * sc, .265 * sc, V.add(S, pole));
   const side = palm || M4.dir(M[SK.CH], 1, 0, 0);
-  segMatX(M[ua], S, r.E, side); segMatX(M[fa], r.E, r.T, side);
-  if (fingers) segMatX(M[h], r.T, V.add(r.T, fingers), side);
+  const hx = limbFrames(M[ua], M[fa], S, r.E, r.T, side, false);
+  if (fingers) segMatX(M[h], r.T, V.add(r.T, fingers), hx);
   else { M4.copy(M[h], M[fa]); M[h][12] = r.T[0]; M[h][13] = r.T[1]; M[h][14] = r.T[2]; }
   return r;
 }
 function ikLeg(rig, left, T, pole, yawM) {
   const M = rig.mats, sc = rig.sc || 1; const th = left ? SK.THL : SK.THR, sh = left ? SK.SHL : SK.SHR, ft = left ? SK.FTL : SK.FTR;
   const S = M4.pt(M[th], 0, 0, 0); const r = ik2(S, T, .45 * sc, .42 * sc, V.add(S, pole));
-  const side = M4.dir(yawM, 1, 0, 0); segMatX(M[th], S, r.E, side); segMatX(M[sh], r.E, r.T, side);
+  const side = M4.dir(yawM, 1, 0, 0); limbFrames(M[th], M[sh], S, r.E, r.T, side, true);
   M4.basis(M[ft], M4.dir(yawM, 1, 0, 0), [0, 1, 0], M4.dir(yawM, 0, 0, 1), r.T);
   return r;
 }
@@ -123,10 +129,14 @@ class Actor {
       const m = this.wl.m; M4.ident(m);
       if (this.weaponMode === 'low') { M4.translate(m, m, .08, .1, -.26); M4.rotY(m, m, .55); M4.rotX(m, m, -.6); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'chest') { M4.translate(m, m, .02, .2, -.25); M4.rotY(m, m, .9); M4.rotX(m, m, -.15); M4.rotZ(m, m, 1.2); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
-      else if (this.weaponMode === 'knees') { M4.translate(m, m, 0, -.12, -.36); M4.rotX(m, m, 1.3); wl = this.wl; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
+      else if (this.weaponMode === 'knees') { wl = this.wl; wl.knees = true; wl.gr = [0, -.07, .03]; wl.gl = [0, .01, -.36]; }
       else if (this.weaponMode === 'lap' || this.weaponMode === 'hidden') { wl = null; }
-      else { M4.translate(m, m, .02, .26, .2); M4.rotZ(m, m, 2.3); wl = { m, gr: null, gl: null }; }
+      else { M4.translate(m, m, .02, .08, -.2); M4.rotZ(m, m, -.95); M4.rotY(m, m, Math.PI / 2); wl = { m, gr: null, gl: null }; } // slung diagonally across the chest
     }
+    if (wl && wl.knees) { // butt on the floor between the boots, muzzle up, hands on grip and handguard (pelvis space)
+      const r0 = M4.copy(M4.create(), this.rig.root); this.rig.solve(null, false); M4.copy(this.rig.root, r0); const M = this.rig.mats; const L = M4.create(); M4.translate(L, L, 0, .02, -.44); M4.rotX(L, L, 1.22);
+      M4.mul(wl.m, M4.invert(M4.create(), M[SK.CH]), M4.mul(M4.create(), M[SK.PEL], L)); }
+    else if (wl) wl.knees = false;
     this.rig.solve(wl, false);
     if (this.weaponKind) { if (this.weaponMode === 'hidden') M4.copy(this.wdyn.m, ZERO_M); else if (this.weaponMode === 'lap' && this.lapM) M4.copy(this.wdyn.m, this.lapM(this)); else M4.copy(this.wdyn.m, this.rig.mats[SK.WPN]); }
     if (this.post) this.post(this, dt);

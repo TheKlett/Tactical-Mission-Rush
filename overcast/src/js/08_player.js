@@ -54,11 +54,11 @@ const P = {
     const [f, s] = this.moveInput(); const spd = IN.k('ShiftLeft') ? 3.6 : 1.7; const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const L = this.local; this.vel[0] = damp(this.vel[0], (-sy * f + cy * s) * spd, 9, dt); this.vel[2] = damp(this.vel[2], (-cy * f - sy * s) * spd, 9, dt);
     L[0] += this.vel[0] * dt; L[2] += this.vel[2] * dt;
-    const pl = Story.plane; const rampLen = TP.rampL * Math.cos(-pl.rampAng);
+    const pl = Story.plane; const rampLen = TP.rampL * Math.cos(pl.rampAng);
     const onRamp = L[2] > TP.z1; const hw = onRamp ? 2.1 : 1.85; L[0] = clamp(L[0], -hw, hw);
     L[2] = clamp(L[2], -12, pl.ramp > .9 ? TP.z1 + rampLen + 3 : TP.z1 - .4);
     for (const a of Story.cabinBlockers()) { const dx = L[0] - a[0], dz = L[2] - a[2]; const d = Math.hypot(dx, dz); if (d < .55 && d > 1e-4) { L[0] = a[0] + dx / d * .55; L[2] = a[2] + dz / d * .55; } }
-    L[1] = onRamp ? TP.floor - (L[2] - TP.z1) * Math.tan(-pl.rampAng) : TP.floor;
+    L[1] = onRamp ? TP.floor - (L[2] - TP.z1) * Math.tan(Math.max(0, pl.rampAng)) : TP.floor;
     this.speed = Math.hypot(this.vel[0], this.vel[2]);
     this.stepAcc = (this.stepAcc || 0) + this.speed * dt; if (this.stepAcc > 1.3) { this.stepAcc = 0; AUD.step('metal', null, .22); }
     if (L[2] > TP.z1 + rampLen - .2 && pl.ramp > .9) Story.playerJumped();

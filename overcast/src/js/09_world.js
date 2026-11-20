@@ -136,6 +136,7 @@ function buildFOB(W) {
   W.vehicles.push({ car: truck, pos: [-40, 0, -100], yaw: .3 }, { car: jeep, pos: [-110, 0, -98], yaw: 1.2 }, { car: jeep, pos: [-14, 0, 48], yaw: -.4 }, { car: truck, pos: [-180, 0, 0], yaw: 1.57 });
   for (const v of W.vehicles) W.colBox(v.pos[0], 1, v.pos[2], 3.2, 2, 3.2, {});
   // the parked transport's solid footprint (open at the ramp)
+  clutterFOB(W);
   { const px = FOB.plane.x, pz = FOB.plane.z; W.planeCol = W.col(px - 13.0, 0, pz - 3.4, px + 26, 8, pz + 3.4, { surf: 'metal' }); W.col(px - 6, 0, pz - 4.2, px + 4, 2.2, pz + 4.2, {}); }
 }
 // flat runway numbers
@@ -170,8 +171,8 @@ function buildWashroom(W) {
   B.col(0xd8d8d0, MAT.PLASTIC).box(sx, fy + .4, z0 + .12, .12, .8, .12);
   B.col(0xb8bcc0, MAT.METAL).cyl(sx, fy + .88, z0 + .08, .02, .018, .16, 10).tube([sx, fy + 1.03, z0 + .08], [sx, fy + 1.05, z0 + .2], .014, .012, 8); B.col(0x2050c0, MAT.PAINT).cyl(sx - .06, fy + .88, z0 + .07, .018, .018, .03, 8);
   // mirror frame (the reflective quad itself is a dynamic object)
-  B.col(0x8a8c88, MAT.METAL).box(sx, fy + 1.55, z0 + .015, .74, .94, .02); B.col(0x2a2a2a, MAT.METAL).box(sx, fy + 2.06, z0 + .06, .5, .06, .1); B.col(0xfff6e8, MAT.EMIT).box(sx, fy + 2.03, z0 + .1, .44, .015, .02); W.light([sx, fy + 2.0, z0 + .35], 0xfff0dc, .7, 2.6); W.mirror = { p: [sx, fy + 1.55, z0 + .03], n: [0, 0, 1], w: .68, h: .88 };
-  D.col(0x7a5a3a, MAT.RUST).box(sx + .3, fy + 1.12, z0 + .028, .02, .06, .002);
+  B.col(0x8a8c88, MAT.METAL).box(sx, fy + 1.55, z0 + .038, .74, .94, .02); B.col(0x2a2a2a, MAT.METAL).box(sx, fy + 2.06, z0 + .06, .5, .06, .1); B.col(0xfff6e8, MAT.EMIT).box(sx, fy + 2.03, z0 + .1, .44, .015, .02); W.light([sx, fy + 2.0, z0 + .35], 0xfff0dc, .7, 2.6); W.mirror = { p: [sx, fy + 1.55, z0 + .056], n: [0, 0, 1], w: .68, h: .88 };
+  D.col(0x7a5a3a, MAT.RUST).box(sx + .3, fy + 1.1, z0 + .05, .02, .04, .002);
   B.col(0x9a9c98, MAT.METAL).box(sx, fy + 1.06, z0 + .1, .6, .02, .14);                          // shelf
   B.col(0x2a5a8a, MAT.PLASTIC).cyl(sx - .18, fy + 1.07, z0 + .1, .03, .03, .14, 8); B.col(0xd8d8d0, MAT.PLASTIC).cyl(sx + .15, fy + 1.07, z0 + .1, .022, .02, .1, 8); B.col(0x3a3a3a, MAT.PLASTIC).box(sx + .05, fy + 1.09, z0 + .1, .13, .04, .05);
   B.col(0x777777, MAT.METAL).box(sx + .62, fy + 1.3, z0 + .07, .3, .38, .12); B.col(0xeeeeea, MAT.PAINT).box(sx + .62, fy + 1.1, z0 + .1, .2, .04, .06);  // paper towels
@@ -218,15 +219,3 @@ function makeCloudDeck(base, top, n, o = {}) {
   return layers;
 }
 
-/* ---------------- the drop zone: endless jungle below the deck ---------------- */
-function buildDropZone(W) {
-  W.initTerrain((x, z) => fbm(x * .0012, z * .0012, 5) * 260 + fbm(x * .006, z * .006, 3) * 40 - Math.max(0, 40 - Math.abs(z - Math.sin(x * .002) * 300 - 200) * .3) * 2, 40);
-  W.buildTerrainMesh((x, z, y, n) => {
-    const v = vnoise(x * .02, z * .02), r = Math.abs(z - Math.sin(x * .002) * 300 - 200) < 20;
-    if (r) return { c: lin(0x3a4a40), m: MAT.MUD };
-    return { c: lin(v > .5 ? 0x1a3418 : 0x24421e).map(q => q * (.7 + vnoise(x * .1, z * .1) * .5)), m: MAT.LEAF };
-  });
-  const R = () => W.R();
-  // canopy lumps near the fall path for parallax in the last seconds
-  for (let i = 0; i < 260; i++) { const x = rnd(-700, 700), z = rnd(-700, 700); const y = W.th(x, z); W.B.col([0x1f3a1c, 0x2a4a22, 0x335026][R() * 3 | 0], MAT.LEAF).blob(x, y + 18, z, 9 + R() * 8, 6 + R() * 4, i, .4, 8, 5); }
-}

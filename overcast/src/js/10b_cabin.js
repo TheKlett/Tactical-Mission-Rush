@@ -89,7 +89,7 @@ const Cabin = {
       yield* Cabin.haleWalk([[1.1, TP.floor, TP.z1 - 1.2]]); H.yaw = Math.PI;
       yield 3; Story.say({ name: 'Raven 2-1 (PA)', vpitch: .9, voiceIdx: 4 }, "Crew, Raven Two-One. We are rolling. Sit back and enjoy the weather.", { radio: true });
       Flight.startEngines(); yield 4; G.setEnv('cabin', 3);
-      Flight.takeoff(); UI.hint('LOOK THROUGH THE WINDOW');
+      Flight.takeoff(); UI.hint('LOOK THROUGH THE WINDOW'); G.after(9, () => Cabin.cruise());
       yield 9; UI.hint('');
       yield () => Flight.phase === 'cruise';
     });
@@ -114,7 +114,7 @@ const Cabin = {
   cruise() {
     const S = Story, mox = this.mox, pl = S.plane; S.phase = 'cruise';
     S.run(function* () {
-      yield 4; mox.seat = 'plain'; mox.look = () => G.cam.pos;
+      yield 1; mox.seat = 'plain'; mox.look = () => G.cam.pos;
       yield Story.say(mox, "Hey. First real jump, huh?");
       let c = yield* Cabin.choose(["Second. I don't remember much of the first.", "Yeah. Trying not to think about it.", "(say nothing)"]);
       if (c === 0) { yield Story.say(Cabin.me(), "Second. I don't remember much of the first."); yield Story.say(mox, "Ha. That's the right way to do it. Remember the landing, forget the rest."); }
@@ -132,52 +132,60 @@ const Cabin = {
       c = yield* Cabin.choose(["Copy. Your six.", "And if the chute doesn't open?"]);
       if (c === 0) { yield Story.say(Cabin.me(), "Copy. Your six."); yield Story.say(mox, "Good man."); }
       else { yield Story.say(Cabin.me(), "And if the chute doesn't open?"); yield Story.say(mox, "Then you get to the ground first and save us a spot."); yield 1; yield Story.say(mox, "Kidding. Pull the reserve. You'll be fine."); }
-      yield 5; Cabin.dropSequence();
+      yield () => Flight.phase === 'cruise'; yield 6; Cabin.dropSequence();
     });
   },
   me() { return { name: 'Rook', vpitch: .95, vrate: 1, voiceIdx: 0, pitch: 112 }; },
   *choose(opts) { let res = -1; UI.dialog(opts, i => { res = i; }); yield () => res >= 0; return res; },
   juice: null,
+  // Mox works the juice box with his LEFT hand (the side facing you); hand-overs happen in the gap between the two seats
+  handoff() { const pl = Story.plane, a = this.seatW(this.seatIdx.player, -1), b = this.seatW(this.seatIdx.mox, -1); return M4.pt(pl.m, a.pos[0] + .42, TP.floor + .98, (a.pos[2] + b.pos[2]) / 2); },
+  moxHand(T, fingers) { return (b) => { b.ik.push({ left: true, T: typeof T === 'function' ? T(b) : T, pole: M4.dir(b.root, -1, -1, .2), fingers: fingers ? fingers(b) : null }); }; },
   *moxPullJuice() {
     const mox = this.mox; let t = 0;
-    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; const k = smooth(t / .6); const vest = M4.pt(c, -.08, .25, -.15); const hold = M4.pt(c, .1, .25, -.38); b.ik.push({ left: false, T: t < .8 ? V.lerp(M4.pt(c, .2, -.05, -.15), vest, k) : V.lerp(vest, hold, smooth((t - .8) / .5)), pole: M4.dir(b.root, 1, -1, 0), fingers: M4.dir(c, -.3, .6, -.7) }); };
-    yield .8; this.juice = mox.addProp(buildJuiceBox(), SK.HR, M4.trs(M4.create(), M4.create(), 0, -.09, -.03, -1.4, 0, .2)); AUD.click(1200, .15, mox.headPos(), .02); yield .8;
+    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; const pouch = M4.pt(c, -.12, .18, -.16), hold = M4.pt(c, -.12, .2, -.36), rest = M4.pt(c, -.22, -.1, -.12);
+      const T = t < .8 ? V.lerp(rest, pouch, smooth(t / .6)) : V.lerp(pouch, hold, smooth((t - .8) / .5)); b.ik.push({ left: true, T, pole: M4.dir(b.root, -1, -1, .1), fingers: M4.dir(c, .2, .5, -.8) }); };
+    yield .8; this.juice = mox.addProp(buildJuiceBox(), SK.HL, M4.trs(M4.create(), M4.create(), 0, -.09, -.03, -1.4, 0, -.2)); AUD.click(1200, .15, mox.headPos(), .02); yield .8;
   },
   *playerDrinks() {
-    Cabin.drank = true; const mox = this.mox; let t = 0; const jb = this.juice;
-    // Mox holds it out
-    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; const out = M4.pt(c, -.32, .18, -.42); b.ik.push({ left: false, T: V.lerp(M4.pt(c, .1, .25, -.38), out, smooth(t / .7)), pole: M4.dir(b.root, 1, -1, 0), fingers: M4.dir(c, -.5, .4, -.6) }); };
-    yield .8;
-    // your hand takes it
-    let u = 0; const handTo = () => mox.rig.bonePos(SK.HR);
-    P.handFn = (p, dt) => { u += dt; const rest = M4.pt(p.rig.mats[SK.CH], .22, .05, -.2); p.ik.push({ left: false, T: V.lerp(rest, handTo(), smooth(u / .6)), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
+    Cabin.drank = true; const mox = this.mox; const jb = this.juice; const H = () => this.handoff();
+    // Mox holds it out into the gap between you
+    let t = 0; mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: true, T: V.lerp(M4.pt(c, -.12, .2, -.36), H(), smooth(t / .8)), pole: M4.dir(b.root, -1, -1, .3), fingers: M4.dir(b.root, 0, .3, -1) }); };
+    yield .9;
+    // your right hand takes it
+    const rest = p => M4.pt(p.rig.mats[SK.PEL], .2, .12, -.32);
+    let u = 0; P.handFn = (p, dt) => { u += dt; p.ik.push({ left: false, T: V.lerp(rest(p), H(), smooth(u / .6)), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
     yield .65; mox.removeProp(jb); const mine = P.addProp(jb.mesh, SK.HR, M4.trs(M4.create(), M4.create(), 0, -.09, -.03, -1.4, 0, .2)); AUD.squish();
-    mox.post = (b, dt) => { const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: M4.pt(c, .22, .0, -.18), pole: M4.dir(b.root, 1, -1, 0) }); };
-    // to the mouth, drink
-    let v = 0; P.handFn = (p, dt) => { v += dt; const mouth = V.add(V.add(G.cam.pos, V.sc(G.cam.fwd, .13)), V.sc(G.cam.up, -.08)); const from = handTo(); p.ik.push({ left: false, T: V.lerp(from, mouth, smooth(v / .8)), pole: M4.dir(p.rig.root, 1, -1, 0), fingers: V.add(V.sc(G.cam.up, 1), V.sc(G.cam.fwd, -.3)) }); p.pitchOff = -smooth(v / .8) * .12; };
-    yield 1.0; AUD.slurp(); yield 1.4; AUD.slurp(); AUD.squish(); yield 1.0;
+    let mt = 0; mox.post = (b, dt) => { mt += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: true, T: V.lerp(H(), M4.pt(c, -.22, -.1, -.12), smooth(mt / .6)), pole: M4.dir(b.root, -1, -1, 0) }); if (mt > .7) b.post = null; };
+    // up to your own mouth, head tips back
+    const mouth = p => M4.pt(p.rig.mats[SK.HD], 0, .015, -.13);
+    let v = 0; P.handFn = (p, dt) => { v += dt; const k = smooth(v / .8); p.ik.push({ left: false, T: V.lerp(H(), mouth(p), k), pole: M4.dir(p.rig.root, 1, -1, 0), fingers: M4.dir(p.rig.mats[SK.HD], -.2, 1, .35) }); p.pitchOff = k * .2; };
+    yield 1.0; AUD.slurp(); yield 1.4; AUD.slurp(); AUD.squish(); yield .8;
+    let d = 0; P.handFn = (p, dt) => { d += dt; const k = smooth(d / .6); p.pitchOff = .2 * (1 - k); p.ik.push({ left: false, T: V.lerp(mouth(p), M4.pt(p.rig.mats[SK.CH], .14, -.05, -.3), k), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
     yield Story.say(Cabin.me(), "Huh. That's... actually really good.");
     yield Story.say(mox, "Right? Emergency juice. Don't tell Hale.");
-    // hand it back
-    let w = 0; const mouthHold = () => V.add(V.add(G.cam.pos, V.sc(G.cam.fwd, .13)), V.sc(G.cam.up, -.08));
-    mox.post = (b, dt) => { const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: M4.pt(c, -.32, .18, -.42), pole: M4.dir(b.root, 1, -1, 0), fingers: M4.dir(c, -.5, .4, -.6) }); };
-    P.handFn = (p, dt) => { w += dt; p.pitchOff = -.12 * (1 - smooth(w / .6)); p.ik.push({ left: false, T: V.lerp(mouthHold(), handTo(), smooth(w / .8)), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
-    yield .85; P.removeProp(mine); this.juice = mox.addProp(jb.mesh, SK.HR, jb.off); AUD.squish();
-    let z = 0; P.handFn = (p, dt) => { z += dt; const rest = M4.pt(p.rig.mats[SK.CH], .22, .05, -.2); p.ik.push({ left: false, T: V.lerp(handTo(), rest, smooth(z / .6)), pole: M4.dir(p.rig.root, 1, -1, 0) }); if (z > .7) p.handFn = null; };
-    yield* this.moxStash();
+    // hand it back across the gap
+    let w = 0; mox.post = (b, dt) => { w += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: true, T: V.lerp(M4.pt(c, -.22, -.1, -.12), H(), smooth(w / .6)), pole: M4.dir(b.root, -1, -1, .3) }); };
+    let w2 = 0; P.handFn = (p, dt) => { w2 += dt; p.pitchOff = 0; p.ik.push({ left: false, T: V.lerp(M4.pt(p.rig.mats[SK.CH], .14, -.05, -.3), H(), smooth(w2 / .7)), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
+    yield .8; P.removeProp(mine); this.juice = mox.addProp(jb.mesh, SK.HL, jb.off); AUD.squish();
+    let z = 0; P.handFn = (p, dt) => { z += dt; p.ik.push({ left: false, T: V.lerp(H(), rest(p), smooth(z / .6)), pole: M4.dir(p.rig.root, 1, -1, 0) }); if (z > .7) p.handFn = null; };
+    yield* this.moxStash(true);
   },
   *moxDrinks() {
     const mox = this.mox; let t = 0;
-    mox.post = (b, dt) => { t += dt; const hp = b.rig.mats[SK.HD]; const mouth = M4.pt(hp, .02, .02, -.16); const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: V.lerp(M4.pt(c, .1, .25, -.38), mouth, smooth(t / .7)), pole: M4.dir(b.root, 1, -1, 0), fingers: M4.dir(hp, 0, 1, .3) }); b.headPitch = .25; };
+    mox.post = (b, dt) => { t += dt; const hp = b.rig.mats[SK.HD]; const c = b.rig.mats[SK.CH]; b.ik.push({ left: true, T: V.lerp(M4.pt(c, -.12, .2, -.36), M4.pt(hp, 0, .015, -.14), smooth(t / .7)), pole: M4.dir(b.root, -1, -1, 0), fingers: M4.dir(hp, .2, 1, .35) }); b.headPitch = .25; };
     yield 1.0; AUD.slurp(); yield 1.6; AUD.squish(); yield .6;
-    yield* this.moxStash();
+    yield* this.moxStash(false);
   },
-  *moxStash() { // he puts it down on the seat on his other side; it vanishes once nobody looks
+  *moxStash(fromGap) { // he sets it down on the empty seat on his far side; it vanishes once nobody looks
     const mox = this.mox; let t = 0; const pl = Story.plane; const s = this.seatW(this.seatIdx.juice, -1); const spot = () => M4.pt(pl.m, s.pos[0] + .05, TP.floor + .48, s.pos[2]);
-    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: V.lerp(M4.pt(c, .1, .25, -.38), V.add(spot(), [0, .08, 0]), smooth(t / .9)), pole: M4.dir(b.root, 1, -.6, 0) }); b.extraYaw = Math.sin(smooth(t / .9) * Math.PI) * -.25; };
-    yield 1.0; const jb = this.juice; mox.removeProp(jb); AUD.click(700, .15, spot(), .02);
-    const d = { mesh: jb.mesh, m: M4.create(), pos: spot(), r: .3 }; G.extraDyn.push(d);
-    G.updaters.push(dt => { if (d.gone) return; M4.trs(d.m, pl.m, s.pos[0] + .05, TP.floor + .48, s.pos[2], 0, .4, 0); d.pos = spot(); const to = V.norm(V.sub(d.pos, G.cam.pos)); if (V.dot(to, G.cam.fwd) < Math.cos(G.cam.fov * .75) && Story.t > 0) { d.gone = true; G.extraDyn.splice(G.extraDyn.indexOf(d), 1); } });
+    // pass it to the right hand in front of the chest, then set it down on his right
+    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; const mid = M4.pt(c, 0, .05, -.32); b.ik.push({ left: true, T: V.lerp(fromGap ? this.handoff() : M4.pt(b.rig.mats[SK.HD], 0, .015, -.14), mid, smooth(t / .6)), pole: M4.dir(b.root, -1, -1, 0) }); if (t > .5) b.ik.push({ left: false, T: V.lerp(M4.pt(c, .22, -.1, -.12), mid, smooth((t - .5) / .3)), pole: M4.dir(b.root, 1, -1, 0) }); };
+    yield .85; const jb = this.juice; mox.removeProp(jb); this.juice = mox.addProp(jb.mesh, SK.HR, M4.trs(M4.create(), M4.create(), 0, -.09, -.03, -1.4, 0, .2)); t = 0;
+    mox.post = (b, dt) => { t += dt; const c = b.rig.mats[SK.CH]; b.ik.push({ left: false, T: V.lerp(M4.pt(c, 0, .05, -.32), V.add(spot(), [0, .08, 0]), smooth(t / .9)), pole: M4.dir(b.root, 1, -.6, 0) }); b.extraYaw = Math.sin(smooth(t / .9) * Math.PI) * .3; };
+    yield 1.0; const jb2 = this.juice; mox.removeProp(jb2); AUD.click(700, .15, spot(), .02);
+    const d = { mesh: jb2.mesh, m: M4.create(), pos: spot(), r: .3 }; G.extraDyn.push(d);
+    G.updaters.push(dt => { if (d.gone) return; M4.trs(d.m, pl.m, s.pos[0] + .05, TP.floor + .48, s.pos[2], 0, .4, 0); d.pos = spot(); const to = V.norm(V.sub(d.pos, G.cam.pos)); if (V.dot(to, G.cam.fwd) < Math.cos(G.cam.fov * .75)) { d.gone = true; G.extraDyn.splice(G.extraDyn.indexOf(d), 1); } });
     let z = 0; mox.post = (b, dt) => { z += dt; b.extraYaw = 0; if (z > .6) b.post = null; };
     yield .8;
   },
@@ -224,8 +232,8 @@ const Cabin = {
   },
   runOut(a) {
     const pl = Story.plane; a.post = null; a.hook = false; a.jumping = true; a.look = null; a.script = null;
-    const rampEnd = TP.z1 + TP.rampL * Math.cos(.2) + .3;
-    a.goTo([[clamp(a.pos[0], -.8, .8), TP.floor, Math.min(a.pos[2] + .5, TP.z1 - .5)], [0, TP.floor, TP.z1 + .4], [0, TP.floor - TP.rampL * Math.sin(.2), rampEnd]], true, (b) => Cabin.leap(b));
+    const rampEnd = TP.z1 + TP.rampL * Math.cos(.23) + .3;
+    a.goTo([[clamp(a.pos[0], -.8, .8), TP.floor, Math.min(a.pos[2] + .5, TP.z1 - .5)], [0, TP.floor, TP.z1 + .4], [0, TP.floor - TP.rampL * Math.sin(.23), rampEnd]], true, (b) => Cabin.leap(b));
     a.followY = true;
   },
   leap(a) { // off the ramp: convert to world space and fall with everyone else

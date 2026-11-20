@@ -23,7 +23,7 @@ const Story = {
     this.cos = []; this.interacts = []; this.flags = {}; this.phase = 'none'; this.t = 0; this.rainOpen = 1; this.titles = []; this.planeDry = null; Cabin.drank = false; Cabin.juice = null;
     Object.assign(Flight, { phase: 'parked', t: 0, lifted: false, cloudIn: false, swapped: false, above: false, inDeck: false, below: false, ended: false, rampTarget: undefined, fallT: undefined, engine: null, extEngine: null, wind: null }); G.raysOn = 0; R.post.grade = [1, 1, 1]; G.actors = []; G.extraDyn = []; G.glass = []; G.updaters = []; G.particles = []; G.timers = []; G.time = 0; G.dynLights = [];
     const W = new World(4400, 11); buildFOB(W); W.chunks = buildChunks(W.B, W.D, 60); W.B = null; W.D = null; this.FW = W;
-    const Z = new World(6000, 23); buildDropZone(Z); Z.chunks = buildChunks(Z.B, Z.D, 120); Z.B = null; Z.D = null; this.ZW = Z;
+    const Z = new World(16000, 23); buildDropZone(Z); Z.chunks = buildChunks(Z.B, Z.D, 800); Z.B = null; Z.D = null; this.ZW = Z;
     this.useWorld(W);
     G.dry = W.dryBoxes.slice();
     // mirror + door
@@ -54,7 +54,7 @@ const Story = {
     const p = this.plane; const m = p.m; M4.ident(m); M4.translate(m, m, p.pos[0], p.pos[1], p.pos[2]); M4.rotY(m, m, p.yaw); M4.rotX(m, m, p.pitch); M4.rotZ(m, m, p.roll);
     if (p.shake > .001) { M4.rotX(m, m, Math.sin(G.time * 23) * .0025 * p.shake); M4.rotZ(m, m, Math.sin(G.time * 17.3) * .003 * p.shake); M4.translate(m, m, 0, Math.sin(G.time * 13.1) * .015 * p.shake, 0); }
     poseTransport(p.bones, { m, ramp: p.ramp, door: p.door, fan: p.fan, btn: p.btn, red: p.red, green: p.green });
-    p.rampAng = lerp(1.25, -.2, p.ramp); p.inv = M4.invert(p.inv || M4.create(), m);
+    p.rampAng = lerp(-1.32, .23, p.ramp); p.inv = M4.invert(p.inv || M4.create(), m);
     if (!this.planeDry) { this.planeDry = { m: true, inv: p.inv, mn: [-3, 0, -25], mx: [3, 7, TP.z1 + .3] }; G.dry.push(this.planeDry); } this.planeDry.inv = p.inv;
     if (this.cabinLights) for (const L of this.cabinLights) { const w = M4.pt(m, L.lp[0], L.lp[1], L.lp[2]); L.pos[0] = w[0]; L.pos[1] = w[1]; L.pos[2] = w[2]; }
   },
@@ -70,9 +70,9 @@ const Story = {
     this.phase = 'mirror'; UI.objective(''); UI.card(['FOB KESTREL', 'SOUTH-EAST ASIA  ·  06:14 LOCAL', 'DAY 41']);
     this.tubeFlicker();
     this.run(function* () {
-      yield 3.5; UI.hint('MOVE THE MOUSE TO LOOK AROUND');
-      yield () => G.time > 13 || Story.flags.lookedAround;
-      yield 1.5;
+      yield 2.5; UI.hint('MOVE THE MOUSE TO LOOK AROUND');
+      yield () => G.time > 5 || Story.flags.lookedAround;
+      yield .3;
       Story.knock(); yield 1.2;
       yield Story.say(Cabin.mox, "Rook! You fall in or what? Wheels up in ten!", { gap: .4 });
       yield 1.0; Story.knock(.6);
@@ -131,7 +131,7 @@ const Story = {
   /* ---------------- per frame ---------------- */
   update(dt) {
     this.t += dt; this.updateCos(dt);
-    { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; R.drawDist = alt > 150 ? 4200 : 900; R.detailDist = alt > 150 ? 0 : 70; }
+    { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; const hi = alt > 150; R.drawDist = hi ? 14000 : 900; R.detailDist = hi ? 0 : 70; G.cam.far = hi ? 16000 : 4200; G.S.maxDraw = hi ? 16000 : 4200; }
     // door physics: swing, slam against the container wall, settle
     const D = this.door; if (D) {
       if (D.vel) { D.ang += D.vel * dt; D.vel *= Math.exp(-.9 * dt); if (D.ang > 1.62) { D.ang = 1.62; if (Math.abs(D.vel) > .5) { AUD.doorBang([D.hinge[0] + .5, D.hinge[1] + 1, D.hinge[2] + .9], Math.min(1, Math.abs(D.vel) / 3)); P.shake = Math.max(P.shake, .2); } D.vel = -D.vel * .28; } if (D.ang < 1.15 && D.vel < 0) D.vel += 3 * dt; if (Math.abs(D.vel) < .02 && D.ang > 1.2) D.vel = 0; }
@@ -141,7 +141,7 @@ const Story = {
     R.post.grade = R.post.grade.map(v => damp(v, 1, .9, dt));
     // rain loop: indoor drumming vs outdoor hiss
     if (this.rain) { const inCont = G.isDry(P.inPlane ? P.worldPos() : P.pos); const k = G.env.rain; this.rain.set(this.phase === 'fall' || this.phase === 'end' ? 0 : Math.max(k, inCont ? 1 : 0), inCont && this.phase !== 'door' ? 1 : lerp(1, 0, this.rainOpen ?? 1)); }
-    if (this.phase === 'mirror') { this.lookAcc += Math.abs(IN.mdx) + Math.abs(IN.mdy); if (this.lookAcc > 2600) this.flags.lookedAround = true; }
+    if (this.phase === 'mirror') { this.lookAcc += Math.abs(IN.mdx) + Math.abs(IN.mdy); if (this.lookAcc > 1400 && G.time > 4) this.flags.lookedAround = true; }
     // plane + flight
     Flight.update(dt);
     // clouds follow the camera (their pattern is in world space)
@@ -149,7 +149,7 @@ const Story = {
     // boarding: step onto the ramp → cabin space
     if (this.phase === 'walk' && P.state === 'walk') {
       const L = M4.pt(this.plane.inv, P.pos[0], P.pos[1], P.pos[2]);
-      if (L[2] < TP.z1 + TP.rampL * Math.cos(.2) - .7 && L[2] > TP.z1 - .5 && Math.abs(L[0]) < 2.3) { P.inPlane = true; P.local = [L[0], L[1], L[2]]; P.yaw = angWrap(P.yaw - this.plane.yaw); P.state = 'cabin'; this.phase = 'board'; Cabin.onBoard(); }
+      if (L[2] < TP.z1 + TP.rampL * Math.cos(.23) - .7 && L[2] > TP.z1 - .5 && Math.abs(L[0]) < 2.3) { P.inPlane = true; P.local = [L[0], L[1], L[2]]; P.yaw = angWrap(P.yaw - this.plane.yaw); P.state = 'cabin'; this.phase = 'board'; Cabin.onBoard(); }
     }
     // mirror only matters near the washroom
     if (G.S.mirror) G.S.mirror.on = !P.inPlane && V.dist(P.pos, this.FW.mirror.p) < 5;
@@ -189,7 +189,7 @@ const Flight = {
       pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .16 : 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, -.17, .5, dt);
       pl.shake = pl.pos[1] < 920 ? 1.5 : .35;
       if (pl.pos[1] > 920 && !this.above) { this.above = true; G.setEnv('aboveCabin', 3); G.raysOn = 1; AUD.whoosh(.2); Cabin.sunShafts(true); }
-      if (pl.pos[1] >= 1500) { this.phase = 'cruise'; Cabin.cruise(); }
+      if (pl.pos[1] >= 1500) { this.phase = 'cruise'; }
     } else if (this.phase === 'cruise' || this.phase === 'drop') {
       pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, this.phase === 'drop' ? -.05 : -.15, .4, dt); pl.pos[1] = damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
     }
@@ -210,7 +210,8 @@ const Flight = {
     this.swapped = true; const pl = Story.plane; const S = Story;
     pl.pos[0] = -1000; pl.pos[1] = 840; pl.pos[2] = -1800; pl.yaw = -Math.PI / 2; pl.roll = 0; this.phase = 'climb2';
     S.useWorld(S.ZW); G.dry = [S.planeDry];
-    for (const c of S.clouds) { const i = S.clouds.indexOf(c); c.y = lerp(700, 900, i / (S.clouds.length - 1)); }
+    for (const c of S.clouds) c.hidden = true;
+    PUFFS.blobs = []; PUFFS.items = []; S.puffs = buildCumulus(77, 0, 0, 150, { maxR: 6500, base: 620, spread: 520 }); for (const it of S.puffs) G.glass.push(it);
     Vignettes.stop(); for (const a of G.actors.slice()) if (!a.frame && !a.keep) G.actors.splice(G.actors.indexOf(a), 1);
     G.extraDyn = G.extraDyn.filter(d => d === pl.dyn); G.S.mirror = null; G.dynLights = S.cabinLights.slice();
   },
@@ -222,7 +223,7 @@ const Flight = {
     P.lookLimit = null; UI.objective(''); UI.hint(''); UI.marker(null);
     G.setEnv('above', 1.2); G.raysOn = 1; AUD.whoosh(.8); P.shake = 1;
     if (this.engine) this.engine.stop(); this.engine = null;
-    this.fallT = 0; this.titleBuilt = false; Story.buildTitle(P.pos, P.yaw);
+    this.fallT = 0; this.titleBuilt = false; Story.buildTitle(P.pos, P.yaw); Story.clearFallPath();
     if (!this.wind) this.wind = AUD.windLoop();
     Story.titleMusic = AUD.pad('title');
     G.after(1.5, () => UI.hint('WASD  STEER   ·   MOUSE  LOOK'));
@@ -231,14 +232,14 @@ const Flight = {
   updateFall(dt) {
     this.fallT += dt; const alt = P.pos[1];
     for (const c of Story.clouds) { /* layers stay */ }
-    // inside the deck: white-out and buffeting
-    const inDeck = alt < 920 && alt > 690;
-    if (inDeck && !this.inDeck) { this.inDeck = true; G.setEnv('inCloud', 1.2); G.raysOn = 0; P.shake = 1.4; }
-    if (alt < 690 && !this.below) { this.below = true; G.setEnv('below', 2.5); }
-    if (inDeck) P.shake = Math.max(P.shake, .7);
+    // inside a cumulus: white-out and buffeting; out again: clear air
+    const inC = puffAt(G.cam.pos);
+    if (inC !== !!this.inDeck) { this.inDeck = inC; if (inC) { G.setEnv('inCloud', .35); G.raysOn = 0; P.shake = 1.2; AUD.whoosh(.4); } else { G.setEnv(alt > 700 ? 'above' : 'below', .6); G.raysOn = alt > 700 ? 1 : .4; } }
+    if (!inC && alt < 700 && !this.below) { this.below = true; G.setEnv('below', 2.5); }
+    const inDeck = inC; if (inDeck) P.shake = Math.max(P.shake, .7);
     // vapor streaks past the face for a sense of speed
     if (Math.random() < .6) { const cp = G.cam.pos; G.particles.push({ p: [cp[0] + rnd(-6, 6), cp[1] - rnd(8, 20), cp[2] + rnd(-6, 6)], v: [0, 52, 0], life: 0, max: .6, s: .5, dir: [0, 1, 0], w: .015, streak: true, c: [.9, .92, .95], a: inDeck ? .35 : .12 }); }
     if (inDeck && Math.random() < .5) G.puff([G.cam.pos[0] + rnd(-12, 12), G.cam.pos[1] - rnd(6, 30), G.cam.pos[2] + rnd(-12, 12)], { s: rnd(6, 12), v: [0, 40, 0], max: 1.5, c: [.92, .93, .95], a: .5, grow: 2, g: 0, drag: 0 });
-    if (alt < 430 && !this.ended) { this.ended = true; Story.ending(); }
+    if ((alt < 430 || alt - G.W.th(P.pos[0], P.pos[2]) < 260) && !this.ended) { this.ended = true; Story.ending(); }
   },
 };

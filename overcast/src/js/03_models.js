@@ -52,7 +52,7 @@ class Rig {
         const poleW = M4.dir(M[SK.CH], side ? -.6 : .6, -1, .25);
         const r = ik2(S, T, .29, .265, V.add(S, poleW));
         const sideAx = M4.dir(M[SK.CH], 1, 0, 0);
-        segMat(M[ua], S, r.E, sideAx); segMat(M[fa], r.E, r.T, sideAx);
+        limbFrames(M[ua], M[fa], S, r.E, r.T, sideAx, false);
         // hand orientation: fingers along weapon forward-down
         const hy = V.norm(M4.dir(W, 0, .5, .9)); const hx = V.norm(M4.dir(W, side ? -1 : 1, 0, 0)); const hz = V.norm(V.cross(hx, hy)); const hx2 = V.cross(hy, hz);
         M4.basis(M[hb], hx2, hy, hz, r.T);

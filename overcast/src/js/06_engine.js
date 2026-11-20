@@ -30,7 +30,7 @@ const ENV = {
   inCloud: { sunDir: V.norm([.5, .5, -.4]), sunCol: [.8, .78, .75], sky: [.85, .87, .9], gnd: [.6, .62, .64], fog: [.86, .88, .9], fogD: .09, fogH: 0, zen: [.86, .88, .9], hor: [.86, .88, .9], cloud: 0, skyFog: 1, expo: 1.0, wet: 0, rain: 0, wind: 1 },
   above: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [2.3, 2.05, 1.7], sky: [.42, .55, .78], gnd: [.45, .47, .5], fog: [.62, .7, .82], fogD: .00032, fogH: 0, zen: [.1, .24, .58], hor: [.58, .7, .86], cloud: .15, skyFog: .2, expo: 1.0, wet: 0, rain: 0, wind: 1 },
   aboveCabin: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [.5, .45, .38], sky: [.16, .17, .2], gnd: [.1, .1, .1], fog: [.72, .78, .86], fogD: .00045, fogH: 0, zen: [.16, .32, .66], hor: [.66, .76, .88], cloud: .15, skyFog: .35, expo: 1.2, wet: 0, rain: 0, wind: 1 },
-  below: { sunDir: V.norm([.2, .9, .3]), sunCol: [.35, .37, .36], sky: [.5, .56, .58], gnd: [.2, .24, .2], fog: [.52, .58, .58], fogD: .0012, fogH: 0, zen: [.5, .55, .58], hor: [.6, .65, .66], cloud: 1, skyFog: .9, expo: 1.1, wet: .6, rain: .6, wind: 1.6 },
+  below: { sunDir: V.norm([-.55, .42, -.45]), sunCol: [1.7, 1.55, 1.3], sky: [.45, .56, .72], gnd: [.3, .34, .3], fog: [.6, .68, .78], fogD: .00028, fogH: 0, zen: [.14, .3, .62], hor: [.6, .7, .84], cloud: .3, skyFog: .3, expo: 1.0, wet: 0, rain: 0, wind: 1 },
 };
 function envLerp(out, a, b, t) {
   for (const k in a) { const va = a[k], vb = b[k]; if (Array.isArray(va)) { out[k] = out[k] || [0, 0, 0]; for (let i = 0; i < 3; i++) out[k][i] = lerp(va[i], vb[i], t); } else out[k] = lerp(va, vb, t); }

@@ -2,7 +2,7 @@
    RENDERER — custom WebGL2 engine: procedural PBR-ish materials, shadow
    mapping, spot/point lights, fog, sky, water, particles, skinning.
    ===================================================================== */
-const MAT = { PAINT: 0, WOOD: 1, CONC: 2, CORR: 3, MUD: 4, GRASS: 5, CLOTH: 6, SKIN: 7, BARK: 8, LEAF: 9, EMIT: 10, GLASS: 11, METAL: 12, RUST: 13, BRICK: 14, SNOW: 15, ASPH: 16, CAMO: 17, ROCK: 18, HAIR: 19, LEATHER: 20, RUBBER: 21, PLASTIC: 22, TILE: 23, CANVAS: 24, CHAIN: 25, MIRROR: 26, BLOOD: 27, CLOUD: 29, WETSKIN: 30 };
+const MAT = { PAINT: 0, WOOD: 1, CONC: 2, CORR: 3, MUD: 4, GRASS: 5, CLOTH: 6, SKIN: 7, BARK: 8, LEAF: 9, EMIT: 10, GLASS: 11, METAL: 12, RUST: 13, BRICK: 14, SNOW: 15, ASPH: 16, CAMO: 17, ROCK: 18, HAIR: 19, LEATHER: 20, RUBBER: 21, PLASTIC: 22, TILE: 23, CANVAS: 24, CHAIN: 25, MIRROR: 26, BLOOD: 27, CLOUD: 29, WETSKIN: 30, PUFF: 31 };
 const STRIDE = 11;
 function lin(h) { const c = hexCol(h); return [Math.pow(c[0], 2.2), Math.pow(c[1], 2.2), Math.pow(c[2], 2.2)]; }
 function linA(a) { return [Math.pow(a[0], 2.2), Math.pow(a[1], 2.2), Math.pow(a[2], 2.2)]; }
@@ -52,6 +52,13 @@ void main(){
   if(vMat==26){ vec2 suv=gl_FragCoord.xy/uRes; vec3 m=texture(uMirror,vec2(suv.x,suv.y)).rgb; float sm=fbm(vPos.xy*9.+vPos.zy*7.); m=m*.93+vec3(.02)*smoothstep(.55,.8,sm); float ed=fbm(vPos.xy*30.); m*=.97+.03*ed; frag=vec4(m*uTint.rgb,1.); return; }
   vec3 N=normalize(vNor); vec3 Vd=uCam-vPos; float dist=length(Vd); vec3 V=Vd/dist;
   if(dot(N,V)<0.) N=-N;
+  if(vMat==31){ // cumulus puff: wrapped sun lighting, blue-grey shadow side, soft silhouette
+    vec3 Nn=N; float w=dot(Nn,uSunDir)*.5+.5; float n=fbm(vPos.xz*.012+vPos.y*.02);
+    vec3 shade=mix(uSky*.85+vec3(.08,.09,.12),vec3(1.,.99,.96)*(.5+uSunCol*.32),smoothstep(.15,.95,w+(n-.5)*.35))*vCol;
+    shade+=uSunCol*.18*pow(max(dot(-V,uSunDir),0.),4.)*(1.-w);
+    float rim=max(dot(Nn,V),0.); float a=smoothstep(.0,.6,rim)*(.75+.5*n);
+    float f=1.-exp(-dist*uFogD); shade=mix(shade,uFog,clamp(f,0.,1.)*.85);
+    frag=vec4(tonemap(shade*uExpo),clamp(a,0.,1.)*uAlpha); return; }
   if(vMat==29){ // layered cloud sheet: procedural density, lit from above, blended
     vec2 q=vPos.xz*.0032+vec2(uTime*.002,uTime*.0007)+vLoc.y*.37; float dd=fbm(q)*.65+fbm(q*3.1+5.)*.35; float th=vCol.r;
     float a=smoothstep(th,th+.22,dd); if(a<.01) discard;

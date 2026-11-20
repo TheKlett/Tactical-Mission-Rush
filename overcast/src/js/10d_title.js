@@ -31,3 +31,12 @@ Story.ending = function () {
     UI.endCard(); AUD.pad('title');
   }, 2300);
 };
+
+// keep the titles readable: no cumulus right on the fall line above the deck — then one big one to fall straight through
+Story.clearFallPath = function () {
+  const ts = this.titles || []; const c = ts.length ? ts[ts.length - 1].pos : P.pos; const top = P.pos;
+  const near = it => { const t = clamp((top[1] - it.pos[1]) / Math.max(1, top[1] - c[1]), 0, 1); const px = lerp(top[0], c[0], t), pz = lerp(top[2], c[2], t); return Math.hypot(it.cx - px, it.cz - pz) < it.size * .9 + 70; };
+  for (const it of this.puffs || []) if (it.base + it.size * .8 > c[1] - 40 && near(it)) { it.hidden = true; PUFFS.blobs = PUFFS.blobs.filter(b => !it.blobs.includes(b)); }
+  const below = [c[0] + P.drift[0] * 6, 0, c[2] + P.drift[2] * 6];
+  const add = buildCumulus(991, below[0], below[2], 1, { maxR: 1, base: c[1] - 330, spread: 1 }); for (const it of add) { this.puffs.push(it); G.glass.push(it); }
+};
