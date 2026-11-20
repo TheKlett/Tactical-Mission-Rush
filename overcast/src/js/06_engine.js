@@ -24,11 +24,11 @@ const IN = {
 
 /* ---------------- environment presets (blended over time) ---------------- */
 const ENV = {
-  overcast: { sunDir: V.norm([.25, .9, .3]), sunCol: [.42, .43, .45], sky: [.62, .66, .7], gnd: [.25, .26, .25], fog: [.6, .63, .66], fogD: .0065, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.08, wet: 1, rain: 1, wind: 1.6 },
+  overcast: { sunDir: V.norm([.25, .9, .3]), sunCol: [.42, .43, .45], sky: [.62, .66, .7], gnd: [.25, .26, .25], fog: [.6, .63, .66], fogD: .0036, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.08, wet: 1, rain: 1, wind: 1.6 },
   container: { sunDir: V.norm([.25, .9, .3]), sunCol: [.04, .04, .045], sky: [.05, .055, .06], gnd: [.035, .035, .035], fog: [.6, .63, .66], fogD: .0065, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.0, wet: 0, rain: 0, wind: 1.6 },
   cabin: { sunDir: V.norm([.25, .9, .3]), sunCol: [.12, .12, .13], sky: [.2, .21, .22], gnd: [.1, .1, .1], fog: [.6, .63, .66], fogD: .0065, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.25, wet: 0, rain: 0, wind: 1.6 },
   inCloud: { sunDir: V.norm([.5, .5, -.4]), sunCol: [.8, .78, .75], sky: [.85, .87, .9], gnd: [.6, .62, .64], fog: [.86, .88, .9], fogD: .09, fogH: 0, zen: [.86, .88, .9], hor: [.86, .88, .9], cloud: 0, skyFog: 1, expo: 1.0, wet: 0, rain: 0, wind: 1 },
-  above: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [2.3, 2.05, 1.7], sky: [.42, .55, .78], gnd: [.55, .55, .55], fog: [.72, .78, .86], fogD: .00045, fogH: 0, zen: [.16, .32, .66], hor: [.66, .76, .88], cloud: .15, skyFog: .35, expo: 1.0, wet: 0, rain: 0, wind: 1 },
+  above: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [2.3, 2.05, 1.7], sky: [.42, .55, .78], gnd: [.45, .47, .5], fog: [.62, .7, .82], fogD: .00032, fogH: 0, zen: [.1, .24, .58], hor: [.58, .7, .86], cloud: .15, skyFog: .2, expo: 1.0, wet: 0, rain: 0, wind: 1 },
   aboveCabin: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [.5, .45, .38], sky: [.16, .17, .2], gnd: [.1, .1, .1], fog: [.72, .78, .86], fogD: .00045, fogH: 0, zen: [.16, .32, .66], hor: [.66, .76, .88], cloud: .15, skyFog: .35, expo: 1.2, wet: 0, rain: 0, wind: 1 },
   below: { sunDir: V.norm([.2, .9, .3]), sunCol: [.35, .37, .36], sky: [.5, .56, .58], gnd: [.2, .24, .2], fog: [.52, .58, .58], fogD: .0012, fogH: 0, zen: [.5, .55, .58], hor: [.6, .65, .66], cloud: 1, skyFog: .9, expo: 1.1, wet: .6, rain: .6, wind: 1.6 },
 };

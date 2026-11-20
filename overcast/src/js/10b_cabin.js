@@ -58,7 +58,7 @@ const Cabin = {
     // Mox walks in after you and takes his seat
     mox.state.follow = false; const lp = M4.pt(pl.inv, mox.pos[0], mox.pos[1], mox.pos[2]); mox.frame = pl; mox.pos = lp; mox.yaw = angWrap(mox.yaw - pl.yaw); mox.groundFn = null;
     const ms = this.seatW(this.seatIdx.mox, -1);
-    mox.goTo([[clamp(lp[0], -1.5, 1.5), TP.floor, Math.min(lp[2], TP.z1 + 2)], [0, TP.floor, TP.z1 - 1], [0, TP.floor, ms.pos[2] + .5], [ms.pos[0] + .7, TP.floor, ms.pos[2]]], false, (a) => { a.yaw = ms.yaw; a.pos = V.copy(ms.pos); a.anim = 'sit'; a.seat = 'talk'; a.seated = true; a.weaponMode = 'knees'; });
+    mox.goTo([[clamp(lp[0], -1.5, 1.5), TP.floor, Math.min(lp[2], TP.z1 + 2)], [0, TP.floor, TP.z1 - 1], [0, TP.floor, ms.pos[2] + .5], [ms.pos[0] + .7, TP.floor, ms.pos[2]]], false, (a) => { a.yaw = ms.yaw; a.pos = V.copy(ms.pos); a.anim = 'sit'; a.seat = 'talk'; a.seated = true; a.weaponMode = 'sling'; });
     Story.run(function* () {
       yield .6; yield Story.say(Cabin.hale, "Rook. Nice of you to join us. Find a seat.");
       yield () => Cabin.mox.seated; yield .5; yield Story.say(Cabin.mox, "Over here. Saved you the window. Sort of.");
@@ -106,8 +106,8 @@ const Cabin = {
   sunShafts(on) {
     const S = Story; if (!on) { for (const d of S.sunShafts) G.glass.splice(G.glass.indexOf(d), 1); S.sunShafts = []; return; }
     // shafts of light through the windows on the sunny side, with dust in them
-    const B = new MB(4000); B.col([.5, .9, .07], MAT.CLOUD);
-    for (const w of TP.windows) { if (w.side < 0) continue; B.push().t(w.side * 2.8, TP.winY, w.z).rz(-1.05).ry(.25); for (let k = 0; k < 3; k++) { const s = .28 + k * .1; B.col([.98, 1, .05], MAT.EMIT).box(0, -1.4, 0, s, 2.8, s); } B.pop(); }
+    const B = new MB(4000);
+    for (const w of TP.windows) { if (w.side < 0) continue; B.push().t(w.side * (TP.winX - .1), TP.winY, w.z).rz(-1.05).ry(.25); for (let k = 0; k < 3; k++) { const s = .22 + k * .12; B.col([1, .9, .72], MAT.EMIT).box(0, -1.5, 0, s, 3, s * 1.4); } B.pop(); }
     const d = { mesh: B.mesh(), m: S.plane.m, pos: S.plane.pos, r: 30, alpha: .05, tint: [1, .9, .7, 0] }; S.sunShafts.push(d); G.glass.push(d);
     G.updaters.push(dt => { if (Story.phase === 'fall' || Story.phase === 'end') return; if (Math.random() < .5) { const w = TP.windows[(Math.random() * TP.windows.length) | 0]; if (w.side < 0) return; const lp = [w.side * 2.4 - Math.random() * 1.8, TP.winY - Math.random() * 1.2, w.z + rnd(-.4, .4)]; const p = M4.pt(Story.plane.m, lp[0], lp[1], lp[2]); G.particles.push({ p, v: V.add(Story.plane.vel, [rnd(-.02, .02), rnd(-.02, .02), rnd(-.02, .02)]), life: 0, max: 5, s: .006, c: [1, .9, .7], a: .8, add: true, fadeIn: true }); } });
   },

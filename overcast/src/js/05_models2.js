@@ -178,34 +178,29 @@ TP.windows = (() => { const w = []; for (const side of [-1, 1]) for (let z = -10
 function buildTransport() {
   const B = new MB(1 << 17), G2 = new MB(4000); const paint = 0x6c726c, inner = 0x58604f, quilt = 0x6a705c;
   const n = 3; const se = (a, sa, sb) => [Math.sign(Math.cos(a)) * Math.pow(Math.abs(Math.cos(a)), 2 / n) * sa, TP.cy + Math.sign(Math.sin(a)) * Math.pow(Math.abs(Math.sin(a)), 2 / n) * sb];
-  // angular samples: dense, with the window band edges inserted exactly
-  const angs = []; const NA = 40; for (let i = 0; i < NA; i++) angs.push(i / NA * TAU);
-  const yToAng = (y, side) => { // find angle on the superellipse giving height y on a side
-    let lo = side > 0 ? -Math.PI / 2 : Math.PI / 2, hi = side > 0 ? Math.PI / 2 : 3 * Math.PI / 2;
-    for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; const yy = se(m, TP.a, TP.b)[1]; if (side > 0 ? yy < y : yy > y) lo = m; else hi = m; } return (lo + hi) / 2;
-  };
-  const wb = []; for (const side of [-1, 1]) { const a0 = yToAng(TP.winY - TP.winH / 2, side), a1 = yToAng(TP.winY + TP.winH / 2, side); wb.push([Math.min(a0, a1), Math.max(a0, a1), side]); angs.push(((a0 % TAU) + TAU) % TAU, ((a1 % TAU) + TAU) % TAU); }
-  angs.sort((a, b) => a - b);
+  const NA = 40; const angs = []; for (let i = 0; i < NA; i++) angs.push(i / NA * TAU);
+  // one angular cell per side carries the windows (the cell whose middle sits closest to seated eye height)
+  const winCell = {}; for (const side of [-1, 1]) { let best = -1, bd = 1e9; for (let i = 0; i < NA; i++) { const p = se((i + .5) / NA * TAU, TP.a, TP.b); if (Math.sign(p[0]) !== side) continue; const d = Math.abs(p[1] - 3.1); if (d < bd) { bd = d; best = i; } } winCell[side] = best; }
+  { const p = se((winCell[1] + .5) / NA * TAU, TP.a, TP.b); TP.winY = p[1]; TP.winX = Math.abs(p[0]); }
   const zs = []; for (let z = TP.z0; z <= TP.z1 + .01; z += 1.08) zs.push(+z.toFixed(3)); for (const w of TP.windows) zs.push(w.z - TP.winW / 2, w.z + TP.winW / 2); zs.sort((a, b) => a - b);
-  const isWin = (a, z) => { for (const w of TP.windows) { if (z < w.z - TP.winW / 2 + .001 || z > w.z + TP.winW / 2 - .001) continue; for (const b of wb) { if (b[2] !== w.side) continue; const aa = ((a % TAU) + TAU) % TAU, lo = ((b[0] % TAU) + TAU) % TAU, hi = ((b[1] % TAU) + TAU) % TAU; if (aa > lo + .0005 && aa < hi - .0005) return true; } } return false; };
+  const winAt = (ai, z0, z1) => TP.windows.find(w => winCell[w.side] === ai && z0 >= w.z - TP.winW / 2 - 1e-3 && z1 <= w.z + TP.winW / 2 + 1e-3);
   const P3 = (a, z, inset) => { const p = se(a, TP.a - inset, TP.b - inset); return [p[0], p[1], z]; };
   for (let zi = 0; zi < zs.length - 1; zi++) {
     const z0 = zs[zi], z1 = zs[zi + 1]; if (z1 - z0 < .001) continue;
-    for (let ai = 0; ai < angs.length; ai++) {
-      const a0 = angs[ai], a1 = ai + 1 < angs.length ? angs[ai + 1] : angs[0] + TAU; if (a1 - a0 < .0001) continue;
-      const am = (a0 + a1) / 2; const yMid = se(am, TP.a, TP.b)[1];
-      if (yMid < TP.floor - .25) { B.col(paint, MAT.PAINT); B.begin(); B.quad(P3(a0, z0, 0), P3(a1, z0, 0), P3(a1, z1, 0), P3(a0, z1, 0)); continue; } // belly (under floor)
-      if (isWin(am, (z0 + z1) / 2)) { // window: tunnel between skins + glass pane
+    for (let ai = 0; ai < NA; ai++) {
+      const a0 = angs[ai], a1 = ai + 1 < NA ? angs[ai + 1] : TAU; const am = (a0 + a1) / 2; const yMid = se(am, TP.a, TP.b)[1];
+      if (yMid < TP.floor - .25) { B.col(paint, MAT.PAINT); B.begin(); B.quad(P3(a0, z0, 0), P3(a1, z0, 0), P3(a1, z1, 0), P3(a0, z1, 0)); continue; }
+      if (winAt(ai, z0, z1)) { // window: reveal between the skins, glass pane, rubber frame inside
         B.col(0x2a2c28, MAT.METAL); B.begin(); B.quad(P3(a0, z0, 0), P3(a0, z0, .16), P3(a1, z0, .16), P3(a1, z0, 0)); B.quad(P3(a1, z1, 0), P3(a1, z1, .16), P3(a0, z1, .16), P3(a0, z1, 0));
-        G2.col(0x9ab0b8, MAT.GLASS); G2.begin(); G2.quad(P3(a0, z0, .04), P3(a1, z0, .04), P3(a1, z1, .04), P3(a0, z1, .04)); continue;
+        B.quad(P3(a0, z0, 0), P3(a0, z1, 0), P3(a0, z1, .16), P3(a0, z0, .16)); B.quad(P3(a1, z1, 0), P3(a1, z0, 0), P3(a1, z0, .16), P3(a1, z1, .16));
+        G2.col(0xa8c0c8, MAT.GLASS); G2.begin(); G2.quad(P3(a0, z0, .05), P3(a1, z0, .05), P3(a1, z1, .05), P3(a0, z1, .05));
+        B.col(0x1e201c, MAT.RUBBER); const c = [P3(a0, z0, .17), P3(a1, z0, .17), P3(a1, z1, .17), P3(a0, z1, .17)]; for (let k = 0; k < 4; k++) B.beam(c[k], c[(k + 1) % 4], .05, .03);
+        continue;
       }
-      const winEdge = TP.windows.some(w => Math.abs((z0 + z1) / 2 - w.z) < TP.winW) && wb.some(b => { const aa = ((am % TAU) + TAU) % TAU; const lo = ((b[0] % TAU) + TAU) % TAU, hi = ((b[1] % TAU) + TAU) % TAU; return aa > lo - .06 && aa < hi + .06; });
       B.col(paint, MAT.PAINT); B.begin(); B.quad(P3(a0, z0, 0), P3(a1, z0, 0), P3(a1, z1, 0), P3(a0, z1, 0));
-      B.col(winEdge ? 0x3a3c36 : (zi + ai) % 2 ? quilt : dk(quilt, .9), MAT.CANVAS); B.begin(); B.quad(P3(a0, z0, .16), P3(a0, z1, .16), P3(a1, z1, .16), P3(a1, z0, .16));
+      B.col((zi + ai) % 2 ? quilt : dk(quilt, .9), MAT.CANVAS); B.begin(); B.quad(P3(a0, z0, .16), P3(a0, z1, .16), P3(a1, z1, .16), P3(a1, z0, .16));
     }
   }
-  // window bezels (inside)
-  for (const w of TP.windows) { const x = w.side * 2.86; B.col(0x23251f, MAT.RUBBER).push().t(x, TP.winY, w.z).ry(Math.PI / 2).torus(0, 0, 0, .23, .035, 16, 4).pop(); }
   // ribs + stringers inside
   B.col(0x4e5446, MAT.METAL); for (let z = TP.z0 + .5; z < TP.z1; z += 1.08) for (let i = 0; i < NA; i++) { const a0 = i / NA * TAU, a1 = (i + 1) / NA * TAU; if (se((a0 + a1) / 2, TP.a, TP.b)[1] < TP.floor) continue; B.beam(P3(a0, z, .17), P3(a1, z, .17), .08, .06); }
   // cabin floor with roller tracks and tie-down rings

@@ -993,7 +993,7 @@ void main(){
   // weather: wetness and snow accumulation on static geometry
   if(uSkin==0){
     if(uSnow>0. && N.y>.55 && vMat!=10 && vMat!=11){ float s=smoothstep(.55,.85,N.y)*uSnow*(.75+.25*vn(vPos.xz*.7)); c=mix(c,vec3(.82,.86,.92),s); spec=mix(spec,.3,s); }
-    if(uWet>0. && vMat!=10){ float w=uWet*(.4+.6*smoothstep(.3,.9,N.y)); c*=1.-w*.35; spec+=w*.6; shin=mix(shin,80.,w); refl+=w*.25*smoothstep(.4,.8,vn(vPos.xz*.25)); }
+    if(uWet>0. && vMat!=10){ float w=uWet*(.4+.6*smoothstep(.3,.9,N.y)); c*=1.-w*.35; spec+=w*.6; shin=mix(shin,80.,w); refl+=w*(.05+.1*smoothstep(.55,.85,vn(vPos.xz*.6))); }
   }
   c*=uTint.rgb;
   vec3 col;
@@ -1017,7 +1017,7 @@ void main(){
   float fh=exp(-max(vPos.y-uFogH,0.)*.06);
   float f=1.-exp(-dist*uFogD*(.55+.45*fh));
   col=mix(col,uFog,clamp(f,0.,1.));
-  frag=vec4(tonemap(col*uExpo),vMat==11?uAlpha:1.);
+  frag=vec4(tonemap(col*uExpo),(vMat==11||(vMat==10&&uAlpha<.99))?uAlpha:1.);
 }`;
 const VS_DEPTH = `#version 300 es
 precision highp float;
@@ -3098,34 +3098,29 @@ TP.windows = (() => { const w = []; for (const side of [-1, 1]) for (let z = -10
 function buildTransport() {
   const B = new MB(1 << 17), G2 = new MB(4000); const paint = 0x6c726c, inner = 0x58604f, quilt = 0x6a705c;
   const n = 3; const se = (a, sa, sb) => [Math.sign(Math.cos(a)) * Math.pow(Math.abs(Math.cos(a)), 2 / n) * sa, TP.cy + Math.sign(Math.sin(a)) * Math.pow(Math.abs(Math.sin(a)), 2 / n) * sb];
-  // angular samples: dense, with the window band edges inserted exactly
-  const angs = []; const NA = 40; for (let i = 0; i < NA; i++) angs.push(i / NA * TAU);
-  const yToAng = (y, side) => { // find angle on the superellipse giving height y on a side
-    let lo = side > 0 ? -Math.PI / 2 : Math.PI / 2, hi = side > 0 ? Math.PI / 2 : 3 * Math.PI / 2;
-    for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; const yy = se(m, TP.a, TP.b)[1]; if (side > 0 ? yy < y : yy > y) lo = m; else hi = m; } return (lo + hi) / 2;
-  };
-  const wb = []; for (const side of [-1, 1]) { const a0 = yToAng(TP.winY - TP.winH / 2, side), a1 = yToAng(TP.winY + TP.winH / 2, side); wb.push([Math.min(a0, a1), Math.max(a0, a1), side]); angs.push(((a0 % TAU) + TAU) % TAU, ((a1 % TAU) + TAU) % TAU); }
-  angs.sort((a, b) => a - b);
+  const NA = 40; const angs = []; for (let i = 0; i < NA; i++) angs.push(i / NA * TAU);
+  // one angular cell per side carries the windows (the cell whose middle sits closest to seated eye height)
+  const winCell = {}; for (const side of [-1, 1]) { let best = -1, bd = 1e9; for (let i = 0; i < NA; i++) { const p = se((i + .5) / NA * TAU, TP.a, TP.b); if (Math.sign(p[0]) !== side) continue; const d = Math.abs(p[1] - 3.1); if (d < bd) { bd = d; best = i; } } winCell[side] = best; }
+  { const p = se((winCell[1] + .5) / NA * TAU, TP.a, TP.b); TP.winY = p[1]; TP.winX = Math.abs(p[0]); }
   const zs = []; for (let z = TP.z0; z <= TP.z1 + .01; z += 1.08) zs.push(+z.toFixed(3)); for (const w of TP.windows) zs.push(w.z - TP.winW / 2, w.z + TP.winW / 2); zs.sort((a, b) => a - b);
-  const isWin = (a, z) => { for (const w of TP.windows) { if (z < w.z - TP.winW / 2 + .001 || z > w.z + TP.winW / 2 - .001) continue; for (const b of wb) { if (b[2] !== w.side) continue; const aa = ((a % TAU) + TAU) % TAU, lo = ((b[0] % TAU) + TAU) % TAU, hi = ((b[1] % TAU) + TAU) % TAU; if (aa > lo + .0005 && aa < hi - .0005) return true; } } return false; };
+  const winAt = (ai, z0, z1) => TP.windows.find(w => winCell[w.side] === ai && z0 >= w.z - TP.winW / 2 - 1e-3 && z1 <= w.z + TP.winW / 2 + 1e-3);
   const P3 = (a, z, inset) => { const p = se(a, TP.a - inset, TP.b - inset); return [p[0], p[1], z]; };
   for (let zi = 0; zi < zs.length - 1; zi++) {
     const z0 = zs[zi], z1 = zs[zi + 1]; if (z1 - z0 < .001) continue;
-    for (let ai = 0; ai < angs.length; ai++) {
-      const a0 = angs[ai], a1 = ai + 1 < angs.length ? angs[ai + 1] : angs[0] + TAU; if (a1 - a0 < .0001) continue;
-      const am = (a0 + a1) / 2; const yMid = se(am, TP.a, TP.b)[1];
-      if (yMid < TP.floor - .25) { B.col(paint, MAT.PAINT); B.begin(); B.quad(P3(a0, z0, 0), P3(a1, z0, 0), P3(a1, z1, 0), P3(a0, z1, 0)); continue; } // belly (under floor)
-      if (isWin(am, (z0 + z1) / 2)) { // window: tunnel between skins + glass pane
+    for (let ai = 0; ai < NA; ai++) {
+      const a0 = angs[ai], a1 = ai + 1 < NA ? angs[ai + 1] : TAU; const am = (a0 + a1) / 2; const yMid = se(am, TP.a, TP.b)[1];
+      if (yMid < TP.floor - .25) { B.col(paint, MAT.PAINT); B.begin(); B.quad(P3(a0, z0, 0), P3(a1, z0, 0), P3(a1, z1, 0), P3(a0, z1, 0)); continue; }
+      if (winAt(ai, z0, z1)) { // window: reveal between the skins, glass pane, rubber frame inside
         B.col(0x2a2c28, MAT.METAL); B.begin(); B.quad(P3(a0, z0, 0), P3(a0, z0, .16), P3(a1, z0, .16), P3(a1, z0, 0)); B.quad(P3(a1, z1, 0), P3(a1, z1, .16), P3(a0, z1, .16), P3(a0, z1, 0));
-        G2.col(0x9ab0b8, MAT.GLASS); G2.begin(); G2.quad(P3(a0, z0, .04), P3(a1, z0, .04), P3(a1, z1, .04), P3(a0, z1, .04)); continue;
+        B.quad(P3(a0, z0, 0), P3(a0, z1, 0), P3(a0, z1, .16), P3(a0, z0, .16)); B.quad(P3(a1, z1, 0), P3(a1, z0, 0), P3(a1, z0, .16), P3(a1, z1, .16));
+        G2.col(0xa8c0c8, MAT.GLASS); G2.begin(); G2.quad(P3(a0, z0, .05), P3(a1, z0, .05), P3(a1, z1, .05), P3(a0, z1, .05));
+        B.col(0x1e201c, MAT.RUBBER); const c = [P3(a0, z0, .17), P3(a1, z0, .17), P3(a1, z1, .17), P3(a0, z1, .17)]; for (let k = 0; k < 4; k++) B.beam(c[k], c[(k + 1) % 4], .05, .03);
+        continue;
       }
-      const winEdge = TP.windows.some(w => Math.abs((z0 + z1) / 2 - w.z) < TP.winW) && wb.some(b => { const aa = ((am % TAU) + TAU) % TAU; const lo = ((b[0] % TAU) + TAU) % TAU, hi = ((b[1] % TAU) + TAU) % TAU; return aa > lo - .06 && aa < hi + .06; });
       B.col(paint, MAT.PAINT); B.begin(); B.quad(P3(a0, z0, 0), P3(a1, z0, 0), P3(a1, z1, 0), P3(a0, z1, 0));
-      B.col(winEdge ? 0x3a3c36 : (zi + ai) % 2 ? quilt : dk(quilt, .9), MAT.CANVAS); B.begin(); B.quad(P3(a0, z0, .16), P3(a0, z1, .16), P3(a1, z1, .16), P3(a1, z0, .16));
+      B.col((zi + ai) % 2 ? quilt : dk(quilt, .9), MAT.CANVAS); B.begin(); B.quad(P3(a0, z0, .16), P3(a0, z1, .16), P3(a1, z1, .16), P3(a1, z0, .16));
     }
   }
-  // window bezels (inside)
-  for (const w of TP.windows) { const x = w.side * 2.86; B.col(0x23251f, MAT.RUBBER).push().t(x, TP.winY, w.z).ry(Math.PI / 2).torus(0, 0, 0, .23, .035, 16, 4).pop(); }
   // ribs + stringers inside
   B.col(0x4e5446, MAT.METAL); for (let z = TP.z0 + .5; z < TP.z1; z += 1.08) for (let i = 0; i < NA; i++) { const a0 = i / NA * TAU, a1 = (i + 1) / NA * TAU; if (se((a0 + a1) / 2, TP.a, TP.b)[1] < TP.floor) continue; B.beam(P3(a0, z, .17), P3(a1, z, .17), .08, .06); }
   // cabin floor with roller tracks and tie-down rings
@@ -3342,11 +3337,11 @@ const IN = {
 
 /* ---------------- environment presets (blended over time) ---------------- */
 const ENV = {
-  overcast: { sunDir: V.norm([.25, .9, .3]), sunCol: [.42, .43, .45], sky: [.62, .66, .7], gnd: [.25, .26, .25], fog: [.6, .63, .66], fogD: .0065, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.08, wet: 1, rain: 1, wind: 1.6 },
+  overcast: { sunDir: V.norm([.25, .9, .3]), sunCol: [.42, .43, .45], sky: [.62, .66, .7], gnd: [.25, .26, .25], fog: [.6, .63, .66], fogD: .0036, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.08, wet: 1, rain: 1, wind: 1.6 },
   container: { sunDir: V.norm([.25, .9, .3]), sunCol: [.04, .04, .045], sky: [.05, .055, .06], gnd: [.035, .035, .035], fog: [.6, .63, .66], fogD: .0065, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.0, wet: 0, rain: 0, wind: 1.6 },
   cabin: { sunDir: V.norm([.25, .9, .3]), sunCol: [.12, .12, .13], sky: [.2, .21, .22], gnd: [.1, .1, .1], fog: [.6, .63, .66], fogD: .0065, fogH: 0, zen: [.56, .6, .64], hor: [.72, .74, .76], cloud: 1, skyFog: .9, expo: 1.25, wet: 0, rain: 0, wind: 1.6 },
   inCloud: { sunDir: V.norm([.5, .5, -.4]), sunCol: [.8, .78, .75], sky: [.85, .87, .9], gnd: [.6, .62, .64], fog: [.86, .88, .9], fogD: .09, fogH: 0, zen: [.86, .88, .9], hor: [.86, .88, .9], cloud: 0, skyFog: 1, expo: 1.0, wet: 0, rain: 0, wind: 1 },
-  above: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [2.3, 2.05, 1.7], sky: [.42, .55, .78], gnd: [.55, .55, .55], fog: [.72, .78, .86], fogD: .00045, fogH: 0, zen: [.16, .32, .66], hor: [.66, .76, .88], cloud: .15, skyFog: .35, expo: 1.0, wet: 0, rain: 0, wind: 1 },
+  above: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [2.3, 2.05, 1.7], sky: [.42, .55, .78], gnd: [.45, .47, .5], fog: [.62, .7, .82], fogD: .00032, fogH: 0, zen: [.1, .24, .58], hor: [.58, .7, .86], cloud: .15, skyFog: .2, expo: 1.0, wet: 0, rain: 0, wind: 1 },
   aboveCabin: { sunDir: V.norm([-.55, .32, -.45]), sunCol: [.5, .45, .38], sky: [.16, .17, .2], gnd: [.1, .1, .1], fog: [.72, .78, .86], fogD: .00045, fogH: 0, zen: [.16, .32, .66], hor: [.66, .76, .88], cloud: .15, skyFog: .35, expo: 1.2, wet: 0, rain: 0, wind: 1 },
   below: { sunDir: V.norm([.2, .9, .3]), sunCol: [.35, .37, .36], sky: [.5, .56, .58], gnd: [.2, .24, .2], fog: [.52, .58, .58], fogD: .0012, fogH: 0, zen: [.5, .55, .58], hor: [.6, .65, .66], cloud: 1, skyFog: .9, expo: 1.1, wet: .6, rain: .6, wind: 1.6 },
 };
@@ -3753,6 +3748,7 @@ const P = {
     if (this.rootFn) this.rootFn(r, this);
     rig.solve(null, false);
     for (const q of this.ik) { if (q.leg) ikLeg(rig, q.left, q.T, q.pole, r); else ikArm(rig, q.left, q.T, q.pole || M4.dir(r, q.left ? -.6 : .6, -1, .2), q.fingers, q.palm); }
+    rig.hide = st === 'fall' ? ((1 << SK.HD) | (1 << SK.CH) | (1 << SK.UAL) | (1 << SK.UAR) | (1 << SK.PEL)) : (1 << SK.HD);
     rigCommit(rig);
     const wp = M4.pos(rig.mats[SK.PEL]); this.dyn[0].pos[0] = wp[0]; this.dyn[0].pos[1] = wp[1]; this.dyn[0].pos[2] = wp[2];
     for (const p of this.props) M4.mul(p.m, rig.mats[p.bone], p.off);
@@ -3766,7 +3762,7 @@ const P = {
       // keep the eye where the head is, but correct for the body's look-down offset
       const bf = [-Math.sin(this.bodyYaw), 0, -Math.cos(this.bodyYaw)]; const back = this.state === 'fall' ? 0 : (this.backOff ?? (.1 + Math.max(0, -this.pitch) * .16));
       const bfw = fm ? M4.dir(fm, bf[0], 0, bf[2]) : bf; eye = V.add(eye, V.sc(bfw, back + .05));
-      if (this.state === 'fall') eye = V.add(this.pos, [0, 1.3, 0]);
+      if (this.state === 'fall') { eye = M4.pt(hm, 0, .12, -.22); }
       if (fm) M4.copy(m, fm);
       if (fm) { const inv = M4.invert(M4.create(), fm); const le = M4.pt(inv, eye[0], eye[1], eye[2]); M4.translate(m, m, le[0], le[1], le[2]); }
       else M4.translate(m, M4.create(), eye[0], eye[1], eye[2]);
@@ -3848,7 +3844,8 @@ function buildFOB(W) {
   }
   stencilFlat(D, '09', FOB.runway.x0 + 45, FOB.runway.z, 3.2);
   slab(-265, -96, 330, 128, 0x3a3c3c, MAT.CONC);
-  D.col(0x262828, MAT.ASPH); for (let x = -260; x < 330; x += 7.5) tiledBox(D, x, .053, 16, .08, .005, 224, 15); for (let z = -95; z < 128; z += 7.5) tiledBox(D, 32, .053, z, 594, .005, .08, 15);
+  D.col(0x323434, MAT.ASPH); for (let x = -260; x < 330; x += 7.5) tiledBox(D, x, .053, 16, .14, .005, 224, 15); for (let z = -95; z < 128; z += 7.5) tiledBox(D, 32, .053, z, 594, .005, .14, 15);
+  for (let x = -256; x < 328; x += 7.5) for (let z = -92; z < 126; z += 7.5) if (vnoise(x * .3, z * .3) > .55) D.col(lin(0x3a3c3c).map(v => v * (.86 + vnoise(x, z) * .2)), MAT.CONC).box(x, .052, z, 7.3, .003, 7.3);
   D.col(0xc8a020, MAT.PAINT); tiledBox(D, 30, .056, -60, 520, .01, .35, 15); for (let x = -240; x < 300; x += 20) D.box(x, .056, -97, .35, .01, 6);
   slab(-80, -143, 120, -96, 0x2e3032); slab(-150, -192, -120, -96, 0x2e3032);
   // puddles: flat, darker, glossy (the wet shader turns them into mirrors of the sky)
@@ -3996,7 +3993,7 @@ function buildCloudLayer(size, threshold, bright, alpha) {
 }
 function makeCloudDeck(base, top, n, o = {}) {
   const layers = [];
-  for (let i = 0; i < n; i++) { const k = i / (n - 1); const y = lerp(base, top, k); const th = lerp(.52, .6, Math.abs(k - .5) * 2) + (o.thin || 0); const mesh = buildCloudLayer(o.size || 9000, th, lerp(.55, 1, k), o.alpha || .55); layers.push({ mesh, m: M4.create(), y, pos: [0, y, 0], alpha: 1, r: 0, tint: [1, 1, 1, 0] }); }
+  for (let i = 0; i < n; i++) { const k = i / (n - 1); const y = lerp(base, top, k); const th = lerp(.55, .63, Math.abs(k - .5) * 2) + (o.thin || 0); const mesh = buildCloudLayer(o.size || 9000, th, lerp(.55, 1, k), o.alpha || .55); layers.push({ mesh, m: M4.create(), y, pos: [0, y, 0], alpha: 1, r: 0, tint: [1, 1, 1, 0] }); }
   return layers;
 }
 
@@ -4147,6 +4144,7 @@ const Story = {
   /* ---------------- per frame ---------------- */
   update(dt) {
     this.t += dt; this.updateCos(dt);
+    { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; R.drawDist = alt > 150 ? 4200 : 900; R.detailDist = alt > 150 ? 0 : 70; }
     // door physics: swing, slam against the container wall, settle
     const D = this.door; if (D) {
       if (D.vel) { D.ang += D.vel * dt; D.vel *= Math.exp(-.9 * dt); if (D.ang > 1.62) { D.ang = 1.62; if (Math.abs(D.vel) > .5) { AUD.doorBang([D.hinge[0] + .5, D.hinge[1] + 1, D.hinge[2] + .9], Math.min(1, Math.abs(D.vel) / 3)); P.shake = Math.max(P.shake, .2); } D.vel = -D.vel * .28; } if (D.ang < 1.15 && D.vel < 0) D.vel += 3 * dt; if (Math.abs(D.vel) < .02 && D.ang > 1.2) D.vel = 0; }
@@ -4164,7 +4162,7 @@ const Story = {
     // boarding: step onto the ramp → cabin space
     if (this.phase === 'walk' && P.state === 'walk') {
       const L = M4.pt(this.plane.inv, P.pos[0], P.pos[1], P.pos[2]);
-      if (L[2] < TP.z1 + TP.rampL - .3 && L[2] > TP.z1 - .5 && Math.abs(L[0]) < 2.3) { P.inPlane = true; P.local = [L[0], L[1], L[2]]; P.yaw = angWrap(P.yaw - this.plane.yaw); P.state = 'cabin'; this.phase = 'board'; Cabin.onBoard(); }
+      if (L[2] < TP.z1 + TP.rampL * Math.cos(.2) - .7 && L[2] > TP.z1 - .5 && Math.abs(L[0]) < 2.3) { P.inPlane = true; P.local = [L[0], L[1], L[2]]; P.yaw = angWrap(P.yaw - this.plane.yaw); P.state = 'cabin'; this.phase = 'board'; Cabin.onBoard(); }
     }
     // mirror only matters near the washroom
     if (G.S.mirror) G.S.mirror.on = !P.inPlane && V.dist(P.pos, this.FW.mirror.p) < 5;
@@ -4201,12 +4199,12 @@ const Flight = {
       if (pl.pos[1] > 300 && !this.cloudIn) { this.cloudIn = true; G.setEnv('inCloud', 4); }
       if (pl.pos[1] > 430 && !this.swapped) this.swapWorld();
     } else if (this.phase === 'climb2') {
-      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .16 : 0, .5, dt); pl.roll = damp(pl.roll, 0, .5, dt);
+      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .16 : 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, -.17, .5, dt);
       pl.shake = pl.pos[1] < 920 ? 1.5 : .35;
       if (pl.pos[1] > 920 && !this.above) { this.above = true; G.setEnv('aboveCabin', 3); G.raysOn = 1; AUD.whoosh(.2); Cabin.sunShafts(true); }
       if (pl.pos[1] >= 1500) { this.phase = 'cruise'; Cabin.cruise(); }
     } else if (this.phase === 'cruise' || this.phase === 'drop') {
-      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); pl.pos[1] = damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
+      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, this.phase === 'drop' ? -.05 : -.15, .4, dt); pl.pos[1] = damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
     }
     if (this.phase !== 'parked') { const f = fwd(); pl.vel = V.sc(f, pl.speed); pl.pos[0] += pl.vel[0] * dt; pl.pos[1] = Math.max(0, pl.pos[1] + pl.vel[1] * dt); pl.pos[2] += pl.vel[2] * dt; }
     if (this.engine) this.engine.set(clamp(pl.fanSpd / 9, .15, 1) * (P.inPlane ? 1 : .6), null, .8 + pl.fanSpd / 30);
@@ -4223,7 +4221,7 @@ const Flight = {
   takeoff() { this.phase = 'roll'; this.t = 0; },
   swapWorld() { // inside the cloud: hand over from the base to the drop-zone world
     this.swapped = true; const pl = Story.plane; const S = Story;
-    pl.pos = [-2300, 840, 300]; pl.yaw = -Math.PI / 2; pl.roll = 0; this.phase = 'climb2';
+    pl.pos[0] = -1000; pl.pos[1] = 840; pl.pos[2] = -1800; pl.yaw = -Math.PI / 2; pl.roll = 0; this.phase = 'climb2';
     S.useWorld(S.ZW); G.dry = [S.planeDry];
     for (const c of S.clouds) { const i = S.clouds.indexOf(c); c.y = lerp(700, 900, i / (S.clouds.length - 1)); }
     Vignettes.stop(); for (const a of G.actors.slice()) if (!a.frame && !a.keep) G.actors.splice(G.actors.indexOf(a), 1);
@@ -4319,7 +4317,7 @@ const Cabin = {
     // Mox walks in after you and takes his seat
     mox.state.follow = false; const lp = M4.pt(pl.inv, mox.pos[0], mox.pos[1], mox.pos[2]); mox.frame = pl; mox.pos = lp; mox.yaw = angWrap(mox.yaw - pl.yaw); mox.groundFn = null;
     const ms = this.seatW(this.seatIdx.mox, -1);
-    mox.goTo([[clamp(lp[0], -1.5, 1.5), TP.floor, Math.min(lp[2], TP.z1 + 2)], [0, TP.floor, TP.z1 - 1], [0, TP.floor, ms.pos[2] + .5], [ms.pos[0] + .7, TP.floor, ms.pos[2]]], false, (a) => { a.yaw = ms.yaw; a.pos = V.copy(ms.pos); a.anim = 'sit'; a.seat = 'talk'; a.seated = true; a.weaponMode = 'knees'; });
+    mox.goTo([[clamp(lp[0], -1.5, 1.5), TP.floor, Math.min(lp[2], TP.z1 + 2)], [0, TP.floor, TP.z1 - 1], [0, TP.floor, ms.pos[2] + .5], [ms.pos[0] + .7, TP.floor, ms.pos[2]]], false, (a) => { a.yaw = ms.yaw; a.pos = V.copy(ms.pos); a.anim = 'sit'; a.seat = 'talk'; a.seated = true; a.weaponMode = 'sling'; });
     Story.run(function* () {
       yield .6; yield Story.say(Cabin.hale, "Rook. Nice of you to join us. Find a seat.");
       yield () => Cabin.mox.seated; yield .5; yield Story.say(Cabin.mox, "Over here. Saved you the window. Sort of.");
@@ -4367,8 +4365,8 @@ const Cabin = {
   sunShafts(on) {
     const S = Story; if (!on) { for (const d of S.sunShafts) G.glass.splice(G.glass.indexOf(d), 1); S.sunShafts = []; return; }
     // shafts of light through the windows on the sunny side, with dust in them
-    const B = new MB(4000); B.col([.5, .9, .07], MAT.CLOUD);
-    for (const w of TP.windows) { if (w.side < 0) continue; B.push().t(w.side * 2.8, TP.winY, w.z).rz(-1.05).ry(.25); for (let k = 0; k < 3; k++) { const s = .28 + k * .1; B.col([.98, 1, .05], MAT.EMIT).box(0, -1.4, 0, s, 2.8, s); } B.pop(); }
+    const B = new MB(4000);
+    for (const w of TP.windows) { if (w.side < 0) continue; B.push().t(w.side * (TP.winX - .1), TP.winY, w.z).rz(-1.05).ry(.25); for (let k = 0; k < 3; k++) { const s = .22 + k * .12; B.col([1, .9, .72], MAT.EMIT).box(0, -1.5, 0, s, 3, s * 1.4); } B.pop(); }
     const d = { mesh: B.mesh(), m: S.plane.m, pos: S.plane.pos, r: 30, alpha: .05, tint: [1, .9, .7, 0] }; S.sunShafts.push(d); G.glass.push(d);
     G.updaters.push(dt => { if (Story.phase === 'fall' || Story.phase === 'end') return; if (Math.random() < .5) { const w = TP.windows[(Math.random() * TP.windows.length) | 0]; if (w.side < 0) return; const lp = [w.side * 2.4 - Math.random() * 1.8, TP.winY - Math.random() * 1.2, w.z + rnd(-.4, .4)]; const p = M4.pt(Story.plane.m, lp[0], lp[1], lp[2]); G.particles.push({ p, v: V.add(Story.plane.vel, [rnd(-.02, .02), rnd(-.02, .02), rnd(-.02, .02)]), life: 0, max: 5, s: .006, c: [1, .9, .7], a: .8, add: true, fadeIn: true }); } });
   },

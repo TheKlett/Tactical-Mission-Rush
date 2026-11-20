@@ -107,6 +107,7 @@ const P = {
     if (this.rootFn) this.rootFn(r, this);
     rig.solve(null, false);
     for (const q of this.ik) { if (q.leg) ikLeg(rig, q.left, q.T, q.pole, r); else ikArm(rig, q.left, q.T, q.pole || M4.dir(r, q.left ? -.6 : .6, -1, .2), q.fingers, q.palm); }
+    rig.hide = st === 'fall' ? ((1 << SK.HD) | (1 << SK.CH) | (1 << SK.UAL) | (1 << SK.UAR) | (1 << SK.PEL)) : (1 << SK.HD);
     rigCommit(rig);
     const wp = M4.pos(rig.mats[SK.PEL]); this.dyn[0].pos[0] = wp[0]; this.dyn[0].pos[1] = wp[1]; this.dyn[0].pos[2] = wp[2];
     for (const p of this.props) M4.mul(p.m, rig.mats[p.bone], p.off);
@@ -120,7 +121,7 @@ const P = {
       // keep the eye where the head is, but correct for the body's look-down offset
       const bf = [-Math.sin(this.bodyYaw), 0, -Math.cos(this.bodyYaw)]; const back = this.state === 'fall' ? 0 : (this.backOff ?? (.1 + Math.max(0, -this.pitch) * .16));
       const bfw = fm ? M4.dir(fm, bf[0], 0, bf[2]) : bf; eye = V.add(eye, V.sc(bfw, back + .05));
-      if (this.state === 'fall') eye = V.add(this.pos, [0, 1.3, 0]);
+      if (this.state === 'fall') { eye = M4.pt(hm, 0, .12, -.22); }
       if (fm) M4.copy(m, fm);
       if (fm) { const inv = M4.invert(M4.create(), fm); const le = M4.pt(inv, eye[0], eye[1], eye[2]); M4.translate(m, m, le[0], le[1], le[2]); }
       else M4.translate(m, M4.create(), eye[0], eye[1], eye[2]);

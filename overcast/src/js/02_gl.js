@@ -94,7 +94,7 @@ void main(){
   // weather: wetness and snow accumulation on static geometry
   if(uSkin==0){
     if(uSnow>0. && N.y>.55 && vMat!=10 && vMat!=11){ float s=smoothstep(.55,.85,N.y)*uSnow*(.75+.25*vn(vPos.xz*.7)); c=mix(c,vec3(.82,.86,.92),s); spec=mix(spec,.3,s); }
-    if(uWet>0. && vMat!=10){ float w=uWet*(.4+.6*smoothstep(.3,.9,N.y)); c*=1.-w*.35; spec+=w*.6; shin=mix(shin,80.,w); refl+=w*.25*smoothstep(.4,.8,vn(vPos.xz*.25)); }
+    if(uWet>0. && vMat!=10){ float w=uWet*(.4+.6*smoothstep(.3,.9,N.y)); c*=1.-w*.35; spec+=w*.6; shin=mix(shin,80.,w); refl+=w*(.05+.1*smoothstep(.55,.85,vn(vPos.xz*.6))); }
   }
   c*=uTint.rgb;
   vec3 col;
@@ -118,7 +118,7 @@ void main(){
   float fh=exp(-max(vPos.y-uFogH,0.)*.06);
   float f=1.-exp(-dist*uFogD*(.55+.45*fh));
   col=mix(col,uFog,clamp(f,0.,1.));
-  frag=vec4(tonemap(col*uExpo),vMat==11?uAlpha:1.);
+  frag=vec4(tonemap(col*uExpo),(vMat==11||(vMat==10&&uAlpha<.99))?uAlpha:1.);
 }`;
 const VS_DEPTH = `#version 300 es
 precision highp float;

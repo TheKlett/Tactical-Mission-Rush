@@ -65,7 +65,8 @@ function buildFOB(W) {
   }
   stencilFlat(D, '09', FOB.runway.x0 + 45, FOB.runway.z, 3.2);
   slab(-265, -96, 330, 128, 0x3a3c3c, MAT.CONC);
-  D.col(0x262828, MAT.ASPH); for (let x = -260; x < 330; x += 7.5) tiledBox(D, x, .053, 16, .08, .005, 224, 15); for (let z = -95; z < 128; z += 7.5) tiledBox(D, 32, .053, z, 594, .005, .08, 15);
+  D.col(0x323434, MAT.ASPH); for (let x = -260; x < 330; x += 7.5) tiledBox(D, x, .053, 16, .14, .005, 224, 15); for (let z = -95; z < 128; z += 7.5) tiledBox(D, 32, .053, z, 594, .005, .14, 15);
+  for (let x = -256; x < 328; x += 7.5) for (let z = -92; z < 126; z += 7.5) if (vnoise(x * .3, z * .3) > .55) D.col(lin(0x3a3c3c).map(v => v * (.86 + vnoise(x, z) * .2)), MAT.CONC).box(x, .052, z, 7.3, .003, 7.3);
   D.col(0xc8a020, MAT.PAINT); tiledBox(D, 30, .056, -60, 520, .01, .35, 15); for (let x = -240; x < 300; x += 20) D.box(x, .056, -97, .35, .01, 6);
   slab(-80, -143, 120, -96, 0x2e3032); slab(-150, -192, -120, -96, 0x2e3032);
   // puddles: flat, darker, glossy (the wet shader turns them into mirrors of the sky)
@@ -213,7 +214,7 @@ function buildCloudLayer(size, threshold, bright, alpha) {
 }
 function makeCloudDeck(base, top, n, o = {}) {
   const layers = [];
-  for (let i = 0; i < n; i++) { const k = i / (n - 1); const y = lerp(base, top, k); const th = lerp(.52, .6, Math.abs(k - .5) * 2) + (o.thin || 0); const mesh = buildCloudLayer(o.size || 9000, th, lerp(.55, 1, k), o.alpha || .55); layers.push({ mesh, m: M4.create(), y, pos: [0, y, 0], alpha: 1, r: 0, tint: [1, 1, 1, 0] }); }
+  for (let i = 0; i < n; i++) { const k = i / (n - 1); const y = lerp(base, top, k); const th = lerp(.55, .63, Math.abs(k - .5) * 2) + (o.thin || 0); const mesh = buildCloudLayer(o.size || 9000, th, lerp(.55, 1, k), o.alpha || .55); layers.push({ mesh, m: M4.create(), y, pos: [0, y, 0], alpha: 1, r: 0, tint: [1, 1, 1, 0] }); }
   return layers;
 }
 

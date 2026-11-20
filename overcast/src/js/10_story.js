@@ -131,6 +131,7 @@ const Story = {
   /* ---------------- per frame ---------------- */
   update(dt) {
     this.t += dt; this.updateCos(dt);
+    { const alt = P.inPlane && this.plane ? this.plane.pos[1] : P.pos[1]; R.drawDist = alt > 150 ? 4200 : 900; R.detailDist = alt > 150 ? 0 : 70; }
     // door physics: swing, slam against the container wall, settle
     const D = this.door; if (D) {
       if (D.vel) { D.ang += D.vel * dt; D.vel *= Math.exp(-.9 * dt); if (D.ang > 1.62) { D.ang = 1.62; if (Math.abs(D.vel) > .5) { AUD.doorBang([D.hinge[0] + .5, D.hinge[1] + 1, D.hinge[2] + .9], Math.min(1, Math.abs(D.vel) / 3)); P.shake = Math.max(P.shake, .2); } D.vel = -D.vel * .28; } if (D.ang < 1.15 && D.vel < 0) D.vel += 3 * dt; if (Math.abs(D.vel) < .02 && D.ang > 1.2) D.vel = 0; }
@@ -148,7 +149,7 @@ const Story = {
     // boarding: step onto the ramp → cabin space
     if (this.phase === 'walk' && P.state === 'walk') {
       const L = M4.pt(this.plane.inv, P.pos[0], P.pos[1], P.pos[2]);
-      if (L[2] < TP.z1 + TP.rampL - .3 && L[2] > TP.z1 - .5 && Math.abs(L[0]) < 2.3) { P.inPlane = true; P.local = [L[0], L[1], L[2]]; P.yaw = angWrap(P.yaw - this.plane.yaw); P.state = 'cabin'; this.phase = 'board'; Cabin.onBoard(); }
+      if (L[2] < TP.z1 + TP.rampL * Math.cos(.2) - .7 && L[2] > TP.z1 - .5 && Math.abs(L[0]) < 2.3) { P.inPlane = true; P.local = [L[0], L[1], L[2]]; P.yaw = angWrap(P.yaw - this.plane.yaw); P.state = 'cabin'; this.phase = 'board'; Cabin.onBoard(); }
     }
     // mirror only matters near the washroom
     if (G.S.mirror) G.S.mirror.on = !P.inPlane && V.dist(P.pos, this.FW.mirror.p) < 5;
@@ -185,12 +186,12 @@ const Flight = {
       if (pl.pos[1] > 300 && !this.cloudIn) { this.cloudIn = true; G.setEnv('inCloud', 4); }
       if (pl.pos[1] > 430 && !this.swapped) this.swapWorld();
     } else if (this.phase === 'climb2') {
-      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .16 : 0, .5, dt); pl.roll = damp(pl.roll, 0, .5, dt);
+      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, 62, .3, dt); pl.pitch = damp(pl.pitch, pl.pos[1] < 1500 ? .16 : 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, -.17, .5, dt);
       pl.shake = pl.pos[1] < 920 ? 1.5 : .35;
       if (pl.pos[1] > 920 && !this.above) { this.above = true; G.setEnv('aboveCabin', 3); G.raysOn = 1; AUD.whoosh(.2); Cabin.sunShafts(true); }
       if (pl.pos[1] >= 1500) { this.phase = 'cruise'; Cabin.cruise(); }
     } else if (this.phase === 'cruise' || this.phase === 'drop') {
-      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); pl.pos[1] = damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
+      pl.fan += dt * pl.fanSpd * 3; pl.speed = damp(pl.speed, this.phase === 'drop' ? 48 : 58, .3, dt); pl.pitch = damp(pl.pitch, 0, .5, dt); pl.yaw -= pl.speed / 1800 * dt; pl.roll = damp(pl.roll, this.phase === 'drop' ? -.05 : -.15, .4, dt); pl.pos[1] = damp(pl.pos[1], 1550, .2, dt); pl.shake = .3 + Math.max(0, Math.sin(G.time * .31) - .7) * 2;
     }
     if (this.phase !== 'parked') { const f = fwd(); pl.vel = V.sc(f, pl.speed); pl.pos[0] += pl.vel[0] * dt; pl.pos[1] = Math.max(0, pl.pos[1] + pl.vel[1] * dt); pl.pos[2] += pl.vel[2] * dt; }
     if (this.engine) this.engine.set(clamp(pl.fanSpd / 9, .15, 1) * (P.inPlane ? 1 : .6), null, .8 + pl.fanSpd / 30);
@@ -207,7 +208,7 @@ const Flight = {
   takeoff() { this.phase = 'roll'; this.t = 0; },
   swapWorld() { // inside the cloud: hand over from the base to the drop-zone world
     this.swapped = true; const pl = Story.plane; const S = Story;
-    pl.pos = [-2300, 840, 300]; pl.yaw = -Math.PI / 2; pl.roll = 0; this.phase = 'climb2';
+    pl.pos[0] = -1000; pl.pos[1] = 840; pl.pos[2] = -1800; pl.yaw = -Math.PI / 2; pl.roll = 0; this.phase = 'climb2';
     S.useWorld(S.ZW); G.dry = [S.planeDry];
     for (const c of S.clouds) { const i = S.clouds.indexOf(c); c.y = lerp(700, 900, i / (S.clouds.length - 1)); }
     Vignettes.stop(); for (const a of G.actors.slice()) if (!a.frame && !a.keep) G.actors.splice(G.actors.indexOf(a), 1);
