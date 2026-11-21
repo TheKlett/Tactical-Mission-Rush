@@ -30,6 +30,7 @@
     <pre id="termLog"></pre>
     <nav>
       <button data-act="start"><em>$</em> ./start_operation.sh <small>HACK TO DEPLOY</small></button>
+      <button data-act="chapters"><em>$</em> ls ./chapters <small>CHAPTER SELECT</small></button>
       <button data-act="settings"><em>$</em> nano config.cfg <small>SETTINGS</small></button>
       <button data-act="credits"><em>$</em> cat credits.txt <small>CREDITS</small></button>
     </nav>
@@ -46,6 +47,7 @@
     </div>
   </div>
   <div id="set" class="panel"><div class="ph">config.cfg</div><div id="setBody"></div><button data-act="back" class="pb">:wq  SAVE &amp; CLOSE</button></div>
+  <div id="chap" class="panel wide"><div class="ph">./chapters</div><div id="chapList"></div><button data-act="back" class="pb">:q  CLOSE</button></div>
   <div id="cred" class="panel"><div class="ph">credits.txt</div>
     <pre class="ctext">OVERCAST — PART ONE: THE DROP
 

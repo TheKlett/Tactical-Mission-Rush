@@ -111,6 +111,12 @@ Object.assign(AUD, {
   missile(pos) { return this.synthLoop({ ref: 60, roll: .7, noise: [{ type: 'white', ft: 'bandpass', f: 2600, v: 1.2, q: .6 }, { type: 'pink', ft: 'lowpass', f: 600, v: .8 }], osc: [{ type: 'sawtooth', f: 900, v: .02 }] }, pos); },
   knock() { if (!this.ready) return; const C = this.ctx, t = this.t; const g = C.createGain(); const lp = this.filt('lowpass', 900); lp.connect(g); g.connect(this.master); this.env(g.gain, t, .002, 2.2, .5); this.noise(lp, t, .6, 'brown');
     const ring = this.osc('sine', 3600); const rg = C.createGain(); ring.connect(rg); rg.connect(this.master); this.env(rg.gain, t + .05, .3, .08, 6); ring.start(t); ring.stop(t + 7); this.impact('metal', null); },
+  retch(k = 1) { // a heave: throat gurgle + splash
+    if (!this.ready) return; const C = this.ctx, t = this.t;
+    const o = this.osc('sawtooth', 85); o.frequency.linearRampToValueAtTime(140, t + .35); o.frequency.linearRampToValueAtTime(70, t + .9); const bp = this.filt('bandpass', 500, 2.5); const g = C.createGain(); o.connect(bp); bp.connect(g); g.connect(this.vox); this.env(g.gain, t, .08, .35 * k, .9, .0001); o.start(t); o.stop(t + 1.1);
+    const n = this.filt('bandpass', 900, 1.5); const g2 = C.createGain(); n.connect(g2); g2.connect(this.vox); this.env(g2.gain, t + .15, .05, .4 * k, .8); this.noise(n, t + .15, 1, 'pink');
+    setTimeout(() => { const n2 = this.filt('lowpass', 1400); const g3 = C.createGain(); n2.connect(g3); g3.connect(this.sfx); const t2 = this.t; this.env(g3.gain, t2, .01, .5 * k, .5); this.noise(n2, t2, .6, 'white'); }, 500);
+  },
   hackKey() { if (!this.ready) return; this.click(1800 + Math.random() * 2400, .06, null, .008); },
   granted() { if (!this.ready) return; for (const [d, f] of [[0, 660], [.12, 880], [.24, 1320]]) { const C = this.ctx, t = this.t + d; const o = this.osc('square', f); const lp = this.filt('lowpass', 3000); const g = C.createGain(); o.connect(lp); lp.connect(g); g.connect(this.sfx); this.env(g.gain, t, .005, .12, .25); o.start(t); o.stop(t + .3); } },
   denied() { this.beep(220, .12, .15); },

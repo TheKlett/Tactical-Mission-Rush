@@ -128,3 +128,20 @@ nav button:hover::after { content: '▌'; animation: blink .8s steps(1) infinite
 #lostScr b { font-size: clamp(30px, 6vw, 64px); letter-spacing: .25em; color: var(--g); text-shadow: 0 0 20px var(--g); animation: flick 1s infinite; }
 #lostScr span, #diedScr span { font-size: 12px; letter-spacing: .3em; color: #6a8a72; }
 #diedScr { background: rgba(20,0,0,.85); } #diedScr b { font-size: clamp(30px, 6vw, 64px); letter-spacing: .35em; color: #ff4a3a; }
+
+.panel.wide { width: min(860px, 94vw); }
+#chapList { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.chap { border: 1px solid rgba(57,255,122,.45); background: rgba(0,20,8,.6); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.chap:hover { transform: translateY(-2px); box-shadow: 0 0 22px rgba(57,255,122,.3); }
+.chap .pv { aspect-ratio: 16 / 9; overflow: hidden; background: #0a120c; display: flex; align-items: center; justify-content: center; }
+.chap .pv img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(.9) contrast(1.05); }
+.chap .noimg { font-size: 11px; letter-spacing: .3em; color: #4c7a5c; }
+.chap .ct { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 3px; }
+.chap .ct small { font-size: 10px; letter-spacing: .35em; color: var(--g2); }
+.chap .ct b { font-size: 18px; letter-spacing: .2em; color: #e8fff0; font-weight: normal; }
+.chap .ct span { font-size: 11px; color: #7aa088; letter-spacing: .08em; }
+.chap.locked { cursor: not-allowed; border-color: #2a2f2c; background: #151716; filter: grayscale(1); }
+.chap.locked:hover { transform: none; box-shadow: none; }
+.chap.locked .pv { background: repeating-linear-gradient(45deg, #1c1e1d 0 10px, #202322 10px 20px); }
+.chap .lock svg { width: 46px; height: 46px; fill: #6a6e6c; }
+.chap.locked .ct b, .chap.locked .ct small, .chap.locked .ct span { color: #6a6e6c; }

@@ -21,6 +21,7 @@ const UI = {
   act(a) {
     if (a === 'start') this.startHack();
     else if (a === 'settings') { this.panel('set'); }
+    else if (a === 'chapters') { this.buildChapters(); this.panel('chap'); }
     else if (a === 'credits') { this.panel('cred'); }
     else if (a === 'back') { this.panel(null); }
     else if (a === 'resume') { G.resume(); }
@@ -28,7 +29,7 @@ const UI = {
     else if (a === 'quit') { this.quitToMenu(); }
   },
   panel(id) {
-    for (const p of ['set', 'cred']) $(p).classList.toggle('on', p === id);
+    for (const p of ['set', 'cred', 'chap']) $(p).classList.toggle('on', p === id);
     $('term').classList.toggle('dim', !!id);
     if (!id && this._fromPause) { this._fromPause = false; $('pause').classList.add('on'); }
   },
@@ -78,6 +79,19 @@ const UI = {
     $('clock').textContent = new Date().toISOString().slice(11, 19) + 'Z';
   },
   typeLines(el, lines, cps) { el.textContent = ''; let li = 0, ci = 0; const tick = () => { if (li >= lines.length) return; const l = lines[li]; el.textContent += l[ci++] || ''; if (ci > l.length) { el.textContent += '\n'; li++; ci = 0; } setTimeout(tick, 1000 / cps * (ci === 0 ? 8 : 1)); }; tick(); },
+  buildChapters() {
+    const box = $('chapList'); box.innerHTML = ''; const prog = Progress.get();
+    for (const ch of Progress.CH) {
+      const st = prog[ch.n]; const d = document.createElement('div'); d.className = 'chap' + (st ? '' : ' locked');
+      const img = st && st.img ? `<img src="${st.img}" alt="">` : st ? `<div class="noimg">NO PREVIEW YET</div>` : `<div class="lock"><svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3h1.5A1.5 1.5 0 0 1 20 11.5v9A1.5 1.5 0 0 1 18.5 22h-13A1.5 1.5 0 0 1 4 20.5v-9A1.5 1.5 0 0 1 5.5 10H7zm2 0h6V7a3 3 0 0 0-6 0v3z"/></svg></div>`;
+      d.innerHTML = `<div class="pv">${img}</div><div class="ct"><small>CHAPTER ${String(ch.n).padStart(2, '0')}</small><b>${st ? ch.title : 'LOCKED'}</b><span>${st ? ch.sub : 'Play the story to unlock'}</span></div>`;
+      if (st) d.onclick = () => { AUD.init(); AUD.uiClick && AUD.uiClick(); this.panel(null); this.launch(ch.n); }; else d.onclick = () => AUD.ready && AUD.denied();
+      box.appendChild(d);
+    }
+  },
+  launch(n) { // chapter start from the menu (no hack needed: it's your own save)
+    this.fadeTo(1, .6); setTimeout(() => { $('menu').classList.remove('on'); if (this.menuMusic) { this.menuMusic.stop(); this.menuMusic = null; } $('hud').classList.add('on'); if (n === 1) Story.start(); else Story.startChapter(n); this.fadeTo(0, 2); }, 650);
+  },
   /* ---------------- settings ---------------- */
   buildSettings() {
     const S = G.settings; const box = $('setBody'); box.innerHTML = '';

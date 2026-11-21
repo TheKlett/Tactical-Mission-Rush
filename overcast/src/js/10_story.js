@@ -49,6 +49,12 @@ const Story = {
     for (const L of this.cabinLights) G.dynLights.push(L);
     this.sunShafts = [];
   },
+  startChapter(n) {
+    G.state = 'loading'; UI.loading(true);
+    setTimeout(() => { try { this.cos = []; this.interacts = []; G.actors = []; G.extraDyn = []; G.glass = []; G.updaters = []; G.particles = []; G.timers = []; G.dynLights = []; G.dry = []; G.time = 0; G.raysOn = 0;
+      Crash.reset(); if (!P.rig) P.init(); P.reset(); if (!Cabin.mox) Cabin.mox = { app: soldierApp(mulberry(1234), { skin: 0xd8a888, hairStyle: 'short', beard: 'full', hair: 0x6a4a2a, head: 'helmet', bulk: 1.05 }) };
+      G.state = 'play'; IN.lock(); UI.loading(false); Part2.start(); } catch (e) { console.error(e); UI.fatal(e); } }, 60);
+  },
   useWorld(W) { G.W = W; G.S.chunks = W.chunks; },
   updatePlaneM() {
     const p = this.plane; const m = p.m; M4.ident(m); M4.translate(m, m, p.pos[0], p.pos[1], p.pos[2]); M4.rotY(m, m, p.yaw); M4.rotX(m, m, p.pitch); M4.rotZ(m, m, p.roll);
@@ -67,7 +73,7 @@ const Story = {
     P.poseFn = (j, p) => { poseIdle(j, G.time, 'idle', 1.3); pj(j, SK.CH, -.28, 0, 0); return -.02; };
     P.hands = 'sink';
     this.rain = AUD.rainLoop(); this.ambPad = null; AUD.stopMenu && AUD.stopMenu();
-    this.phase = 'mirror'; UI.objective(''); UI.card(['FOB KESTREL', 'SOUTH-EAST ASIA  ·  06:14 LOCAL', 'DAY 41']);
+    this.phase = 'mirror'; Progress.reach(1); G.after(4, () => Progress.snap(1)); UI.objective(''); UI.card(['FOB KESTREL', 'SOUTH-EAST ASIA  ·  06:14 LOCAL', 'DAY 41']);
     this.tubeFlicker();
     this.run(function* () {
       yield 2.5; UI.hint('MOVE THE MOUSE TO LOOK AROUND');

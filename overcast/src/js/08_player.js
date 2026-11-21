@@ -42,7 +42,7 @@ const P = {
     const W = G.W; const [f, s] = this.moveInput();
     const cr = IN.k('ControlLeft') || IN.k('KeyC') || this.crouchWant; if (this.crouchWant && (f || s) && IN.k('ShiftLeft')) this.crouchWant = false;
     this.crouch = damp(this.crouch || 0, cr ? 1 : 0, 9, dt); const jog = IN.k('ShiftLeft') && f > .3 && this.crouch < .5;
-    const spd = (jog ? 3.9 : 1.75) * (1 - this.crouch * .45) * (1 - (this.aim || 0) * .35); const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    const L = this.limp || 0; const spd = (jog ? lerp(3.9, 2.3, L) : lerp(1.75, 1.15, L)) * (1 - this.crouch * .45) * (1 - (this.aim || 0) * .35); const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const tx = (-sy * f + cy * s) * spd, tz = (-cy * f - sy * s) * spd;
     this.vel[0] = damp(this.vel[0], tx, 9, dt); this.vel[2] = damp(this.vel[2], tz, 9, dt);
     const np = [this.pos[0] + this.vel[0] * dt, this.pos[1], this.pos[2] + this.vel[2] * dt];
@@ -89,12 +89,19 @@ const P = {
   updateBody(dt) {
     const rig = this.rig; const j = P_(); let py = 0;
     const st = this.state; const mv = this.speed > .2 && (st === 'walk' || st === 'cabin');
+    if (this.limp) this.rollOff = damp(this.rollOff || 0, 0, 3, dt);
     if (this.poseFn) py = this.poseFn(j, this, dt) || 0;
     else if (st === 'fall') poseFreefall(j, this.t, this.k);
-    else if (mv) { this.ph += dt * Math.max(this.speed, .8) / (this.jog ? 1.9 : 1.4) * Math.PI; py = -poseWalk(j, this.ph, clamp(this.speed / (this.jog ? 3.6 : 1.6), .4, 1.1), !!this.jog, false); }
+    else if (mv) {
+      const L = this.limp || 0; const sp = Math.sin(this.ph); // injured right leg: quick, short, stiff stance on it, a heavy dip
+      this.ph += dt * Math.max(this.speed, .8) / (this.jog ? 1.9 : 1.4) * Math.PI * (1 + L * .55 * Math.max(0, -sp) - L * .3 * Math.max(0, sp));
+      py = -poseWalk(j, this.ph, clamp(this.speed / (this.jog ? 3.6 : 1.6), .4, 1.1), !!this.jog, false);
+      if (L > 0) { const onBad = Math.max(0, -Math.sin(this.ph)); j[SK.SHR * 3] *= 1 - .7 * L; j[SK.THR * 3] *= 1 - .35 * L; py -= onBad * .06 * L; j[SK.CH * 3 + 2] += onBad * .12 * L; j[SK.CH * 3] -= .08 * L; j[SK.UAL * 3 + 2] -= onBad * .25 * L; this.rollOff = damp(this.rollOff || 0, -onBad * .035 * L, 8, dt);
+        if (onBad > .95 && !this._gr && Math.random() < .15 && AUD.ready) { this._gr = true; AUD.voice('nh', 95, null); } if (onBad < .5) this._gr = false; }
+    }
     else poseIdle(j, this.t, 'idle', this.k);
     // look pitch carried by chest/head (visible in mirrors and in the body's arms)
-    if (st !== 'fall') { const hy = clamp(angDiff(this.bodyYaw ?? this.yaw, this.yaw), -1.2, 1.2); j[SK.HD * 3] += -this.pitch * .65; j[SK.CH * 3] += -this.pitch * .2; j[SK.HD * 3 + 1] += hy * .7; j[SK.CH * 3 + 1] += hy * .3; }
+    if (st !== 'fall') { const hy = clamp(angDiff(this.bodyYaw ?? this.yaw, this.yaw), -1.2, 1.2); j[SK.HD * 3] += this.pitch * .6 * (this.headPitchK ?? 1); j[SK.CH * 3] += Math.min(0, this.pitch) * .18 * (this.headPitchK ?? 1); j[SK.HD * 3 + 1] += hy * .7; j[SK.CH * 3 + 1] += hy * .3; }
     const cc = (st === 'walk' || st === 'cut') && !this.poseFn ? (this.crouch || 0) : 0; if (cc > .01) { j[SK.THL * 3] += .75 * cc; j[SK.THR * 3] += .75 * cc; j[SK.SHL * 3] -= 1.2 * cc; j[SK.SHR * 3] -= 1.2 * cc; j[SK.FTL * 3] += .4 * cc; j[SK.FTR * 3] += .4 * cc; j[SK.CH * 3] += .22 * cc; py -= .36 * cc; }
     rig.tj.set(j); rig.tpy = py; rig.blend(mv ? 14 : this.blendK || 9, dt);
     // body yaw: follows the view, lags when standing still

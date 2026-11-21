@@ -100,7 +100,7 @@ const G = {
     c[0] = vp[0] * sp[0] + vp[4] * sp[1] + vp[8] * sp[2] + vp[12]; c[1] = vp[1] * sp[0] + vp[5] * sp[1] + vp[9] * sp[2] + vp[13]; c[3] = vp[3] * sp[0] + vp[7] * sp[1] + vp[11] * sp[2] + vp[15];
     const facing = V.dot(this.cam.fwd, sd); R.post.sun = c[3] > 0 ? [c[0] / c[3] * .5 + .5, c[1] / c[3] * .5 + .5] : [.5, 2]; R.post.rays = (this.raysOn || 0) * clamp(facing * 2, 0, 1);
     R.post.lens = this.settings.lens ? (this.lensK || 0) : 0;
-    R.render(S, this.cam);
+    R.render(S, this.cam); Progress.afterRender();
   },
   collectDyn() { const out = []; for (const a of this.actors) if (!a.hidden) for (const d of a.dyn) out.push(d); if (P.dyn) for (const d of P.dyn) out.push(d); for (const d of this.extraDyn) out.push(d); return out; },
   pickLights() {
@@ -167,4 +167,19 @@ const G = {
   pause() { if (this.state !== 'play') return; this.state = 'pause'; UI.showPause(true); if (window.speechSynthesis) speechSynthesis.pause(); if (AUD.ctx) AUD.ctx.suspend(); },
   resume() { this.state = 'play'; UI.showPause(false); IN.lock(); if (window.speechSynthesis) speechSynthesis.resume(); if (AUD.ctx) AUD.ctx.resume(); },
   onKey(e) { },
+};
+
+/* ---------------- chapter progress + preview snapshots (saved in this browser) ---------------- */
+const Progress = {
+  CH: [{ n: 1, title: 'THE DROP', sub: 'FOB Kestrel · Raven 2-1' }, { n: 2, title: 'THE GREEN', sub: 'The trail · the cartel camp' }],
+  get() { try { return JSON.parse(localStorage.getItem('overcast_progress') || '{}'); } catch (e) { return {}; } },
+  set(o) { try { localStorage.setItem('overcast_progress', JSON.stringify(o)); } catch (e) { } },
+  reach(n) { const o = this.get(); if (!o[n]) { o[n] = { at: Date.now() }; this.set(o); } },
+  unlocked(n) { return !!this.get()[n]; },
+  snap(n) { this._want = n; },
+  afterRender() { // called right after a frame was drawn: copy the canvas into a small JPEG
+    const n = this._want; if (!n) return; this._want = 0;
+    try { const c = document.createElement('canvas'); c.width = 384; c.height = 216; const x = c.getContext('2d'); const s = G.canvas; const ar = s.width / s.height; let sw = s.width, sh = s.height; if (ar > 16 / 9) sw = sh * 16 / 9; else sh = sw * 9 / 16;
+      x.drawImage(s, (s.width - sw) / 2, (s.height - sh) / 2, sw, sh, 0, 0, 384, 216); const url = c.toDataURL('image/jpeg', .72); const o = this.get(); o[n] = Object.assign(o[n] || {}, { img: url }); this.set(o); } catch (e) { }
+  },
 };

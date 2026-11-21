@@ -138,6 +138,23 @@ nav button:hover::after { content: '▌'; animation: blink .8s steps(1) infinite
 #lostScr span, #diedScr span { font-size: 12px; letter-spacing: .3em; color: #6a8a72; }
 #diedScr { background: rgba(20,0,0,.85); } #diedScr b { font-size: clamp(30px, 6vw, 64px); letter-spacing: .35em; color: #ff4a3a; }
 
+.panel.wide { width: min(860px, 94vw); }
+#chapList { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.chap { border: 1px solid rgba(57,255,122,.45); background: rgba(0,20,8,.6); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.chap:hover { transform: translateY(-2px); box-shadow: 0 0 22px rgba(57,255,122,.3); }
+.chap .pv { aspect-ratio: 16 / 9; overflow: hidden; background: #0a120c; display: flex; align-items: center; justify-content: center; }
+.chap .pv img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(.9) contrast(1.05); }
+.chap .noimg { font-size: 11px; letter-spacing: .3em; color: #4c7a5c; }
+.chap .ct { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 3px; }
+.chap .ct small { font-size: 10px; letter-spacing: .35em; color: var(--g2); }
+.chap .ct b { font-size: 18px; letter-spacing: .2em; color: #e8fff0; font-weight: normal; }
+.chap .ct span { font-size: 11px; color: #7aa088; letter-spacing: .08em; }
+.chap.locked { cursor: not-allowed; border-color: #2a2f2c; background: #151716; filter: grayscale(1); }
+.chap.locked:hover { transform: none; box-shadow: none; }
+.chap.locked .pv { background: repeating-linear-gradient(45deg, #1c1e1d 0 10px, #202322 10px 20px); }
+.chap .lock svg { width: 46px; height: 46px; fill: #6a6e6c; }
+.chap.locked .ct b, .chap.locked .ct small, .chap.locked .ct span { color: #6a6e6c; }
+
 </style>
 </head>
 <body>
@@ -160,6 +177,7 @@ nav button:hover::after { content: '▌'; animation: blink .8s steps(1) infinite
     <pre id="termLog"></pre>
     <nav>
       <button data-act="start"><em>$</em> ./start_operation.sh <small>HACK TO DEPLOY</small></button>
+      <button data-act="chapters"><em>$</em> ls ./chapters <small>CHAPTER SELECT</small></button>
       <button data-act="settings"><em>$</em> nano config.cfg <small>SETTINGS</small></button>
       <button data-act="credits"><em>$</em> cat credits.txt <small>CREDITS</small></button>
     </nav>
@@ -176,6 +194,7 @@ nav button:hover::after { content: '▌'; animation: blink .8s steps(1) infinite
     </div>
   </div>
   <div id="set" class="panel"><div class="ph">config.cfg</div><div id="setBody"></div><button data-act="back" class="pb">:wq  SAVE &amp; CLOSE</button></div>
+  <div id="chap" class="panel wide"><div class="ph">./chapters</div><div id="chapList"></div><button data-act="back" class="pb">:q  CLOSE</button></div>
   <div id="cred" class="panel"><div class="ph">credits.txt</div>
     <pre class="ctext">OVERCAST — PART ONE: THE DROP
 
@@ -926,6 +945,12 @@ Object.assign(AUD, {
   missile(pos) { return this.synthLoop({ ref: 60, roll: .7, noise: [{ type: 'white', ft: 'bandpass', f: 2600, v: 1.2, q: .6 }, { type: 'pink', ft: 'lowpass', f: 600, v: .8 }], osc: [{ type: 'sawtooth', f: 900, v: .02 }] }, pos); },
   knock() { if (!this.ready) return; const C = this.ctx, t = this.t; const g = C.createGain(); const lp = this.filt('lowpass', 900); lp.connect(g); g.connect(this.master); this.env(g.gain, t, .002, 2.2, .5); this.noise(lp, t, .6, 'brown');
     const ring = this.osc('sine', 3600); const rg = C.createGain(); ring.connect(rg); rg.connect(this.master); this.env(rg.gain, t + .05, .3, .08, 6); ring.start(t); ring.stop(t + 7); this.impact('metal', null); },
+  retch(k = 1) { // a heave: throat gurgle + splash
+    if (!this.ready) return; const C = this.ctx, t = this.t;
+    const o = this.osc('sawtooth', 85); o.frequency.linearRampToValueAtTime(140, t + .35); o.frequency.linearRampToValueAtTime(70, t + .9); const bp = this.filt('bandpass', 500, 2.5); const g = C.createGain(); o.connect(bp); bp.connect(g); g.connect(this.vox); this.env(g.gain, t, .08, .35 * k, .9, .0001); o.start(t); o.stop(t + 1.1);
+    const n = this.filt('bandpass', 900, 1.5); const g2 = C.createGain(); n.connect(g2); g2.connect(this.vox); this.env(g2.gain, t + .15, .05, .4 * k, .8); this.noise(n, t + .15, 1, 'pink');
+    setTimeout(() => { const n2 = this.filt('lowpass', 1400); const g3 = C.createGain(); n2.connect(g3); g3.connect(this.sfx); const t2 = this.t; this.env(g3.gain, t2, .01, .5 * k, .5); this.noise(n2, t2, .6, 'white'); }, 500);
+  },
   hackKey() { if (!this.ready) return; this.click(1800 + Math.random() * 2400, .06, null, .008); },
   granted() { if (!this.ready) return; for (const [d, f] of [[0, 660], [.12, 880], [.24, 1320]]) { const C = this.ctx, t = this.t + d; const o = this.osc('square', f); const lp = this.filt('lowpass', 3000); const g = C.createGain(); o.connect(lp); lp.connect(g); g.connect(this.sfx); this.env(g.gain, t, .005, .12, .25); o.start(t); o.stop(t + .3); } },
   denied() { this.beep(220, .12, .15); },
@@ -3457,7 +3482,7 @@ const G = {
     c[0] = vp[0] * sp[0] + vp[4] * sp[1] + vp[8] * sp[2] + vp[12]; c[1] = vp[1] * sp[0] + vp[5] * sp[1] + vp[9] * sp[2] + vp[13]; c[3] = vp[3] * sp[0] + vp[7] * sp[1] + vp[11] * sp[2] + vp[15];
     const facing = V.dot(this.cam.fwd, sd); R.post.sun = c[3] > 0 ? [c[0] / c[3] * .5 + .5, c[1] / c[3] * .5 + .5] : [.5, 2]; R.post.rays = (this.raysOn || 0) * clamp(facing * 2, 0, 1);
     R.post.lens = this.settings.lens ? (this.lensK || 0) : 0;
-    R.render(S, this.cam);
+    R.render(S, this.cam); Progress.afterRender();
   },
   collectDyn() { const out = []; for (const a of this.actors) if (!a.hidden) for (const d of a.dyn) out.push(d); if (P.dyn) for (const d of P.dyn) out.push(d); for (const d of this.extraDyn) out.push(d); return out; },
   pickLights() {
@@ -3524,6 +3549,21 @@ const G = {
   pause() { if (this.state !== 'play') return; this.state = 'pause'; UI.showPause(true); if (window.speechSynthesis) speechSynthesis.pause(); if (AUD.ctx) AUD.ctx.suspend(); },
   resume() { this.state = 'play'; UI.showPause(false); IN.lock(); if (window.speechSynthesis) speechSynthesis.resume(); if (AUD.ctx) AUD.ctx.resume(); },
   onKey(e) { },
+};
+
+/* ---------------- chapter progress + preview snapshots (saved in this browser) ---------------- */
+const Progress = {
+  CH: [{ n: 1, title: 'THE DROP', sub: 'FOB Kestrel · Raven 2-1' }, { n: 2, title: 'THE GREEN', sub: 'The trail · the cartel camp' }],
+  get() { try { return JSON.parse(localStorage.getItem('overcast_progress') || '{}'); } catch (e) { return {}; } },
+  set(o) { try { localStorage.setItem('overcast_progress', JSON.stringify(o)); } catch (e) { } },
+  reach(n) { const o = this.get(); if (!o[n]) { o[n] = { at: Date.now() }; this.set(o); } },
+  unlocked(n) { return !!this.get()[n]; },
+  snap(n) { this._want = n; },
+  afterRender() { // called right after a frame was drawn: copy the canvas into a small JPEG
+    const n = this._want; if (!n) return; this._want = 0;
+    try { const c = document.createElement('canvas'); c.width = 384; c.height = 216; const x = c.getContext('2d'); const s = G.canvas; const ar = s.width / s.height; let sw = s.width, sh = s.height; if (ar > 16 / 9) sw = sh * 16 / 9; else sh = sw * 9 / 16;
+      x.drawImage(s, (s.width - sw) / 2, (s.height - sh) / 2, sw, sh, 0, 0, 384, 216); const url = c.toDataURL('image/jpeg', .72); const o = this.get(); o[n] = Object.assign(o[n] || {}, { img: url }); this.set(o); } catch (e) { }
+  },
 };
 
 /* ---- 07_actor.js ---- */
@@ -3739,7 +3779,7 @@ const P = {
     const W = G.W; const [f, s] = this.moveInput();
     const cr = IN.k('ControlLeft') || IN.k('KeyC') || this.crouchWant; if (this.crouchWant && (f || s) && IN.k('ShiftLeft')) this.crouchWant = false;
     this.crouch = damp(this.crouch || 0, cr ? 1 : 0, 9, dt); const jog = IN.k('ShiftLeft') && f > .3 && this.crouch < .5;
-    const spd = (jog ? 3.9 : 1.75) * (1 - this.crouch * .45) * (1 - (this.aim || 0) * .35); const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
+    const L = this.limp || 0; const spd = (jog ? lerp(3.9, 2.3, L) : lerp(1.75, 1.15, L)) * (1 - this.crouch * .45) * (1 - (this.aim || 0) * .35); const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const tx = (-sy * f + cy * s) * spd, tz = (-cy * f - sy * s) * spd;
     this.vel[0] = damp(this.vel[0], tx, 9, dt); this.vel[2] = damp(this.vel[2], tz, 9, dt);
     const np = [this.pos[0] + this.vel[0] * dt, this.pos[1], this.pos[2] + this.vel[2] * dt];
@@ -3786,12 +3826,19 @@ const P = {
   updateBody(dt) {
     const rig = this.rig; const j = P_(); let py = 0;
     const st = this.state; const mv = this.speed > .2 && (st === 'walk' || st === 'cabin');
+    if (this.limp) this.rollOff = damp(this.rollOff || 0, 0, 3, dt);
     if (this.poseFn) py = this.poseFn(j, this, dt) || 0;
     else if (st === 'fall') poseFreefall(j, this.t, this.k);
-    else if (mv) { this.ph += dt * Math.max(this.speed, .8) / (this.jog ? 1.9 : 1.4) * Math.PI; py = -poseWalk(j, this.ph, clamp(this.speed / (this.jog ? 3.6 : 1.6), .4, 1.1), !!this.jog, false); }
+    else if (mv) {
+      const L = this.limp || 0; const sp = Math.sin(this.ph); // injured right leg: quick, short, stiff stance on it, a heavy dip
+      this.ph += dt * Math.max(this.speed, .8) / (this.jog ? 1.9 : 1.4) * Math.PI * (1 + L * .55 * Math.max(0, -sp) - L * .3 * Math.max(0, sp));
+      py = -poseWalk(j, this.ph, clamp(this.speed / (this.jog ? 3.6 : 1.6), .4, 1.1), !!this.jog, false);
+      if (L > 0) { const onBad = Math.max(0, -Math.sin(this.ph)); j[SK.SHR * 3] *= 1 - .7 * L; j[SK.THR * 3] *= 1 - .35 * L; py -= onBad * .06 * L; j[SK.CH * 3 + 2] += onBad * .12 * L; j[SK.CH * 3] -= .08 * L; j[SK.UAL * 3 + 2] -= onBad * .25 * L; this.rollOff = damp(this.rollOff || 0, -onBad * .035 * L, 8, dt);
+        if (onBad > .95 && !this._gr && Math.random() < .15 && AUD.ready) { this._gr = true; AUD.voice('nh', 95, null); } if (onBad < .5) this._gr = false; }
+    }
     else poseIdle(j, this.t, 'idle', this.k);
     // look pitch carried by chest/head (visible in mirrors and in the body's arms)
-    if (st !== 'fall') { const hy = clamp(angDiff(this.bodyYaw ?? this.yaw, this.yaw), -1.2, 1.2); j[SK.HD * 3] += -this.pitch * .65; j[SK.CH * 3] += -this.pitch * .2; j[SK.HD * 3 + 1] += hy * .7; j[SK.CH * 3 + 1] += hy * .3; }
+    if (st !== 'fall') { const hy = clamp(angDiff(this.bodyYaw ?? this.yaw, this.yaw), -1.2, 1.2); j[SK.HD * 3] += this.pitch * .6 * (this.headPitchK ?? 1); j[SK.CH * 3] += Math.min(0, this.pitch) * .18 * (this.headPitchK ?? 1); j[SK.HD * 3 + 1] += hy * .7; j[SK.CH * 3 + 1] += hy * .3; }
     const cc = (st === 'walk' || st === 'cut') && !this.poseFn ? (this.crouch || 0) : 0; if (cc > .01) { j[SK.THL * 3] += .75 * cc; j[SK.THR * 3] += .75 * cc; j[SK.SHL * 3] -= 1.2 * cc; j[SK.SHR * 3] -= 1.2 * cc; j[SK.FTL * 3] += .4 * cc; j[SK.FTR * 3] += .4 * cc; j[SK.CH * 3] += .22 * cc; py -= .36 * cc; }
     rig.tj.set(j); rig.tpy = py; rig.blend(mv ? 14 : this.blendK || 9, dt);
     // body yaw: follows the view, lags when standing still
@@ -4280,6 +4327,12 @@ const Story = {
     for (const L of this.cabinLights) G.dynLights.push(L);
     this.sunShafts = [];
   },
+  startChapter(n) {
+    G.state = 'loading'; UI.loading(true);
+    setTimeout(() => { try { this.cos = []; this.interacts = []; G.actors = []; G.extraDyn = []; G.glass = []; G.updaters = []; G.particles = []; G.timers = []; G.dynLights = []; G.dry = []; G.time = 0; G.raysOn = 0;
+      Crash.reset(); if (!P.rig) P.init(); P.reset(); if (!Cabin.mox) Cabin.mox = { app: soldierApp(mulberry(1234), { skin: 0xd8a888, hairStyle: 'short', beard: 'full', hair: 0x6a4a2a, head: 'helmet', bulk: 1.05 }) };
+      G.state = 'play'; IN.lock(); UI.loading(false); Part2.start(); } catch (e) { console.error(e); UI.fatal(e); } }, 60);
+  },
   useWorld(W) { G.W = W; G.S.chunks = W.chunks; },
   updatePlaneM() {
     const p = this.plane; const m = p.m; M4.ident(m); M4.translate(m, m, p.pos[0], p.pos[1], p.pos[2]); M4.rotY(m, m, p.yaw); M4.rotX(m, m, p.pitch); M4.rotZ(m, m, p.roll);
@@ -4298,7 +4351,7 @@ const Story = {
     P.poseFn = (j, p) => { poseIdle(j, G.time, 'idle', 1.3); pj(j, SK.CH, -.28, 0, 0); return -.02; };
     P.hands = 'sink';
     this.rain = AUD.rainLoop(); this.ambPad = null; AUD.stopMenu && AUD.stopMenu();
-    this.phase = 'mirror'; UI.objective(''); UI.card(['FOB KESTREL', 'SOUTH-EAST ASIA  ·  06:14 LOCAL', 'DAY 41']);
+    this.phase = 'mirror'; Progress.reach(1); G.after(4, () => Progress.snap(1)); UI.objective(''); UI.card(['FOB KESTREL', 'SOUTH-EAST ASIA  ·  06:14 LOCAL', 'DAY 41']);
     this.tubeFlicker();
     this.run(function* () {
       yield 2.5; UI.hint('MOVE THE MOUSE TO LOOK AROUND');
@@ -5080,6 +5133,7 @@ const UI = {
   act(a) {
     if (a === 'start') this.startHack();
     else if (a === 'settings') { this.panel('set'); }
+    else if (a === 'chapters') { this.buildChapters(); this.panel('chap'); }
     else if (a === 'credits') { this.panel('cred'); }
     else if (a === 'back') { this.panel(null); }
     else if (a === 'resume') { G.resume(); }
@@ -5087,7 +5141,7 @@ const UI = {
     else if (a === 'quit') { this.quitToMenu(); }
   },
   panel(id) {
-    for (const p of ['set', 'cred']) $(p).classList.toggle('on', p === id);
+    for (const p of ['set', 'cred', 'chap']) $(p).classList.toggle('on', p === id);
     $('term').classList.toggle('dim', !!id);
     if (!id && this._fromPause) { this._fromPause = false; $('pause').classList.add('on'); }
   },
@@ -5137,6 +5191,19 @@ const UI = {
     $('clock').textContent = new Date().toISOString().slice(11, 19) + 'Z';
   },
   typeLines(el, lines, cps) { el.textContent = ''; let li = 0, ci = 0; const tick = () => { if (li >= lines.length) return; const l = lines[li]; el.textContent += l[ci++] || ''; if (ci > l.length) { el.textContent += '\n'; li++; ci = 0; } setTimeout(tick, 1000 / cps * (ci === 0 ? 8 : 1)); }; tick(); },
+  buildChapters() {
+    const box = $('chapList'); box.innerHTML = ''; const prog = Progress.get();
+    for (const ch of Progress.CH) {
+      const st = prog[ch.n]; const d = document.createElement('div'); d.className = 'chap' + (st ? '' : ' locked');
+      const img = st && st.img ? `<img src="${st.img}" alt="">` : st ? `<div class="noimg">NO PREVIEW YET</div>` : `<div class="lock"><svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3h1.5A1.5 1.5 0 0 1 20 11.5v9A1.5 1.5 0 0 1 18.5 22h-13A1.5 1.5 0 0 1 4 20.5v-9A1.5 1.5 0 0 1 5.5 10H7zm2 0h6V7a3 3 0 0 0-6 0v3z"/></svg></div>`;
+      d.innerHTML = `<div class="pv">${img}</div><div class="ct"><small>CHAPTER ${String(ch.n).padStart(2, '0')}</small><b>${st ? ch.title : 'LOCKED'}</b><span>${st ? ch.sub : 'Play the story to unlock'}</span></div>`;
+      if (st) d.onclick = () => { AUD.init(); AUD.uiClick && AUD.uiClick(); this.panel(null); this.launch(ch.n); }; else d.onclick = () => AUD.ready && AUD.denied();
+      box.appendChild(d);
+    }
+  },
+  launch(n) { // chapter start from the menu (no hack needed: it's your own save)
+    this.fadeTo(1, .6); setTimeout(() => { $('menu').classList.remove('on'); if (this.menuMusic) { this.menuMusic.stop(); this.menuMusic = null; } $('hud').classList.add('on'); if (n === 1) Story.start(); else Story.startChapter(n); this.fadeTo(0, 2); }, 650);
+  },
   /* ---------------- settings ---------------- */
   buildSettings() {
     const S = G.settings; const box = $('setBody'); box.innerHTML = '';
@@ -5299,8 +5366,8 @@ const Part2 = {
   begin() {
     const W = this.W; UI.card(['PART TWO', 'THE GREEN', '']); P.reset(); P.combat = false; P.lookLock = false; P.inPlane = false; P.health = 100;
     // lying on your back in the leaves
-    const wk = TRAIL[0]; P.pos = [wk[0] + .3, W.th(wk[0] + .3, wk[1] + .2), wk[1] + .2]; P.yaw = Math.PI * .1; P.pitch = .9; P.state = 'locked'; P.backOff = 0;
-    P.lookLimit = { yaw: P.yaw, yawR: .9, pMin: .2, pMax: 1.35 };
+    const wk = TRAIL[0]; P.pos = [wk[0] + .3, W.th(wk[0] + .3, wk[1] + .2), wk[1] + .2]; P.yaw = Math.PI * .1; this.yaw0 = Math.atan2(-(TRAIL[1][0] - wk[0]), -(TRAIL[1][1] - wk[1])); P.yaw = this.yaw0; P.pitch = .9; P.state = 'locked'; P.backOff = 0;
+    P.lookLimit = { yaw: P.yaw, yawR: .9, pMin: .2, pMax: 1.35 }; P.limp = 0; this.moxLook = true; Progress.reach(2);
     const lie = { k: 1 }; this.lie = lie;
     P.poseFn = (j) => { pj(j, SK.UAL, .2, 0, -.5); pj(j, SK.UAR, .3, 0, .6); pj(j, SK.FAL, .4, 0, 0); pj(j, SK.FAR, .2, 0, 0); pj(j, SK.THL, .2, .1, -.1); pj(j, SK.SHL, -.4, 0, 0); pj(j, SK.HD, .2 * lie.k, .3 * lie.k, 0); return 0; };
     P.rootFn = (r) => { const k = lie.k; M4.translate(r, r, 0, .18 * k, .0); M4.rotX(r, r, 1.5 * k); if (lie.sit) { M4.translate(r, r, 0, -.0, 0); } };
@@ -5315,19 +5382,76 @@ const Part2 = {
       AUD.hurt && AUD.hurt(); P.shake = .4;
       yield Story.say(me, "...ngh. Where—");
       yield .6; UI.hint('[E]  SIT UP'); yield () => IN.hit('KeyE'); UI.hint('');
-      let t = 0; P.lookLimit = null; G.updaters.push(dt => { if (t > 1.6) return; t += dt; lie.k = 1 - smooth(t / 1.4); P.pitch = lerp(.9, -.25, smooth(t / 1.4)); });
-      P.poseFn = (j) => { if (lie.k > .2) { pj(j, SK.HD, .2, .3, 0); return 0; } pj(j, SK.THL, 1.45, .2, -.15); pj(j, SK.THR, 1.25, -.3, .2); pj(j, SK.SHL, -.5, 0, 0); pj(j, SK.SHR, -1.2, 0, 0); pj(j, SK.CH, .25, 0, 0); pj(j, SK.UAL, -.3, 0, -.3); pj(j, SK.FAL, .3, 0, 0); pj(j, SK.UAR, .5, 0, .2); pj(j, SK.FAR, 1.2, 0, 0); return -.82; };
-      P.blendK = 3; yield 1.8;
-      P.lookLimit = { yaw: P.yaw, yawR: 1.6, pMin: -.8, pMax: .9 };
-      yield Story.say(me, "Raven... the missile. They hit Raven.");
-      yield .5; AUD.click(1600, .2, null, .03); yield Story.say(me, "Mox? Mox, come in. Anyone on this net?");
+      // sit up: curl forward off the ground (chest and head come FORWARD), hands push off behind
+      P.lookLock = true; P.lookLimit = null; let t = 0; const pit0 = P.pitch;
+      G.updaters.push(dt => { if (t > 1.8) return; t += dt; lie.k = 1 - smooth(t / 1.5); P.pitch = lerp(pit0, -.35, smooth(t / 1.5)); });
+      const sitPose = (j, lean = 0, legOut = 0) => { pj(j, SK.THL, 1.45, .2, -.15); pj(j, SK.THR, lerp(1.25, 1.5, legOut), -.2, .15); pj(j, SK.SHL, -.5, 0, 0); pj(j, SK.SHR, lerp(-1.2, -.08, legOut), 0, 0); pj(j, SK.FTL, .2, 0, 0); pj(j, SK.CH, -.12 - lean * .55, 0, 0); pj(j, SK.HD, -.1 - lean * .35, 0, 0); pj(j, SK.UAL, -.35, 0, -.35); pj(j, SK.FAL, .25, 0, 0); pj(j, SK.UAR, -.35, 0, .35); pj(j, SK.FAR, .25, 0, 0); return -.82; };
+      P.poseFn = (j) => { if (lie.k > .35) { pj(j, SK.CH, -.6 * (1 - lie.k), 0, 0); pj(j, SK.HD, -.5 * (1 - lie.k), .2, 0); pj(j, SK.UAL, -.6, 0, -.3); pj(j, SK.UAR, -.6, 0, .3); return 0; } return sitPose(j, .15); };
+      P.blendK = 3.5; yield 1.9;
+      yield Story.say(me, "Raven... they hit Raven.");
+      // nausea: hunch forward, hands on the knees, heave twice
+      yield .4; P.shake = .3; let v = 0; const lean = { k: 0 };
+      P.poseFn = (j) => { const r = sitPose(j, lean.k); pj(j, SK.UAL, .9 * lean.k - .35 * (1 - lean.k), .1, -.2); pj(j, SK.FAL, .5, 0, 0); pj(j, SK.UAR, .9 * lean.k - .35 * (1 - lean.k), -.1, .2); pj(j, SK.FAR, .5, 0, 0); return r; };
+      const heave = (k) => { AUD.retch(k); P.shake = .9; const mouth = M4.pt(P.rig.mats[SK.HD], 0, .02, -.14); const dn = V.norm(V.add(M4.dir(P.rig.mats[SK.HD], 0, -.3, -1), [0, -.6, 0]));
+        for (let i = 0; i < 70; i++) G.after(.35 + i * .012, () => G.particles.push({ p: V.add(mouth, [rnd(-.02, .02), rnd(-.02, .02), rnd(-.02, .02)]), v: V.add(V.sc(dn, rnd(1.2, 2.6) * k), [rnd(-.3, .3), rnd(-.2, .3), rnd(-.3, .3)]), life: 0, max: rnd(.7, 1.2), s: rnd(.01, .035), c: [rnd(.42, .55), rnd(.38, .46), rnd(.12, .2)], a: .95, g: 9.8, drag: .4 }));
+        G.after(1, () => { const B = new MB(400); B.col(0x6a5a24, MAT.BLOOD).blob(0, 0, 0, .28, .01, Math.random() * 99, .5, 10, 3); const g = V.add(P.pos, V.sc([-Math.sin(P.yaw), 0, -Math.cos(P.yaw)], .75)); G.extraDyn.push({ mesh: B.mesh(), m: M4.trs(M4.create(), M4.create(), g[0], G.W.th(g[0], g[2]) + .02, g[2], 0, rnd(0, 6), 0), pos: g, r: 1, noShadow: true }); }); };
+      G.updaters.push(dt => { if (v > 8) return; v += dt; lean.k = v < 6.5 ? smooth(v / .9) * (.85 + Math.max(0, Math.sin(v * 9)) * .15 * (v > 1 && v < 5 ? 1 : 0)) : 1 - smooth((v - 6.5) / 1.2); P.pitch = lerp(-.35, -1.05, lean.k); });
+      yield 1.0; heave(.8); yield 1.9; heave(1.1); yield 2.4;
+      yield Story.say(me, "...oh god. Okay. Okay.");
+      yield 1.2;
+      // the leg: look down — the trouser is soaked through below the knee
+      const wound = new MB(400); wound.b(0); wound.col(0x4a0606, MAT.BLOOD).cyl(0, -.28, 0, .068, .062, .16, 10).box(.04, -.2, -.05, .05, .2, .02); const wp = P.addProp(wound.mesh(), SK.SHR, M4.create());
+      let w = 0; const legOut = { k: 0 }; P.poseFn = (j) => sitPose(j, .5 * legOut.k, legOut.k);
+      G.updaters.push(dt => { if (w > 1.6) return; w += dt; legOut.k = smooth(w / 1.2); P.pitch = lerp(-.35, -1.1, smooth(w / 1.2)); P.yaw = lerpAng(Part2.yaw0, Part2.yaw0 - .18, smooth(w / 1.2)); });
+      AUD.hurt(); yield 1.4; yield Story.say(me, "Shit. That's a lot of blood.");
+      yield .3; UI.hint('[E]  BANDAGE THE LEG'); yield () => IN.hit('KeyE'); UI.hint('');
+      // bandage: lean well forward over the leg, both hands wrap the shin, pull tight
+      let b = 0; const band = new MB(500); band.b(0); band.col(0xe8e4d8, MAT.CLOTH).cyl(0, -.34, 0, .074, .07, .2, 12); band.col(0x7a0a08, MAT.BLOOD).cyl(0, -.27, -.002, .075, .072, .07, 12); const bmesh = band.mesh(); let bp = null;
+      P.poseFn = (j) => { const r = sitPose(j, 1, 1); pj(j, SK.CH, -.75, 0, 0); pj(j, SK.HD, -.45, 0, 0); return r; };
+      P.handFn = (p, dt) => { b += dt; const sh = p.rig.mats[SK.SHR]; const a = b * 7.5; const c = M4.pt(sh, 0, -.26, 0);
+        const ofs = (ph) => M4.dir(sh, Math.cos(a + ph) * .11, 0, Math.sin(a + ph) * .11);
+        p.ik.push({ left: false, T: V.add(c, ofs(0)), pole: M4.dir(p.rig.root, 1, -1, .3) }); p.ik.push({ left: true, T: V.add(c, ofs(Math.PI)), pole: M4.dir(p.rig.root, -1, -1, .3) });
+        if (b > .6 && !bp) { bp = P.addProp(bmesh, SK.SHR, M4.create()); P.removeProp(wp); }
+        if (bp) { const k = clamp((b - .6) / 2.2, .05, 1); M4.ident(bp.off); M4.translate(bp.off, bp.off, 0, -.34 + .1, 0); M4.scale(bp.off, bp.off, 1, k, 1); M4.translate(bp.off, bp.off, 0, .34 - .1, 0); }
+        if (Math.floor(b * 3) !== p._bw) { p._bw = Math.floor(b * 3); AUD.swoosh(.08, null, 1800, .12); } };
+      G.updaters.push(dt => { if (b > 3.4) return; P.pitch = damp(P.pitch, -1.15, 4, dt); });
+      yield 3.0; AUD.hurt(); P.shake = .5; yield .5; P.handFn = null; yield Story.say(me, "Ngh—! ...that'll hold.");
+      // try the radio again
+      P.poseFn = (j) => sitPose(j, .1, 1); legOut.k = 1; let rr = 0; G.updaters.push(dt => { if ((rr += dt) > 2.5) return; P.pitch = damp(P.pitch, -.2, 2, dt); });
+      yield .8; AUD.click(1600, .2, null, .03); yield Story.say(me, "Mox, come in. Anyone on this net?");
       yield .4; AUD.radioCrackle(1.6); yield 1.8;
-      yield Story.say(me, "Nothing. Radio's half dead.");
-      yield .4; yield Story.say(me, "Rally point was the river bend. There's a trail... has to lead somewhere.");
-      yield .4; UI.hint('[E]  STAND UP'); yield () => IN.hit('KeyE'); UI.hint('');
-      let u = 0; P.poseFn = (j) => { u += G.dt; const k = smooth(u / 1.2); poseIdle(j, G.time, 'idle', 1.3); pj(j, SK.THL, 1.45 * (1 - k), .2, -.15); pj(j, SK.THR, 1.25 * (1 - k), -.3, .2); pj(j, SK.SHL, -.5 - k * 0, 0, 0); pj(j, SK.CH, .25 * (1 - k), 0, 0); return -.82 * (1 - k); };
-      yield 1.4; P.poseFn = null; P.rootFn = null; P.lookLimit = null; P.backOff = null; P.blendK = 9; P.state = 'walk'; P.shake = .3;
-      UI.objective('Follow the trail'); UI.hint('WASD  MOVE   ·   SHIFT  JOG   ·   CTRL  CROUCH   ·   RMB  ZOOM'); G.after(6, () => UI.hint(''));
+      // footsteps in the leaves — Mox comes down the trail
+      const mox = new Actor(Object.assign({}, Cabin.mox.app), { name: 'Mox', pos: [TRAIL[1][0], 0, TRAIL[1][1]], yaw: 0, weapon: 'rifle', weaponMode: 'low', pitch: 128, vpitch: 1.05, vrate: 1.05, voiceIdx: 1, gearOpts: { goggles: true } });
+      mox.groundFn = (x, z) => Part2.W.th(x, z); mox.pos[1] = mox.groundFn(mox.pos[0], mox.pos[2]); G.actors.push(mox); Part2.mox = mox;
+      const meet = V.add(P.pos, V.sc([-Math.sin(Part2.yaw0), 0, -Math.cos(Part2.yaw0)], 1.15));
+      mox.goTo([[meet[0], 0, meet[2]]], true, (a) => { a.yaw = Math.atan2(-(P.pos[0] - a.pos[0]), -(P.pos[2] - a.pos[2])); });
+      G.updaters.push(dt => { if (Part2.moxLook === false) return; const d = V.sub(mox.headPos(), G.cam.pos); P.yaw = dampAng(P.yaw, Math.atan2(-d[0], -d[2]), 2.5, dt); P.pitch = damp(P.pitch, clamp(Math.atan2(d[1], Math.hypot(d[0], d[2])), -.6, .8), 2.5, dt); });
+      mox.look = () => G.cam.pos;
+      yield 1.2; G.speak(mox, "ROOK!"); yield () => !mox.path; mox.weaponMode = 'sling';
+      yield Story.say(mox, "Rook — thank god. I saw you go limp up there. Thought you were done.");
+      yield Story.say(me, "Raven...?");
+      yield Story.say(mox, "Gone. Everyone else is scattered all over this valley. Come on, up you get.");
+      // Mox offers his hand
+      let h = 0; mox.post = (a, dt) => { h += dt; const c = a.rig.mats[SK.CH]; a.ik.push({ left: false, T: V.lerp(M4.pt(c, .25, -.05, -.15), M4.pt(c, .12, -.25, -.55), smooth(h / .7)), pole: M4.dir(a.root, 1, -1, 0), fingers: M4.dir(a.root, 0, -.4, -1) }); };
+      yield .7; UI.hint('[E]  GET UP'); yield () => IN.hit('KeyE'); UI.hint('');
+      // the pull: grab his hand, knee under you, he leans back and hauls you up onto your good leg
+      let g = 0; Part2.moxLook = false; const grip = () => mox.rig.bonePos(SK.HR);
+      P.handFn = (p, dt) => { p.ik.push({ left: false, T: grip(), pole: M4.dir(p.rig.root, 1, -1, 0) }); };
+      mox.post = (a, dt) => { g += dt; const c = a.rig.mats[SK.CH]; const k = smooth(clamp((g - .3) / 1.3, 0, 1)); a.ik.push({ left: false, T: V.lerp(M4.pt(c, .12, -.25, -.55), M4.pt(c, .2, .05, -.35), k), pole: M4.dir(a.root, 1, -1, 0), fingers: M4.dir(a.root, 0, -.4, -1) }); a.extraYaw = 0; };
+      mox.anim = 'custom'; mox.customPose = (j, a) => { poseIdle(j, a.t, 'idle', a.k); const k = bump(g, .2, 1.8); pj(j, SK.CH, .25 * k, 0, 0); pj(j, SK.THL, -.2 * k, 0, 0); pj(j, SK.THR, .35 * k, 0, 0); pj(j, SK.SHR, -.4 * k, 0, 0); return -.05 * k; };
+      let u = 0; P.poseFn = (j) => { u += G.dt; const k1 = smooth(u / .6), k2 = smooth((u - .5) / 1.1);
+        // phase 1: left knee under, lean forward; phase 2: push up on the good leg, the bad one trails straight
+        sitPose(j, .3 + .4 * k1 * (1 - k2), 1); pj(j, SK.THL, lerp(1.45, 1.9, k1) * (1 - k2), .1, -.1); pj(j, SK.SHL, lerp(-.5, -2.0, k1) * (1 - k2), 0, 0); pj(j, SK.THR, lerp(1.5, .4, k1) * (1 - k2) + .05 * k2, -.1, .1); pj(j, SK.SHR, -.08 * (1 - k2), 0, 0);
+        pj(j, SK.CH, lerp(-.5, -.08, k2), 0, .06 * k2); pj(j, SK.HD, lerp(-.2, 0, k2), 0, 0); return lerp(-.82, -.5, k1) * (1 - k2) - .03 * k2; };
+      P.blendK = 6; G.updaters.push(dt => { if (u > 2.2) return; P.pitch = damp(P.pitch, -.05, 2, dt); });
+      AUD.hurt(); yield .5; AUD.swoosh(.3, null, 700, .4); P.shake = .4; yield 1.4; AUD.hurt(); P.shake = .3; yield .5;
+      P.handFn = null; mox.post = null; mox.anim = 'idle'; mox.look = () => G.cam.pos;
+      P.poseFn = null; P.rootFn = null; P.lookLimit = null; P.backOff = null; P.blendK = 9; P.lookLock = false; P.state = 'walk'; P.limp = 1;
+      yield Story.say(mox, "Easy. Easy. Can you walk on that?");
+      yield Story.say(me, "Don't have much choice.");
+      yield Story.say(mox, "Rally point's the river bend, down this trail. I'll scout ahead and find the others. Stay on the trail, keep your head down. I'll call you.");
+      mox.look = null; mox.weaponMode = 'low'; const far = TRAIL[3]; mox.goTo([[TRAIL[2][0], 0, TRAIL[2][1]], [far[0], 0, far[1]]], true, (a) => { a.hidden = true; });
+      UI.objective('Follow the trail'); UI.hint('WASD  MOVE   ·   SHIFT  JOG   ·   CTRL  CROUCH   ·   RMB  ZOOM'); G.after(6, () => UI.hint('')); G.after(4, () => Progress.snap(2));
       Part2.lastSafe = V.copy(P.pos);
     });
   },
