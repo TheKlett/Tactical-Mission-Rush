@@ -120,7 +120,7 @@ const Part2 = {
       yield .3; UI.hint('[E]  BANDAGE THE LEG'); yield () => IN.hit('KeyE'); UI.hint('');
       // bandage: lean well forward over the leg, both hands wrap the shin, pull tight
       let b = 0; const band = new MB(500); band.b(0); band.col(0xe8e4d8, MAT.CLOTH).cyl(0, -.34, 0, .074, .07, .2, 12); band.col(0x7a0a08, MAT.BLOOD).cyl(0, -.27, -.002, .075, .072, .07, 12); const bmesh = band.mesh(); let bp = null;
-      P.poseFn = (j) => { const r = sitPose(j, 1, 1); pj(j, SK.CH, -.75, 0, 0); pj(j, SK.HD, -.45, 0, 0); return r; };
+      P.hideUpper = true; P.poseFn = (j) => { const r = sitPose(j, 1, 1); pj(j, SK.CH, -.6, 0, 0); pj(j, SK.HD, -.35, 0, 0); return r; };
       P.handFn = (p, dt) => { b += dt; const sh = p.rig.mats[SK.SHR]; const a = b * 7.5; const c = M4.pt(sh, 0, -.26, 0);
         const ofs = (ph) => M4.dir(sh, Math.cos(a + ph) * .11, 0, Math.sin(a + ph) * .11);
         p.ik.push({ left: false, T: V.add(c, ofs(0)), pole: M4.dir(p.rig.root, 1, -1, .3) }); p.ik.push({ left: true, T: V.add(c, ofs(Math.PI)), pole: M4.dir(p.rig.root, -1, -1, .3) });
@@ -128,7 +128,7 @@ const Part2 = {
         if (bp) { const k = clamp((b - .6) / 2.2, .05, 1); M4.ident(bp.off); M4.translate(bp.off, bp.off, 0, -.34 + .1, 0); M4.scale(bp.off, bp.off, 1, k, 1); M4.translate(bp.off, bp.off, 0, .34 - .1, 0); }
         if (Math.floor(b * 3) !== p._bw) { p._bw = Math.floor(b * 3); AUD.swoosh(.08, null, 1800, .12); } };
       G.updaters.push(dt => { if (b > 3.4) return; P.pitch = damp(P.pitch, -1.15, 4, dt); });
-      yield 3.0; AUD.hurt(); P.shake = .5; yield .5; P.handFn = null; yield Story.say(me, "Ngh—! ...that'll hold.");
+      yield 3.0; AUD.hurt(); P.shake = .5; yield .5; P.handFn = null; P.hideUpper = false; yield Story.say(me, "Ngh—! ...that'll hold.");
       // try the radio again
       P.poseFn = (j) => sitPose(j, .1, 1); legOut.k = 1; let rr = 0; G.updaters.push(dt => { if ((rr += dt) > 2.5) return; P.pitch = damp(P.pitch, -.2, 2, dt); });
       yield .8; AUD.click(1600, .2, null, .03); yield Story.say(me, "Mox, come in. Anyone on this net?");

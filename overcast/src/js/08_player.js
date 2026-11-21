@@ -117,7 +117,7 @@ const P = {
     if (this.rootFn) this.rootFn(r, this);
     rig.solve(null, false);
     for (const q of this.ik) { if (q.leg) ikLeg(rig, q.left, q.T, q.pole, r); else ikArm(rig, q.left, q.T, q.pole || M4.dir(r, q.left ? -.6 : .6, -1, .2), q.fingers, q.palm); }
-    rig.hide = st === 'fall' ? ((1 << SK.HD) | (1 << SK.CH) | (1 << SK.UAL) | (1 << SK.UAR) | (1 << SK.PEL)) : (this.drawn > .5 ? (1 << SK.HD) | (1 << SK.UAL) | (1 << SK.UAR) : (1 << SK.HD));
+    rig.hide = st === 'fall' ? ((1 << SK.HD) | (1 << SK.CH) | (1 << SK.UAL) | (1 << SK.UAR) | (1 << SK.PEL)) : ((this.drawn > .5 || this.hideUpper) ? (1 << SK.HD) | (1 << SK.UAL) | (1 << SK.UAR) : (1 << SK.HD));
     rigCommit(rig);
     const wp = M4.pos(rig.mats[SK.PEL]); this.dyn[0].pos[0] = wp[0]; this.dyn[0].pos[1] = wp[1]; this.dyn[0].pos[2] = wp[2];
     for (const p of this.props) M4.mul(p.m, rig.mats[p.bone], p.off);
