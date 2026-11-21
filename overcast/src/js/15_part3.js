@@ -89,7 +89,8 @@ const Part3 = {
       yield () => V.dist(P.pos, [10, P.pos[1], -112]) < 14; UI.marker(null); UI.objective('');
       const mox = Part3.mox; mox.look = () => G.cam.pos;
       yield Story.say(mox, "Rook! Over here — stay low.");
-      yield () => V.dist(P.pos, mox.pos) < 4.5 || G.time > 1e9;
+      { const tp = V.add(P.pos, V.sc(V.norm(V.sub(mox.pos, P.pos)), 1.8)); if (V.dist(P.pos, mox.pos) > 4) mox.goTo([[tp[0], 0, tp[2]]]); }
+      yield () => V.dist(P.pos, mox.pos) < 4.5 || !mox.path; mox.path = null; mox.yaw = Math.atan2(-(P.pos[0] - mox.pos[0]), -(P.pos[2] - mox.pos[2]));
       yield Story.say(mox, "This is all of us. Diaz, Reyes. Okafor took one in the arm, he's still in it.");
       yield Story.say(Part3.okafor, "Barely. Good to see you walking, rookie.");
       yield Story.say(mox, "No sign of the others. Radio's jammed — someone out here doesn't want us talking.");
