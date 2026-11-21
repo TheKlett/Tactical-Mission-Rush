@@ -171,7 +171,7 @@ const G = {
 
 /* ---------------- chapter progress + preview snapshots (saved in this browser) ---------------- */
 const Progress = {
-  CH: [{ n: 1, title: 'THE DROP', sub: 'FOB Kestrel · Raven 2-1' }, { n: 2, title: 'THE GREEN', sub: 'The trail · the cartel camp' }],
+  CH: [{ n: 1, title: 'THE DROP', sub: 'FOB Kestrel · Raven 2-1' }, { n: 2, title: 'THE GREEN', sub: 'The trail · the cartel camp' }, { n: 3, title: 'THE RIVER', sub: 'Rally point · hold the bank' }],
   get() { try { return JSON.parse(localStorage.getItem('overcast_progress') || '{}'); } catch (e) { return {}; } },
   set(o) { try { localStorage.setItem('overcast_progress', JSON.stringify(o)); } catch (e) { } },
   reach(n) { const o = this.get(); if (!o[n]) { o[n] = { at: Date.now() }; this.set(o); } },

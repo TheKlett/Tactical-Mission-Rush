@@ -53,7 +53,7 @@ const Story = {
     G.state = 'loading'; UI.loading(true);
     setTimeout(() => { try { this.cos = []; this.interacts = []; G.actors = []; G.extraDyn = []; G.glass = []; G.updaters = []; G.particles = []; G.timers = []; G.dynLights = []; G.dry = []; G.time = 0; G.raysOn = 0;
       Crash.reset(); if (!P.rig) P.init(); P.reset(); if (!Cabin.mox) Cabin.mox = { app: soldierApp(mulberry(1234), { skin: 0xd8a888, hairStyle: 'short', beard: 'full', hair: 0x6a4a2a, head: 'helmet', bulk: 1.05 }) };
-      G.state = 'play'; IN.lock(); UI.loading(false); Part2.start(); } catch (e) { console.error(e); UI.fatal(e); } }, 60);
+      G.state = 'play'; IN.lock(); UI.loading(false); if (n === 3) Part3.start(); else Part2.start(); } catch (e) { console.error(e); UI.fatal(e); } }, 60);
   },
   useWorld(W) { G.W = W; G.S.chunks = W.chunks; },
   updatePlaneM() {

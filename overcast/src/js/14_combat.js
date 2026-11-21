@@ -13,18 +13,33 @@ function buildPistol() {
   B.col(0xd8d8d0, MAT.PAINT).box(-.004, .042, -.005, .002, .002, .001).box(.004, .042, -.005, .002, .002, .001).box(0, .0445, -.165, .002, .002, .001);
   return B.mesh();
 }
-const PISTOL = { mag: 12, dmg: 55, rpm: 320, spread: .03, adsSpread: .004, recoil: .045, noise: 85 };
+const PISTOL = { name: 'PISTOL', mag: 12, dmg: 55, rpm: 320, spread: .03, adsSpread: .004, recoil: .045, noise: 85, snd: 'pistol', auto: false, reload: 1.4 };
+const RIFLE = { name: 'RIFLE', mag: 30, dmg: 36, rpm: 640, spread: .05, adsSpread: .006, recoil: .022, noise: 140, snd: 'rifle', auto: true, reload: 2.2, rifle: true };
+function buildRifleWorld() { const B = new MB(4000); B.b(0); buildNpcWeapon(B, 'rifle'); return B.mesh(); }
 const Combat = {
   enemies: [], built: false,
-  build(W) {
-    if (this.built) return; this.built = true; this.W = W;
-    this.gun = { mesh: buildPistol(), m: M4.create(), pos: [0, 0, 0], r: 1, hidden: true }; G.extraDyn.push(this.gun);
+  build(W, cfg) {
+    if (this.built && this.W === W) return; this.built = true; this.W = W; this.cfg = cfg || {}; this.cleared = false; this.allies = this.cfg.allies || []; this.enemies = []; this.td = null; this.reloadT = 0;
+    this.weps = { pistol: { st: PISTOL, mesh: buildPistol(), ammo: { mag: 12, res: 48 } } }; this.cur = 'pistol';
+    if (this.cfg.rifle) this.giveRifle(true);
+    this.gun = { mesh: this.weps.pistol.mesh, m: M4.create(), pos: [0, 0, 0], r: 1, hidden: true }; G.extraDyn.push(this.gun);
     P.handFn = (p, dt) => Combat.preBody(dt);
-    this.ammo = { mag: 12, res: 48 }; P.drawn = 0; P.drawT = 0; P.aim = 0; P.kick = 0; P.health = 100; P.lastHurt = -10; this.fireCd = 0; this.dead = 0; this.spawn();
+    this.ammo = this.weps.pistol.ammo; P.drawn = 0; P.drawT = 0; P.aim = 0; P.kick = 0; P.health = 100; P.lastHurt = -10; this.fireCd = 0; this.dead = 0; this.spawn();
+  },
+  get st() { return this.weps[this.cur].st; },
+  giveRifle(silent) { if (this.weps.rifle) return; this.weps.rifle = { st: RIFLE, mesh: buildRifleWorld(), ammo: { mag: 30, res: 150 } }; if (!silent) { this.switchTo('rifle'); P.drawWant = true; } },
+  switchTo(k) { if (!this.weps[k] || this.cur === k || this.reloadT) return; this.cur = k; this.ammo = this.weps[k].ammo; this.gun.mesh = this.weps[k].mesh; P.drawn = Math.min(P.drawn, .2); AUD.mech('draw'); },
+  removeEnemy(e) { const i = G.actors.indexOf(e); if (i >= 0) G.actors.splice(i, 1); if (e.pool) { const k = G.extraDyn.indexOf(e.pool); if (k >= 0) G.extraDyn.splice(k, 1); } const j = this.enemies.indexOf(e); if (j >= 0) this.enemies.splice(j, 1); },
+  addEnemy(o) { // { x, z, yaw, beh, wk, name, mode, hold, path, seed }
+    const W = this.W, rng = mulberry(o.seed || (Math.random() * 1e6 | 0)); const app = appearanceFor('cartel', rng, {}); app.female = false;
+    const a = new Actor(app, { name: o.name || 'Sicario', pos: [o.x, W.th(o.x, o.z), o.z], yaw: o.yaw || 0, weapon: o.wk || 'ak', weaponMode: o.mode === 'combat' ? 'aim' : 'low', gear: false, pitch: 95 + rng() * 30, voiceIdx: (rng() * 9) | 0 });
+    a.groundFn = (gx, gz) => W.th(gx, gz); a.hp = 100; a.alert = o.mode === 'combat' ? 1 : 0; a.state = { mode: o.mode || 'calm', last: o.last ? V.copy(o.last) : null, engT: G.time }; a.beh = o.beh || 'guard'; a.home = [o.x, o.z, o.yaw || 0]; a.enemy = true; a.wk = o.wk || 'ak'; a.hold = !!o.hold; a.wave = o.wave;
+    if (o.path) a.goTo(o.path.map(p => [p[0], 0, p[1]]), true); a.fireCd = rnd(1.5, 3);
+    a.script = (b, dt) => Combat.think(b, dt); G.actors.push(a); this.enemies.push(a); return a;
   },
   spawn() {
-    for (const e of this.enemies) { const i = G.actors.indexOf(e); if (i >= 0) G.actors.splice(i, 1); if (e.pool) { const k = G.extraDyn.indexOf(e.pool); if (k >= 0) G.extraDyn.splice(k, 1); } }
-    this.enemies = []; const W = this.W, c = W.campCenter, rng = mulberry(555);
+    for (const e of this.enemies.slice()) this.removeEnemy(e);
+    this.enemies = []; if (this.cfg.spawn) { this.cfg.spawn(this); this.chatT = 4; return; } const W = this.W, c = W.campCenter, rng = mulberry(555);
     const plan = [
       // [x, z, yaw, behaviour, weapon]
       [c[0] + 2.2, c[2] + 1.0, -2, 'sitfire', 'ak'], [c[0] - 2.1, c[2] + 1.2, 2.1, 'sitfire', 'pistol'], [c[0] + .3, c[2] - 2.3, 0, 'sitfire', 'smg'],
@@ -64,9 +79,10 @@ const Combat = {
     P.drawn = damp(P.drawn, P.drawWant ? 1 : 0, 9, dt);
     P.aim = damp(P.aim, P.drawWant && IN.mb[2] && P.state === 'walk' && !this.td ? 1 : 0, 12, dt); P.aimSens = 1 - P.aim * .45;
     P.fovOverride = P.aim > .05 ? G.settings.fov - P.aim * 12 : null;
-    if (P.drawWant && P.drawn > .8 && IN.mbHit[0] && this.fireCd <= 0 && P.state === 'walk' && !this.td) this.fire();
-    if (IN.hit('KeyR') && P.drawWant && this.ammo.mag < PISTOL.mag && this.ammo.res > 0 && !this.reloadT) { this.reloadT = 1.4; AUD.mech('magOut'); G.after(.8, () => AUD.mech('magIn')); G.after(1.2, () => AUD.mech('slide')); }
-    if (this.reloadT) { this.reloadT -= dt; if (this.reloadT <= 0) { this.reloadT = 0; const n = Math.min(PISTOL.mag - this.ammo.mag, this.ammo.res); this.ammo.mag += n; this.ammo.res -= n; } }
+    if (IN.hit('Digit1')) { this.switchTo('pistol'); P.drawWant = true; } if (IN.hit('Digit2') && this.weps.rifle) { this.switchTo('rifle'); P.drawWant = true; }
+    if (P.drawWant && P.drawn > .8 && (this.st.auto ? IN.mb[0] : IN.mbHit[0]) && this.fireCd <= 0 && P.state === 'walk' && !this.td) this.fire();
+    if (IN.hit('KeyR') && P.drawWant && this.ammo.mag < this.st.mag && this.ammo.res > 0 && !this.reloadT) { this.reloadT = this.st.reload; AUD.mech('magOut'); G.after(.8, () => AUD.mech('magIn')); G.after(1.2, () => AUD.mech('slide')); }
+    if (this.reloadT) { this.reloadT -= dt; if (this.reloadT <= 0) { this.reloadT = 0; const n = Math.min(this.st.mag - this.ammo.mag, this.ammo.res); this.ammo.mag += n; this.ammo.res -= n; } }
     // takedown prompt
     if (!this.td && P.state === 'walk') { const t = this.takedownTarget(); if (t) { P.prompt = '[F]  SILENT TAKEDOWN'; if (IN.hit('KeyF')) this.startTakedown(t); } }
     // health
@@ -78,7 +94,9 @@ const Combat = {
     // fire-side chatter
     this.chatT -= dt; if (this.chatT <= 0 && !combat) { this.chatT = 7 + Math.random() * 6; const sp = this.enemies.filter(e => !e.dead && (e.beh === 'sitfire' || e.beh === 'talk' || e.beh === 'table') && e.state.mode === 'calm'); if (sp.length && V.dist(sp[0].pos, P.pos) < 45) G.speak(sp[(Math.random() * sp.length) | 0], ['Oye, pásame la botella.', 'Did you hear the plane go down? Boom. Like fireworks.', 'El jefe wants the survivors alive. Or not. Whatever.', 'This rain never stops, man.', 'Ha! You owe me fifty pesos.'][(Math.random() * 5) | 0]); }
     // all down: the camp is clear
-    if (!this.cleared && this.enemies.every(e => e.dead)) { this.cleared = true; this.campCleared(); }
+    for (const a of this.allies) this.allyThink(a, dt);
+    if (this.cfg.waves) { if (this.cfg.tick) this.cfg.tick(this, dt); }
+    else if (!this.cleared && this.enemies.every(e => e.dead)) { this.cleared = true; this.cfg.onClear ? this.cfg.onClear() : this.campCleared(); }
   },
   preBody(dt) { if (!P.combat) return; this.poseGun(dt); if (this.td) this.updateTakedown(dt); },
   // the view basis for this frame (the camera itself is updated after the body)
@@ -88,24 +106,25 @@ const Combat = {
     const g = this.gun; const d = P.drawn; g.hidden = d < .05 || P.state === 'off';
     if (g.hidden) return;
     const c = this.view(); const a = P.aim; P.kick = damp(P.kick, 0, 14, dt); const bob = Math.sin(P.ph || 0) * .006 * clamp(P.speed, 0, 3) * (1 - a);
-    const hip = V.add(V.add(V.add(c.pos, V.sc(c.fwd, .5)), V.sc(c.right, .17)), V.sc(c.up, -.22 + bob));
-    const ads = V.add(V.add(c.pos, V.sc(c.fwd, .52 - P.kick * .05)), V.sc(c.up, -.047));
+    const R_ = this.st.rifle;
+    const hip = R_ ? V.add(V.add(V.add(c.pos, V.sc(c.fwd, .3)), V.sc(c.right, .16)), V.sc(c.up, -.24 + bob)) : V.add(V.add(V.add(c.pos, V.sc(c.fwd, .5)), V.sc(c.right, .17)), V.sc(c.up, -.22 + bob));
+    const ads = R_ ? V.add(V.add(c.pos, V.sc(c.fwd, .16 - P.kick * .04)), V.sc(c.up, -.1)) : V.add(V.add(c.pos, V.sc(c.fwd, .52 - P.kick * .05)), V.sc(c.up, -.047));
     const holster = M4.pt(P.rig.mats[SK.PEL], .22, -.05, .02);
     let p = V.lerp(hip, ads, smooth(a)); p = V.lerp(holster, p, smooth(d)); this.reloadT && (p = V.add(p, V.sc(c.up, -.08 * Math.sin(clamp(this.reloadT / 1.4, 0, 1) * Math.PI))));
     // orientation: barrel along the view, a touch canted at the hip, kicked up by recoil
     const fwd = V.norm(V.add(c.fwd, V.add(V.sc(c.up, P.kick * .35), V.sc(c.right, -.06 * (1 - a))))); const right = V.norm(V.cross(fwd, c.up)); const up = V.cross(right, fwd);
     M4.basis(g.m, right, up, V.sc(fwd, -1), p); g.pos = p;
     // both hands on it: right on the grip, left cupping underneath
-    const grip = M4.pt(g.m, 0, -.045, .005), sup = M4.pt(g.m, -.012, -.05, -.015);
+    const grip = R_ ? M4.pt(g.m, 0, -.07, .03) : M4.pt(g.m, 0, -.045, .005), sup = R_ ? M4.pt(g.m, -.01, .0, -.36) : M4.pt(g.m, -.012, -.05, -.015);
     P.ik.push({ left: false, T: grip, pole: V.add(V.add(V.sc(c.right, .35), V.sc(c.up, -2)), V.sc(c.fwd, -.3)), fingers: M4.dir(g.m, 0, -.3, -1) });
     if (d > .7) P.ik.push({ left: true, T: V.lerp(M4.pt(P.rig.mats[SK.CH], -.25, -.1, -.1), sup, smooth((d - .7) / .3)), pole: V.add(V.add(V.sc(c.right, -.35), V.sc(c.up, -2)), V.sc(c.fwd, -.3)), fingers: M4.dir(g.m, .3, -.2, -1) });
   },
   fire() {
     if (this.reloadT) return; if (this.ammo.mag <= 0) { AUD.mech('dry'); this.fireCd = .25; return; }
-    this.ammo.mag--; this.fireCd = 60 / PISTOL.rpm; const c = G.cam; const sp = lerp(PISTOL.spread, PISTOL.adsSpread, P.aim) * (P.speed > .5 ? 1.6 : 1);
+    const S_ = this.st; this.ammo.mag--; this.fireCd = 60 / S_.rpm; const c = G.cam; const sp = lerp(S_.spread, S_.adsSpread, P.aim) * (P.speed > .5 ? 1.6 : 1);
     const a = Math.random() * TAU, m = Math.sqrt(Math.random()) * sp; const dir = V.norm(V.add(c.fwd, V.add(V.sc(c.right, Math.cos(a) * m), V.sc(c.up, Math.sin(a) * m))));
-    AUD.shot('pistol', null); P.kick = 1; P.pitch += PISTOL.recoil * (P.aim > .5 ? .6 : 1); P.yaw += (Math.random() - .5) * .02; P.shake = Math.max(P.shake, .15);
-    const mz = M4.pt(this.gun.m, 0, .022, -.19); for (let i = 0; i < 6; i++) G.particles.push({ p: V.copy(mz), v: V.add(V.sc(dir, rnd(2, 6)), [rnd(-.5, .5), rnd(-.5, .5), rnd(-.5, .5)]), life: 0, max: .06, s: rnd(.03, .07), c: [1, .8, .4], a: 1, add: true });
+    AUD.shot(S_.snd, null); P.kick = 1; P.pitch += S_.recoil * (P.aim > .5 ? .6 : 1); P.yaw += (Math.random() - .5) * .02; P.shake = Math.max(P.shake, .15);
+    const mz = S_.rifle ? M4.pt(this.gun.m, 0, .045, -.74) : M4.pt(this.gun.m, 0, .022, -.19); for (let i = 0; i < 6; i++) G.particles.push({ p: V.copy(mz), v: V.add(V.sc(dir, rnd(2, 6)), [rnd(-.5, .5), rnd(-.5, .5), rnd(-.5, .5)]), life: 0, max: .06, s: rnd(.03, .07), c: [1, .8, .4], a: 1, add: true });
     G.puff(mz, { s: .08, grow: .5, c: [.6, .6, .6], a: .25, max: 1.5, v: V.sc(dir, .6), g: -.1 }); G.dynLights.push(this.mf = { pos: mz, col: [1, .7, .35], i: 4, range: 8 }); G.after(.05, () => { const k = G.dynLights.indexOf(this.mf); if (k >= 0) G.dynLights.splice(k, 1); });
     G.particles.push({ p: M4.pt(this.gun.m, .02, .03, -.06), v: V.add(V.sc(c.right, rnd(1.5, 2.5)), [0, rnd(1.5, 2.5), 0]), life: 0, max: 1, s: .008, c: [.8, .6, .25], a: 1, g: 9.8, drag: .2 });
     // what did we hit?
@@ -114,17 +133,17 @@ const Combat = {
     if (best) this.hitEnemy(best.e, best.part, best.p, dir);
     else if (wh) { for (let i = 0; i < 6; i++) G.particles.push({ p: V.add(wh.p, V.sc(wh.n, .03)), v: V.add(V.sc(wh.n, rnd(1, 3)), [rnd(-1, 1), rnd(0, 2), rnd(-1, 1)]), life: 0, max: rnd(.3, .7), s: rnd(.02, .05), c: [.3, .26, .18], a: .9, g: 9.8, drag: 1 }); G.puff(wh.p, { s: .2, grow: .6, c: [.45, .42, .35], a: .4, max: 1.5 }); AUD.impact(wh.surf === 'wood' ? 'wood' : 'mud', wh.p); }
     // everyone in earshot now knows roughly where you are
-    for (const e of this.enemies) { if (e.dead) continue; const d = V.dist(e.pos, P.pos); if (d > PISTOL.noise) continue; const err = 4 + d * .12; this.alarm(e, [P.pos[0] + rnd(-err, err), P.pos[1], P.pos[2] + rnd(-err, err)], d < 25); }
+    for (const e of this.enemies) { if (e.dead) continue; const d = V.dist(e.pos, P.pos); if (d > S_.noise) continue; const err = 4 + d * .12; this.alarm(e, [P.pos[0] + rnd(-err, err), P.pos[1], P.pos[2] + rnd(-err, err)], d < 25); }
   },
-  hitEnemy(e, part, p, dir) {
-    const dmg = part === 'head' ? 300 : part === 'chest' ? PISTOL.dmg : PISTOL.dmg * .8; e.hp -= dmg; AUD.impact('flesh', p);
+  hitEnemy(e, part, p, dir, byAlly) {
+    const dmg = byAlly ? (part === 'head' ? 300 : 40) : part === 'head' ? 300 : part === 'chest' ? this.st.dmg : this.st.dmg * .8; e.hp -= dmg; AUD.impact('flesh', p);
     // blood: exit spray, mist, drops; a hit to the head is final
     for (let i = 0; i < (part === 'head' ? 34 : 18); i++) G.particles.push({ p: V.copy(p), v: V.add(V.sc(dir, rnd(1, part === 'head' ? 7 : 4)), [rnd(-1.2, 1.2), rnd(-.3, 1.6), rnd(-1.2, 1.2)]), life: 0, max: rnd(.4, 1.1), s: rnd(.015, .05), c: [.42, .02, .02], a: 1, g: 9.8, drag: .6 });
     for (let i = 0; i < 3; i++) G.particles.push({ p: V.copy(p), v: V.sc(dir, rnd(.5, 1.5)), life: 0, max: .6, s: rnd(.12, .25), grow: .9, c: [.38, .03, .03], a: .5, drag: 2 });
     this.splatter(V.add(p, V.sc(dir, .8)), dir);
     e.flinch = 1;
     if (e.hp <= 0) this.kill(e, dir, part === 'head');
-    else this.alarm(e, V.copy(P.pos), true);
+    else if (!byAlly) this.alarm(e, V.copy(P.pos), true);
   },
   splatter(p, dir) { // blood on whatever is behind the target
     const h = this.W.ray(p, dir, 2.5, { bullet: true }); const q = h ? h.p : [p[0] + dir[0], this.W.th(p[0] + dir[0], p[2] + dir[2]) + .02, p[2] + dir[2]]; const n = h ? h.n : [0, 1, 0];
@@ -182,20 +201,34 @@ const Combat = {
     }
     // combat: face the threat, close in when you can't see them, fire bursts when you can
     e.weaponMode = 'aim'; e.run = false; const d = V.dist(e.pos, P.pos);
-    const tgt = can ? P.pos : st.last; const want = Math.atan2(-(tgt[0] - e.pos[0]), -(tgt[2] - e.pos[2]));
-    if (can) { e.path = null; e.yaw = dampAng(e.yaw, want, 6, dt); e.look = () => pe; if (d > 22) e.goTo([[e.pos[0] + (tgt[0] - e.pos[0]) * .2, 0, e.pos[2] + (tgt[2] - e.pos[2]) * .2]]); }
-    else if (!e.path || !e.path.length) { if (V.dist(e.pos, st.last) > 3) e.goTo([[st.last[0] + rnd(-3, 3), 0, st.last[2] + rnd(-3, 3)]], d > 15); else e.yaw = dampAng(e.yaw, want + Math.sin(G.time + e.id) * .8, 2, dt); }
+    const tgt = can ? P.pos : (st.last || P.pos); const want = Math.atan2(-(tgt[0] - e.pos[0]), -(tgt[2] - e.pos[2]));
+    if (e.hold && e.path && e.path.length) { /* still running to the firing line */ }
+    else if (can) { e.path = null; e.yaw = dampAng(e.yaw, want, 6, dt); e.look = () => pe; if (d > 22 && !e.hold) e.goTo([[e.pos[0] + (tgt[0] - e.pos[0]) * .2, 0, e.pos[2] + (tgt[2] - e.pos[2]) * .2]]); }
+    else if (e.hold) { e.yaw = dampAng(e.yaw, want + Math.sin(G.time * .7 + e.id) * .3, 2, dt); }
+    else if (!e.path || !e.path.length) { if (st.last && V.dist(e.pos, st.last) > 3) e.goTo([[st.last[0] + rnd(-3, 3), 0, st.last[2] + rnd(-3, 3)]], d > 15); else e.yaw = dampAng(e.yaw, want + Math.sin(G.time + e.id) * .8, 2, dt); }
     e.fireCd = (e.fireCd ?? rnd(.6, 1.5)) - dt;
     if (can && e.fireCd <= 0 && P.state === 'walk') {
       const burst = e.wk === 'ak' || e.wk === 'smg' ? 3 : 1; e.fireCd = burst > 1 ? rnd(1.1, 2) : rnd(.7, 1.3);
       for (let i = 0; i < burst; i++) G.after(i * .1, () => {
         if (e.dead) return; const mz = M4.pt(e.rig.mats[SK.WPN], 0, .05, -.5); AUD.shot(e.wk === 'shotgun' ? 'shotgun' : e.wk === 'pistol' ? 'npcPistol' : 'npcRifle', mz);
         G.particles.push({ p: mz, v: [0, 0, 0], life: 0, max: .05, s: .18, c: [1, .75, .35], a: 1, add: true });
+        { const tg = V.add(P.pos, [rnd(-1.5, 1.5), rnd(.5, 2), rnd(-1.5, 1.5)]); const td = V.norm(V.sub(tg, mz)); G.particles.push({ p: V.add(mz, V.sc(td, 4)), v: V.sc(td, 260), dir: td, w: .02, life: 0, max: Math.min(.35, V.dist(mz, tg) / 260), s: 2.5, c: [1, .85, .5], a: .9, add: true, streak: true }); }
         const acc = clamp(.36 - d / 80 - (P.crouch > .5 ? .1 : 0) - (P.speed > 2 ? .12 : 0) + Math.min(.15, (G.time - (e.state.engT || G.time)) * .02), .05, .45);
         if (Math.random() < acc) this.hurtPlayer(e.wk === 'shotgun' ? (d < 10 ? 30 : 8) : e.wk === 'ak' ? 9 : 7, mz);
         else { AUD.click(4000 + Math.random() * 2000, .1, V.add(P.pos, [rnd(-2, 2), 1.6, rnd(-2, 2)]), .01); AUD.swoosh(.15, V.add(P.pos, [rnd(-1, 1), 1.7, rnd(-1, 1)]), 2400, .06); }
       });
     }
+  },
+  /* ---------------- squad mates: pick a target they can see and put rounds on it ---------------- */
+  allyThink(a, dt) {
+    if (a.down) return; a.fireCd = (a.fireCd ?? rnd(.5, 2)) - dt; let best = null, bd = 70;
+    if (!a._scan || G.time - a._scan > .7) { a._scan = G.time; a._tgt = null; for (const e of this.enemies) { if (e.dead || e.state.mode !== 'combat') continue; const d = V.dist(e.pos, a.pos); if (d < bd && this.W.los(V.add(a.pos, [0, a.anim === 'crouch' ? 1 : 1.5, 0]), V.add(e.pos, [0, 1.3, 0]))) { bd = d; best = e; } } a._tgt = best; }
+    const t = a._tgt; if (!t || t.dead) { a.weaponMode = a.combatReady ? 'low' : a.weaponMode; return; }
+    a.weaponMode = 'aim'; const want = Math.atan2(-(t.pos[0] - a.pos[0]), -(t.pos[2] - a.pos[2])); if (!a.path) a.yaw = dampAng(a.yaw, want, 5, dt); a.look = () => V.add(t.pos, [0, 1.4, 0]);
+    if (a.fireCd <= 0) { a.fireCd = rnd(.9, 2.2); const n = 2 + (Math.random() * 3 | 0);
+      for (let i = 0; i < n; i++) G.after(i * .09, () => { if (a.down || t.dead) return; const mz = M4.pt(a.rig.mats[SK.WPN], 0, .05, -.6); AUD.shot('npcRifle', mz); G.particles.push({ p: mz, v: [0, 0, 0], life: 0, max: .05, s: .16, c: [1, .75, .35], a: 1, add: true });
+        const tp = V.add(t.pos, [rnd(-.8, .8), rnd(.6, 1.8), rnd(-.8, .8)]); const td = V.norm(V.sub(tp, mz)); G.particles.push({ p: V.add(mz, V.sc(td, 3)), v: V.sc(td, 260), dir: td, w: .02, life: 0, max: Math.min(.4, V.dist(mz, tp) / 260), s: 2.5, c: [1, .85, .5], a: .8, add: true, streak: true });
+        if (Math.random() < (a.acc || .14)) this.hitEnemy(t, Math.random() < .15 ? 'head' : 'chest', V.add(t.rig.bonePos(SK.CH), [0, .15, 0]), td, true); }); }
   },
   hurtPlayer(dmg, from) {
     P.health -= dmg; P.lastHurt = G.time; P.shake = Math.max(P.shake, .6); AUD.hurt && AUD.hurt();
@@ -204,6 +237,7 @@ const Combat = {
   },
   playerDown() {
     P.state = 'off'; P.drawWant = false; UI.fadeTo(1, 1.2); UI.died(true);
+    if (this.cfg.respawn) { G.after(3.2, () => { UI.died(false); this.td = null; P.health = 100; this.cfg.respawn(this); P.state = 'walk'; UI.fadeTo(0, 1.5); }); return; }
     G.after(3.2, () => { UI.died(false); this.td = null; P.health = 100; this.ammo = { mag: 12, res: 48 }; this.dead = 0; this.cleared = false; this.spawn(); const c = this.W.campCenter; const tp = TRAIL[TRAIL.length - 3]; P.pos = [tp[0], this.W.th(tp[0], tp[1]), tp[1]]; P.yaw = Math.atan2(-(c[0] - tp[0]), -(c[2] - tp[1])); P.pitch = 0; P.state = 'walk'; P.crouchWant = true; UI.fadeTo(0, 1.5); });
   },
   /* ---------------- silent takedown ---------------- */
@@ -236,7 +270,7 @@ const Combat = {
       yield .8; AUD.radioCrackle(1.4); yield 1.5;
       yield Story.say({ name: 'Mox (radio)', vpitch: 1.05, vrate: 1.05, voiceIdx: 1 }, "—ook... Rook, you copy? I'm at the river... they're everywhere. Get here.", { radio: true });
       yield 1; yield Story.say(me, "Copy, Mox. On my way.");
-      yield 2; UI.fadeTo(1, 2.5); yield 2.8; AUD.stopAllLoops(); UI.endCard(2);
+      yield 2; UI.fadeTo(1, 2.5); yield 2.8; AUD.stopAllLoops(); Part3.start();
     });
   },
 };
